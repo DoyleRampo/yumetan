@@ -3,7 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const APP_VERSION = "2.4.3";
+  const APP_VERSION = "2.5.0";
 
   // ---------- 実行環境（Capacitor ネイティブか Web か） ----------
   const Cap = window.Capacitor;
@@ -29,9 +29,12 @@
   const K = { settings: "yumetan.settings", dreams: "yumetan.dreams", insight: "yumetan.insight", user: "yumetan.userId", migrated: "yumetan.migrated" };
 
   // ---------- 設定 ----------
-  const settings = { speak: true, autosend: true, chara: "woman", code: "", apiBase: "", engine: "local" };
+  const settings = { speak: false, autosend: true, chara: "woman", code: "", apiBase: "", engine: "local", speakReset: false };
   const useAI = () => settings.engine === "ai";
-  async function loadSettings() { Object.assign(settings, await store.get(K.settings, {})); }
+  async function loadSettings() {
+    Object.assign(settings, await store.get(K.settings, {}));
+    if (!settings.speakReset) { settings.speak = false; settings.speakReset = true; await saveSettings(); } // 読み上げは既定オフに変更（1回だけ）
+  }
   const saveSettings = () => store.set(K.settings, settings);
 
   // ---------- API ----------
@@ -91,6 +94,7 @@
   // ---------- 読み上げ ----------
   // 読み上げ（話し終わるまで待てる）
   async function speak(text) {
+    if (!settings.speak) return;
     stopSpeaking();
     if (nativeTTS) { try { await nativeTTS.speak({ text, lang: "ja-JP", rate: 0.95, pitch: settings.chara === "man" ? 0.9 : 1.05, category: "ambient" }); } catch {} return; }
     if (!("speechSynthesis" in window)) return;
@@ -291,7 +295,7 @@
       renderResult(analysis);
       setStatus("");
       afterReady = false; applyMode();
-      await say("record", analysis.reply, { mood: "happy", voice: voiceOut() }); // 声のときは話し終わるまで待つ
+      say("record", analysis.reply, { mood: "happy", voice: false }); // 読み取り結果は文字のみ
       afterReady = true; applyMode();
       afterEl.scrollIntoView({ behavior: "smooth", block: "end" });
     } catch (e) {
@@ -319,7 +323,7 @@
     addBubble("user", text);
     const { reply } = window.YumetanEngine.answerQuestion(text, currentDream.analysis);
     addBubble("ai", reply);
-    say("record", reply, { mood: "happy", voice: voiceOut() });
+    say("record", reply, { mood: "happy", voice: false });
     afterEl.scrollIntoView({ behavior: "smooth", block: "end" });
   }
   askSend.onclick = ask;
@@ -330,7 +334,7 @@
     if (!dreams.some((x) => x.id === currentDream.id)) dreams.unshift(currentDream);
     await persistDream(currentDream); updateHomeCount();
     applyMode();
-    say("record", "記憶しました。数日分たまると、最近の心の状態が読めるようになります。", { mood: "happy", voice: voiceOut() });
+    say("record", "記憶しました。数日分たまると、最近の心の状態が読めるようになります。", { mood: "happy", voice: false });
     toast("この夢を記憶しました");
   };
   sendBtn.onclick = send;

@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="style.css?v=2.4.3">
+<link rel="stylesheet" href="style.css?v=2.5.0">
 </head>
 <body>
 <header class="top">
@@ -145,7 +145,7 @@
         <button class="seg-btn" data-chara="man">男性</button>
       </div>
     </div>
-    <label class="setting"><input type="checkbox" id="opt-speak"> 「話しかける」のとき、返事を声で読み上げる</label>
+    <label class="setting"><input type="checkbox" id="opt-speak"> 質問形式の質問文を声で読み上げる</label>
     <label class="setting"><input type="checkbox" id="opt-autosend"> 話し終わったら自動で聞いてもらう</label>
     <div class="setting col" id="code-setting" hidden>
       <span>合言葉（配布元から受け取ったもの）</span>
@@ -209,14 +209,14 @@
 </template>
 
 <div id="toast" class="toast" hidden></div>
-<script src="config.js?v=2.4.3"></script>
-<script src="firebase-config.js?v=2.4.3"></script>
-<script type="module" src="cloud.js?v=2.4.3"></script>
-<script src="engine/lexicon.js?v=2.4.3"></script>
-<script src="engine/analyze.js?v=2.4.3"></script>
-<script src="engine/insight.js?v=2.4.3"></script>
-<script src="engine/interview.js?v=2.4.3"></script>
-<script src="app.js?v=2.4.3"></script>
+<script src="config.js?v=2.5.0"></script>
+<script src="firebase-config.js?v=2.5.0"></script>
+<script type="module" src="cloud.js?v=2.5.0"></script>
+<script src="engine/lexicon.js?v=2.5.0"></script>
+<script src="engine/analyze.js?v=2.5.0"></script>
+<script src="engine/insight.js?v=2.5.0"></script>
+<script src="engine/interview.js?v=2.5.0"></script>
+<script src="app.js?v=2.5.0"></script>
 <script>
   if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
     navigator.serviceWorker.register("sw.js").then((reg) => reg.update().catch(() => {})).catch(() => {});
