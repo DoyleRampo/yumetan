@@ -3,7 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const APP_VERSION = "2.3.0";
+  const APP_VERSION = "2.3.1";
 
   // ---------- 実行環境（Capacitor ネイティブか Web か） ----------
   const Cap = window.Capacitor;
