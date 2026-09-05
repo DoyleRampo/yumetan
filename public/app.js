@@ -3,7 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const APP_VERSION = "2.3.1";
+  const APP_VERSION = "2.4.0";
 
   // ---------- 実行環境（Capacitor ネイティブか Web か） ----------
   const Cap = window.Capacitor;
@@ -26,7 +26,7 @@
       try { if (nativePrefs) await nativePrefs.set({ key, value: s }); else localStorage.setItem(key, s); } catch { toast("保存できませんでした（容量不足の可能性）", true); }
     },
   };
-  const K = { settings: "yumetan.settings", dreams: "yumetan.dreams", insight: "yumetan.insight", user: "yumetan.userId" };
+  const K = { settings: "yumetan.settings", dreams: "yumetan.dreams", insight: "yumetan.insight", user: "yumetan.userId", migrated: "yumetan.migrated" };
 
   // ---------- 設定 ----------
   const settings = { speak: true, autosend: true, chara: "woman", code: "", apiBase: "", engine: "local" };
@@ -53,7 +53,12 @@
 
   // ---------- 夢の記録（端末内） ----------
   let dreams = [];
-  const saveDreams = () => store.set(K.dreams, dreams);
+  let cloud = null; // Firebase が使えるときだけ入る
+  const cloudOn = () => Boolean(cloud?.state.enabled);
+  // 全体保存（端末内）。クラウド時は個別保存を使う
+  const saveDreams = () => (cloudOn() ? Promise.resolve() : store.set(K.dreams, dreams));
+  const persistDream = async (d) => { if (cloudOn()) { try { await cloud.saveDream(d); } catch (e) { toast("同期に失敗しました（あとで再送します）", true); } } else await saveDreams(); };
+  const removeDream = async (id) => { if (cloudOn()) { try { await cloud.deleteDream(id); } catch {} } else await saveDreams(); };
   const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => { const r = (Math.random() * 16) | 0; return (c === "x" ? r : (r & 3) | 8).toString(16); }));
 
   // ---------- キャラクター ----------
@@ -282,7 +287,7 @@
       dream.messages.push({ role: "assistant", text: analysis.reply, at: new Date().toISOString() });
       dream.analysis = analysis; dream.updatedAt = new Date().toISOString();
       currentDream = dream;
-      if (isSaved(dream)) await saveDreams(); // 記憶済みの夢に追記したときだけ自動更新
+      if (isSaved(dream)) await persistDream(dream); // 記憶済みの夢に追記したときだけ自動更新
       renderResult(analysis);
       setStatus("");
       afterReady = false; applyMode();
@@ -322,7 +327,8 @@
   // この夢を記憶する
   saveBtn.onclick = async () => {
     if (!currentDream?.analysis || isSaved(currentDream)) return;
-    dreams.unshift(currentDream); await saveDreams(); updateHomeCount();
+    if (!dreams.some((x) => x.id === currentDream.id)) dreams.unshift(currentDream);
+    await persistDream(currentDream); updateHomeCount();
     applyMode();
     say("record", "記憶しました。数日分たまると、最近の心の状態が読めるようになります。", { mood: "happy", voice: voiceOut() });
     toast("この夢を記憶しました");
@@ -448,7 +454,7 @@
       det.querySelector(".continue").onclick = () => { mode = "text"; openDream(d); go("record"); };
       det.querySelector(".delete").onclick = async () => {
         if (!confirm(`「${a.title || "この夢"}」の記録を削除しますか？`)) return;
-        dreams = dreams.filter((x) => x.id !== d.id); await saveDreams(); det.remove();
+        dreams = dreams.filter((x) => x.id !== d.id); await removeDream(d.id); det.remove();
         if (currentDream?.id === d.id) currentDream = null;
         if (!dreams.length) renderHistory();
         toast("削除しました");
@@ -518,7 +524,10 @@
     $("#opt-api").value = settings.apiBase || "";
     $("#opt-ai").checked = useAI();
     $("#sr-support").textContent = speech.supported ? `音声入力: 使えます（${nativeSR ? "ネイティブ" : "ブラウザ"}）` : "音声入力: このブラウザでは使えません（Chrome / Safari / Edge、またはアプリ版を使ってください）";
-    $("#app-info").textContent = `ユメタン v${APP_VERSION} / ${isNative ? "アプリ版" : "Web版"} / 分析: ${useAI() ? "AI（Claude）" : "端末内エンジン"} / 接続先: ${apiBase() || "同じサーバー"}`;
+    $("#sync-info").textContent = cloudOn()
+      ? `夢の記録はクラウド（Firebase）に同期されています。この端末の同期ID: ${cloud.uid().slice(0, 8)}…。圏外でも使え、つながったときに同期します。`
+      : "夢の記録はこの端末（アプリ）の中だけに保存されます。機種変更や別のブラウザに移すときは書き出してください。";
+    $("#app-info").textContent = `ユメタン v${APP_VERSION} / ${isNative ? "アプリ版" : "Web版"} / 分析: ${useAI() ? "AI（Claude）" : "端末内エンジン"} / 保存: ${cloudOn() ? "クラウド" : "端末内"}${cloud?.state.error ? "（Firebase 接続失敗: " + cloud.state.error + "）" : ""}`;
     applyChara();
   }
   $("#opt-speak").onchange = (e) => { settings.speak = e.target.checked; saveSettings(); if (!settings.speak) stopSpeaking(); };
@@ -545,13 +554,17 @@
       const known = new Set(dreams.map((d) => d.id));
       const added = list.filter((d) => d && d.id && d.createdAt && Array.isArray(d.messages) && !known.has(d.id));
       dreams = [...dreams, ...added].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-      await saveDreams(); ioWrap.hidden = true; updateHomeCount();
+      if (cloudOn()) { for (const d of added) await persistDream(d); } else await saveDreams();
+      ioWrap.hidden = true; updateHomeCount();
       toast(`${added.length}件を読み込みました`);
     } catch { toast("読み込めませんでした。書き出したデータをそのまま貼り付けてください。", true); }
   };
   $("#wipe").onclick = async () => {
     if (!confirm("この端末の夢の記録をすべて削除します。元に戻せません。よろしいですか？")) return;
-    dreams = []; currentDream = null; await saveDreams(); await store.set(K.insight, null); updateHomeCount(); toast("すべて削除しました");
+    const ids = dreams.map((d) => d.id);
+    dreams = []; currentDream = null; await saveDreams(); await store.set(K.insight, null); updateHomeCount();
+    if (cloudOn()) for (const id of ids) await removeDream(id);
+    toast("すべて削除しました");
   };
 
   async function checkHealth() {
@@ -566,6 +579,27 @@
     if (!userId) { userId = uuid(); await store.set(K.user, userId); }
     dreams = (await store.get(K.dreams, [])) || [];
     mountCharas();
+    // Firebase が設定されていればクラウド保存に切り替える（読み込みは最大4秒待つ）
+    try {
+      cloud = window.YumetanCloud || null;
+      if (cloud) await Promise.race([cloud.ready, sleep(4000)]);
+      if (cloudOn()) {
+        // 端末内にだけある記録をクラウドへ移す（1回だけ）
+        const migrated = await store.get(K.migrated, false);
+        const local = dreams;
+        if (!migrated && local.length) {
+          const existing = new Set((await cloud.loadOnce()).map((d) => d.id));
+          for (const d of local) if (!existing.has(d.id)) await cloud.saveDream(d);
+          await store.set(K.migrated, true);
+          toast(`${local.length}件の記録をクラウドに移しました`);
+        }
+        cloud.subscribe((list) => {
+          dreams = list; // 別端末での追加・削除もここに届く
+          updateHomeCount();
+          if (current === "history") renderHistory();
+        });
+      }
+    } catch (e) { console.warn("cloud init failed", e); }
     history.replaceState({ view: "home" }, "", "#home");
     say("home", greeting()); updateHomeCount();
     if (useAI()) checkHealth();

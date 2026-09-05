@@ -1,0 +1,22 @@
+[debug] [2026-09-05T13:36:58.465Z] ----------------------------------------------------------------------
+[debug] [2026-09-05T13:36:58.467Z] Command:       /Users/admina/.nvm/versions/node/v22.20.0/bin/node /Users/admina/.nvm/versions/node/v22.20.0/bin/firebase apps:list --project yumetan-a31f0
+[debug] [2026-09-05T13:36:58.467Z] CLI Version:   14.27.0
+[debug] [2026-09-05T13:36:58.467Z] Platform:      darwin
+[debug] [2026-09-05T13:36:58.467Z] Node Version:  v22.20.0
+[debug] [2026-09-05T13:36:58.467Z] Time:          Sat Sep 05 2026 22:36:58 GMT+0900 (Japan Standard Time)
+[debug] [2026-09-05T13:36:58.467Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-09-05T13:36:58.568Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-09-05T13:36:58.568Z] > authorizing via signed-in user (yamauchi@hikaso.com)
+[debug] [2026-09-05T13:36:58.570Z] Checked if tokens are valid: true, expires at: 1788618982985
+[debug] [2026-09-05T13:36:58.570Z] Checked if tokens are valid: true, expires at: 1788618982985
+[debug] [2026-09-05T13:36:58.570Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/yumetan-a31f0:searchApps pageSize=100
+[debug] [2026-09-05T13:36:59.140Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/yumetan-a31f0:searchApps 403
+[debug] [2026-09-05T13:36:59.140Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/yumetan-a31f0:searchApps {"error":{"code":403,"message":"The caller does not have permission","status":"PERMISSION_DENIED"}}
+[debug] [2026-09-05T13:36:59.141Z] Request to https://firebase.googleapis.com/v1beta1/projects/yumetan-a31f0:searchApps?pageSize=100 had HTTP Error: 403, The caller does not have permission
+[debug] [2026-09-05T13:36:59.251Z] FirebaseError: Request to https://firebase.googleapis.com/v1beta1/projects/yumetan-a31f0:searchApps?pageSize=100 had HTTP Error: 403, The caller does not have permission
+    at responseToError (/Users/admina/.nvm/versions/node/v22.20.0/lib/node_modules/firebase-tools/lib/responseToError.js:53:12)
+    at RetryOperation._fn (/Users/admina/.nvm/versions/node/v22.20.0/lib/node_modules/firebase-tools/lib/apiv2.js:322:77)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[error] 
+[error] Error: Failed to list Firebase apps. See firebase-debug.log for more info.
