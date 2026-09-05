@@ -1,0 +1,83 @@
+<svg class="chara-svg" viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <linearGradient id="skin" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6dcc8"/><stop offset="0.6" stop-color="#f0cdb3"/><stop offset="1" stop-color="#e2b394"/></linearGradient>
+    <linearGradient id="skinShade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d9a98c"/><stop offset="1" stop-color="#e8bfa4"/></linearGradient>
+    <linearGradient id="suit" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b3760"/><stop offset="1" stop-color="#1a2240"/></linearGradient>
+    <linearGradient id="lapel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#202a4d"/><stop offset="1" stop-color="#141b33"/></linearGradient>
+    <linearGradient id="hairW" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a3226"/><stop offset="0.5" stop-color="#2f1f17"/><stop offset="1" stop-color="#1f150f"/></linearGradient>
+    <linearGradient id="hairM" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a2b22"/><stop offset="0.5" stop-color="#241a14"/><stop offset="1" stop-color="#15100c"/></linearGradient>
+    <radialGradient id="iris" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#8a5a3c"/><stop offset="0.7" stop-color="#4b2e1e"/><stop offset="1" stop-color="#2a1810"/></radialGradient>
+    <linearGradient id="lens" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0.04"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.12"/></linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.6"><stop offset="0" stop-color="#f2b56b" stop-opacity="0.22"/><stop offset="1" stop-color="#f2b56b" stop-opacity="0"/></radialGradient>
+  </defs>
+  <circle cx="120" cy="150" r="118" fill="url(#glow)"/>
+  <!-- 後ろ髪 -->
+  <g class="only-woman"><path d="M58 132 C52 70 86 40 120 40 C154 40 188 70 182 132 L186 196 C178 208 160 204 156 192 L154 142 L86 142 L84 192 C80 204 62 208 54 196 Z" fill="url(#hairW)"/></g>
+  <g class="only-man"><path d="M68 120 C64 60 92 42 120 42 C148 42 176 60 172 120 Z" fill="url(#hairM)"/></g>
+  <!-- 体（スーツ） -->
+  <path d="M18 280 C20 232 58 210 94 200 L120 216 L146 200 C182 210 220 232 222 280 Z" fill="url(#suit)"/>
+  <path d="M94 200 L120 240 L146 200 C136 208 104 208 94 200 Z" fill="#f7f5f0"/>
+  <path d="M94 200 L80 280 L120 240 Z" fill="url(#lapel)"/>
+  <path d="M146 200 L160 280 L120 240 Z" fill="url(#lapel)"/>
+  <g class="only-man"><path d="M120 218 L112 228 L116 270 L120 280 L124 270 L128 228 Z" fill="#a83e3c"/><path d="M112 228 L120 236 L128 228 L120 218 Z" fill="#8f3331"/></g>
+  <g class="only-woman"><path d="M102 206 C110 222 130 222 138 206" stroke="#c9b6ff" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.9"/></g>
+  <!-- 首 -->
+  <path d="M104 166 L104 204 C112 214 128 214 136 204 L136 166 Z" fill="url(#skinShade)"/>
+  <path d="M104 172 C110 186 130 186 136 172 L136 166 L104 166 Z" fill="#cf9b7c" opacity="0.45"/>
+  <!-- 耳 -->
+  <ellipse cx="77" cy="122" rx="7" ry="10" fill="#e8bfa4"/><ellipse cx="163" cy="122" rx="7" ry="10" fill="#e8bfa4"/>
+  <ellipse cx="78" cy="122" rx="3.5" ry="5.5" fill="none" stroke="#c98f70" stroke-width="1.2"/><ellipse cx="162" cy="122" rx="3.5" ry="5.5" fill="none" stroke="#c98f70" stroke-width="1.2"/>
+  <!-- 顔 -->
+  <path d="M120 58 C156 58 166 90 165 120 C164 152 148 178 120 180 C92 178 76 152 75 120 C74 90 84 58 120 58 Z" fill="url(#skin)"/>
+  <path d="M78 118 C80 150 96 172 120 176 C110 176 92 160 86 130 Z" fill="#d9a98c" opacity="0.28"/>
+  <path d="M162 118 C160 150 144 172 120 176 C130 176 148 160 154 130 Z" fill="#d9a98c" opacity="0.28"/>
+  <!-- 前髪 -->
+  <g class="only-woman">
+    <path d="M76 116 C76 66 98 48 122 48 C150 48 166 72 165 112 C158 86 142 78 128 84 C118 70 100 76 92 96 C86 106 80 110 76 116 Z" fill="url(#hairW)"/>
+    <path d="M96 70 C108 58 126 56 140 64" stroke="#7a5843" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.35"/>
+    <path d="M62 150 C60 170 62 188 66 198" stroke="#5a3d2e" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.6"/>
+    <path d="M178 150 C180 170 178 188 174 198" stroke="#5a3d2e" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.6"/>
+  </g>
+  <g class="only-man">
+    <path d="M76 106 C80 70 100 56 124 58 C150 60 164 80 164 106 C152 86 136 84 122 90 C110 78 92 86 84 102 C81 104 78 105 76 106 Z" fill="url(#hairM)"/>
+    <path d="M96 66 C106 60 118 60 128 62" stroke="#5a4335" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.35"/>
+    <path d="M76 106 C74 116 75 126 78 132 L84 120 L82 104 Z" fill="url(#hairM)"/>
+    <path d="M164 106 C166 116 165 126 162 132 L156 120 L158 104 Z" fill="url(#hairM)"/>
+  </g>
+  <!-- 眉 -->
+  <path class="brow" d="M90 103 C97 96 108 97 115 101" stroke="#3a2a20" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path class="brow" d="M125 101 C132 97 143 96 150 103" stroke="#3a2a20" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- 目 -->
+  <g class="eyes">
+    <path d="M91 117 C97 109 111 109 117 117 C111 122 97 122 91 117 Z" fill="#fbfaf8"/>
+    <path d="M123 117 C129 109 143 109 149 117 C143 122 129 122 123 117 Z" fill="#fbfaf8"/>
+    <circle cx="104" cy="116" r="5.4" fill="url(#iris)"/><circle cx="136" cy="116" r="5.4" fill="url(#iris)"/>
+    <circle cx="104" cy="116" r="2.4" fill="#120b08"/><circle cx="136" cy="116" r="2.4" fill="#120b08"/>
+    <circle cx="102.2" cy="114" r="1.4" fill="#fff"/><circle cx="134.2" cy="114" r="1.4" fill="#fff"/>
+    <path d="M91 117 C97 109 111 109 117 117" stroke="#2a1b14" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M123 117 C129 109 143 109 149 117" stroke="#2a1b14" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M94 119 C99 122 110 122 116 118" stroke="#8c5b45" stroke-width="1" fill="none" opacity="0.6"/>
+    <path d="M124 118 C130 122 141 122 146 119" stroke="#8c5b45" stroke-width="1" fill="none" opacity="0.6"/>
+  </g>
+  <path d="M94 108 C100 104 110 104 116 108" stroke="#c99a7e" stroke-width="1" fill="none" opacity="0.5"/>
+  <path d="M124 108 C130 104 140 104 146 108" stroke="#c99a7e" stroke-width="1" fill="none" opacity="0.5"/>
+  <!-- 鼻 -->
+  <path d="M118 118 C114 128 113 136 116 142 C118 144 122 144 124 142 C127 136 126 128 122 120" stroke="#c48c6f" stroke-width="1.4" fill="none" stroke-linecap="round" opacity="0.55"/>
+  <ellipse cx="115" cy="142" rx="2.2" ry="1.3" fill="#b97b60" opacity="0.5"/><ellipse cx="125" cy="142" rx="2.2" ry="1.3" fill="#b97b60" opacity="0.5"/>
+  <!-- 頬 -->
+  <ellipse cx="96" cy="136" rx="9" ry="5" fill="#e79a8f" opacity="0.22"/><ellipse cx="144" cy="136" rx="9" ry="5" fill="#e79a8f" opacity="0.22"/>
+  <!-- 口 -->
+  <g class="mouth">
+    <path d="M106 154 C111 150 116 151 120 152 C124 151 129 150 134 154 C129 156 111 156 106 154 Z" fill="#b95a63"/>
+    <path d="M106 154 C111 163 129 163 134 154 C128 158 112 158 106 154 Z" fill="#d97a82"/>
+    <path d="M104 153 C112 157 128 157 136 153" stroke="#8f3f47" stroke-width="1" fill="none" opacity="0.6"/>
+  </g>
+  <!-- 眼鏡 -->
+  <g class="glasses" stroke="#7d869f" stroke-width="2" fill="none">
+    <rect x="87" y="106" width="32" height="22" rx="8" fill="url(#lens)"/>
+    <rect x="121" y="106" width="32" height="22" rx="8" fill="url(#lens)"/>
+    <path d="M119 115 L121 115"/><path d="M87 114 L78 111"/><path d="M153 114 L162 111"/>
+  </g>
+  <path d="M92 110 L100 108" stroke="#fff" stroke-width="1.4" opacity="0.5" stroke-linecap="round"/>
+  <path d="M126 110 L134 108" stroke="#fff" stroke-width="1.4" opacity="0.5" stroke-linecap="round"/>
+</svg>

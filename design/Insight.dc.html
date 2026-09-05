@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; background: #0b1020; font-family: "Zen Kaku Gothic New", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif; color: #eef1fa; -webkit-font-smoothing: antialiased; }
+    a { color: #f2b56b; } a:hover { color: #f7c98c; }
+    .chara-svg .only-man { display: none; }
+    .chara-svg.man .only-woman { display: none; }
+    .chara-svg.man .only-man { display: block; }
+  </style>
+</helmet>
+<div style="width:390px;height:844px;background:#0b1020;display:flex;flex-direction:column;overflow:hidden;position:relative">
+<div style="position:relative;height:56px;display:flex;align-items:center;justify-content:center;flex:none;margin-top:44px">
+  <div style="position:absolute;left:12px;top:0;height:56px;display:flex;align-items:center;gap:4px;color:#f2b56b;font-size:16px;font-weight:500">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f2b56b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg><span>戻る</span></div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f2b56b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
+    <div style="font-size:18px;font-weight:700;letter-spacing:.04em;color:#eef1fa">ユメタン</div>
+  </div>
+</div>
+<div style="padding:8px 20px 0 20px;font-size:20px;font-weight:700">最近の心の状態</div>
+<div style="display:flex;flex-direction:column;gap:14px;padding:12px 20px 0 20px">
+  <div style="display:flex;flex-direction:column;gap:12px;background:#161e36;border:1px solid #2a3559;border-radius:18px;padding:18px 16px">
+    <div style="font-size:23px;font-weight:700;color:#f2b56b;line-height:1.3">疲れがたまってきています</div>
+    <div style="font-size:15px;line-height:1.65;color:#dfe3f2">不安な夢と穏やかな夢が混ざっています。「逃げる夢」「終わらない階段の夢」のように気がかりがありつつ、対処できている場面もあります。前半より後半のほうが重い夢が増えています。</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#9aa4c7"><span>ストレス</span><span style="color:#f2b56b;font-weight:700">中くらい</span></div>
+      <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:4px"><div style="height:8px;border-radius:4px;background:#f2b56b"></div><div style="height:8px;border-radius:4px;background:#f2b56b"></div><div style="height:8px;border-radius:4px;background:#2a3559"></div></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><span style="display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:999px;background:#2a1418;border:1px solid #5a2f36;color:#ff8f8f;font-size:13px">傾向: 下向き</span><span style="display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:999px;background:#221f3a;border:1px solid #4a4180;color:#c9b6ff;font-size:13px">焦り</span><span style="display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:999px;background:#221f3a;border:1px solid #4a4180;color:#c9b6ff;font-size:13px">恐怖</span><span style="display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:999px;background:#141b31;border:1px solid #2a3559;color:#9aa4c7;font-size:13px">追いかけられる</span></div>
+  </div>
+  <div style="display:flex;gap:12px;background:#14281f;border:1px solid #2f5a45;border-radius:16px;padding:14px 16px;font-size:14px;line-height:1.6;color:#c9f5de"><span style="font-weight:700;flex:none">良い面</span><span>夢の中で対処できた場面（「空を飛ぶ夢」）があり、回復力があるサインです。</span></div>
+  <div style="display:flex;gap:12px;background:#2a2412;border:1px solid #4a3a1a;border-radius:16px;padding:14px 16px;font-size:14px;line-height:1.6;color:#f7dcb5"><span style="font-weight:700;flex:none">提案</span><span>今週の予定から、一つだけ減らせるものを探してみてください。</span></div>
+  <div style="text-align:center;font-size:12px;color:#9aa4c7;line-height:1.6">8件の夢をもとに分析。診断ではなく、夢から見える傾向の目安です。</div>
+</div>
+</div>
+</x-dc>
+</body>
+</html>

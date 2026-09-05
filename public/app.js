@@ -3,7 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const APP_VERSION = "2.5.0";
+  const APP_VERSION = "3.0.0";
 
   // ---------- 実行環境（Capacitor ネイティブか Web か） ----------
   const Cap = window.Capacitor;
@@ -180,7 +180,7 @@
     const h = new Date().getHours();
     return h < 11 ? "おはようございます。今日はどんな夢でしたか？" : h < 18 ? "こんにちは。覚えている夢、聞かせてください。" : "こんばんは。今日は夢の話をしましょう。";
   }
-  function updateHomeCount() { $("#home-count").textContent = dreams.length ? `${dreams.length}件` : ""; }
+  function updateHomeCount() { const el = $("#home-count"); el.textContent = `${dreams.length}件`; el.hidden = !dreams.length; }
 
   // ---------- 記憶方法の選択 ----------
   let mode = "voice";
@@ -210,7 +210,7 @@
     afterEl.hidden = !analyzed || !afterReady;
     if (analyzed) {
       const saved = isSaved(currentDream);
-      saveBtn.disabled = saved; saveBtn.textContent = saved ? "✓ 記憶しました" : "🌙 この夢を記憶する";
+      saveBtn.disabled = saved; saveBtn.textContent = saved ? "記憶しました" : "この夢を記憶する";
       $("#ask-text").hidden = voice; $("#ask-voice").hidden = !voice;
       $("#ask-note").textContent = voice ? "気になることがあれば、声で聞けます" : "気になることがあれば、ユメタンに聞けます";
       newBtn.hidden = false;
@@ -309,10 +309,13 @@
   }
   // 結果の吹き出し（状態ラベル + 返事 + タグ）
   function renderResult(a) {
-    const b = addBubble("ai", a.reply);
-    if (a.state_label) { const st = document.createElement("div"); st.className = "state"; st.textContent = `今の心の状態: ${a.state_label}`; b.prepend(st); }
-    b.appendChild(tagRow(a));
-    return b;
+    const card = document.createElement("div"); card.className = "result";
+    const label = document.createElement("div"); label.className = "label"; label.textContent = "今の心の状態";
+    const state = document.createElement("div"); state.className = "state"; state.textContent = a.state_label || TYPE_JA[a.dream_type] || "読み取り結果";
+    card.append(label, state, tagRow(a));
+    if (a.note) { const n = document.createElement("div"); n.className = "hint"; n.textContent = a.note; card.appendChild(n); }
+    chatEl.appendChild(card); card.scrollIntoView({ behavior: "smooth", block: "end" });
+    return card;
   }
   // 読み取り後の質問（または夢の追加情報）
   async function ask() {
@@ -352,9 +355,13 @@
     ivLog.innerHTML = ""; ivOther.hidden = true; ivConfirm.hidden = true; ivAnswers.hidden = false; $("#iv-finish").hidden = false;
     showQuestion("", FIRST_QUESTION);
   }
+  function renderProgress(n, total = 8) {
+    ivProgress.innerHTML = "";
+    for (let i = 0; i < total; i++) { const d = document.createElement("i"); if (i < n) d.className = "on"; ivProgress.appendChild(d); }
+  }
   function showQuestion(comment, q) {
     iv.question = q;
-    ivProgress.textContent = `${iv.answers.length + 1}問目`;
+    renderProgress(iv.answers.length + 1);
     say("interview", (comment ? comment + "\n" : "") + q, { voice: true });
     ivAnswers.setAttribute("aria-busy", "false");
   }
@@ -373,7 +380,7 @@
       if (step.done) {
         ivDreamText.value = step.dream_text;
         ivConfirm.hidden = false; ivAnswers.hidden = true; $("#iv-finish").hidden = true;
-        ivProgress.textContent = `${iv.answers.length}問で整理しました`;
+        renderProgress(8);
         say("interview", (step.comment ? step.comment + "\n" : "") + "まとめるとこんな夢でしたか？", { mood: "happy", voice: true });
       } else showQuestion(step.comment, step.question);
     } catch (e) {
@@ -412,7 +419,7 @@
     chatEl.appendChild(d); d.scrollIntoView({ behavior: "smooth", block: "end" }); return d;
   }
   const TYPE_JA = { ordinary: "ふつうの夢", nightmare: "悪夢", recurring: "くり返す夢", lucid: "明晰夢", pleasant: "いい夢", fragment: "断片" };
-  const MOOD = { "-2": "😰", "-1": "😟", "0": "😐", "1": "🙂", "2": "😊" };
+  const moodClass = (m) => `mood m${Number(m) < 0 ? "-" + Math.abs(Number(m)) : Number(m) || 0}`;
   function tagRow(a) {
     const row = document.createElement("div"); row.className = "tags";
     row.appendChild(tag(TYPE_JA[a.dream_type] || a.dream_type, `type-${a.dream_type}`));
@@ -440,11 +447,11 @@
       det.innerHTML = `
         <summary>
           <div><div class="date">${esc(fmtDate(d.createdAt))}</div><div class="title">${esc(a.title || "（無題）")}</div></div>
-          <div class="mood">${MOOD[String(a.mood)] || ""}</div>
+          <div class="${moodClass(a.mood)}" title="気分 ${a.mood}"></div>
         </summary>
+        <div class="tags"></div>
         <div class="body">
           <p>${esc(a.summary || "")}</p>
-          <div class="tags"></div>
           <p class="muted">${esc(a.mental_state_hint || "")}</p>
           <div class="convo"></div>
           <div class="actions">
@@ -452,7 +459,7 @@
             <button class="btn ghost danger delete">削除</button>
           </div>
         </div>`;
-      if (d.analysis) det.querySelector(".tags").replaceWith(tagRow(a));
+      if (d.analysis) { const t = tagRow(a); t.style.marginTop = "10px"; det.querySelector(".tags").replaceWith(t); }
       const convo = det.querySelector(".convo");
       for (const m of d.messages) { const b = document.createElement("div"); b.className = `bubble ${m.role === "user" ? "user" : "ai"}`; b.textContent = m.text; convo.appendChild(b); }
       det.querySelector(".continue").onclick = () => { mode = "text"; openDream(d); go("record"); };
@@ -503,20 +510,21 @@
       finally { $("#insight-refresh").disabled = false; }
     }
     const i = insight;
+    const seg = { low: 1, medium: 2, high: 3 }[i.stress_level] || 2;
     el.innerHTML = `
       <div class="card">
         <p class="headline">${esc(i.headline)}</p>
         <p>${esc(i.state)}</p>
-        <div class="meta">
-          <span class="tag level-${esc(i.stress_level)}">${LEVEL_JA[i.stress_level] || ""}</span>
-          <span class="tag">傾向: ${TREND_JA[i.trend] || ""}</span>
+        <div class="meter ${esc(i.stress_level)}">
+          <div class="lbl"><span>ストレス</span><b>${{ low: "低め", medium: "中くらい", high: "高め" }[i.stress_level] || ""}</b></div>
+          <div class="bar"><i class="${seg >= 1 ? "on" : ""}"></i><i class="${seg >= 2 ? "on" : ""}"></i><i class="${seg >= 3 ? "on" : ""}"></i></div>
         </div>
-        <div class="meta">${(i.dominant_emotions || []).map((e) => `<span class="tag emo">${esc(e)}</span>`).join("")}${(i.recurring_themes || []).map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
-        <p class="positive">🌱 ${esc(i.positive_note)}</p>
-        <p>💡 ${esc(i.suggestion)}</p>
+        <div class="meta"><span class="tag">傾向: ${TREND_JA[i.trend] || ""}</span>${(i.dominant_emotions || []).map((e) => `<span class="tag emo">${esc(e)}</span>`).join("")}${(i.recurring_themes || []).map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
       </div>
-      ${i.caution ? `<div class="card caution">🤍 ${esc(i.caution)}</div>` : ""}
-      <p class="muted">${esc(i.basedOn)}件の夢をもとに ${esc(fmtDate(i.generatedAt))} に分析${fromCache ? "（前回の結果）" : ""}。診断ではなく、夢から見える傾向の目安です。</p>`;
+      <div class="note positive"><b>良い面</b><span>${esc(i.positive_note)}</span></div>
+      <div class="note suggest"><b>提案</b><span>${esc(i.suggestion)}</span></div>
+      ${i.caution ? `<div class="note caution"><b>相談</b><span>${esc(i.caution)}</span></div>` : ""}
+      <p class="muted center">${esc(i.basedOn)}件の夢をもとに ${esc(fmtDate(i.generatedAt))} に分析${fromCache ? "（前回の結果）" : ""}。診断ではなく、夢から見える傾向の目安です。</p>`;
   }
   $("#insight-refresh").onclick = () => renderInsight(true);
 
