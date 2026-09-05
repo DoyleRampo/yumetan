@@ -3,7 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const APP_VERSION = "2.4.1";
+  const APP_VERSION = "2.4.3";
 
   // ---------- 実行環境（Capacitor ネイティブか Web か） ----------
   const Cap = window.Capacitor;
@@ -572,6 +572,31 @@
     catch { toast("サーバーに接続できません。通信環境か設定のサーバーURLを確認してください。", true); }
   }
 
+  // クラウド保存を有効化: 読めるか確認 → 端末内の記録を移行 → 変化を購読
+  async function activateCloud() {
+    if (!cloudOn()) return;
+    try { await cloud.loadOnce(); }
+    catch (e) { cloud.state.enabled = false; cloud.state.error = e?.code || e?.message || String(e); console.warn("Firestore を使えないため端末内保存で動きます:", cloud.state.error); return; }
+    try {
+      const local = (await store.get(K.dreams, [])) || [];
+      if (local.length) {
+        const existing = new Set((await cloud.loadOnce()).map((d) => d.id));
+        let n = 0;
+        for (const d of local) if (!existing.has(d.id)) { await cloud.saveDream(d); n++; }
+        await store.set(K.dreams, []); // 移行済みの端末内コピーは消す（以後はクラウドが正）
+        if (n) toast(`${n}件の記録をクラウドに移しました`);
+      }
+      cloud.subscribe((list) => {
+        dreams = list; // 別端末での追加・削除もここに届く
+        if (currentDream) { const same = dreams.find((d) => d.id === currentDream.id); if (same) currentDream = same; }
+        updateHomeCount();
+        if (current === "history") renderHistory();
+        if (current === "settings") renderSettings();
+        if (current === "record") applyMode();
+      });
+    } catch (e) { console.warn("cloud activate failed", e); }
+  }
+
   // ---------- 起動 ----------
   (async () => {
     await loadSettings();
@@ -579,32 +604,11 @@
     if (!userId) { userId = uuid(); await store.set(K.user, userId); }
     dreams = (await store.get(K.dreams, [])) || [];
     mountCharas();
-    // Firebase が設定されていればクラウド保存に切り替える（読み込みは最大4秒待つ）
-    try {
-      cloud = window.YumetanCloud || null;
-      if (cloud) await Promise.race([cloud.ready, sleep(6000)]);
-      if (cloudOn()) {
-        // Firestore が未作成・ルール未設定などで読めないときは端末内保存に戻す
-        try { await cloud.loadOnce(); }
-        catch (e) { cloud.state.enabled = false; cloud.state.error = e?.code || e?.message || String(e); console.warn("Firestore を使えないため端末内保存で動きます:", cloud.state.error); }
-      }
-      if (cloudOn()) {
-        // 端末内にだけある記録をクラウドへ移す（1回だけ）
-        const migrated = await store.get(K.migrated, false);
-        const local = dreams;
-        if (!migrated && local.length) {
-          const existing = new Set((await cloud.loadOnce()).map((d) => d.id));
-          for (const d of local) if (!existing.has(d.id)) await cloud.saveDream(d);
-          await store.set(K.migrated, true);
-          toast(`${local.length}件の記録をクラウドに移しました`);
-        }
-        cloud.subscribe((list) => {
-          dreams = list; // 別端末での追加・削除もここに届く
-          updateHomeCount();
-          if (current === "history") renderHistory();
-        });
-      }
-    } catch (e) { console.warn("cloud init failed", e); }
+    // Firebase が設定されていれば、初期化が終わり次第クラウド保存に切り替える（起動は待たない）
+    // cloud.js は module（HTML 解析後に実行）なので、DOMContentLoaded まで待ってから参照する
+    if (document.readyState === "loading") await new Promise((r) => document.addEventListener("DOMContentLoaded", r, { once: true }));
+    cloud = window.YumetanCloud || null;
+    if (cloud) cloud.ready.then(activateCloud).catch((e) => console.warn("cloud init failed", e));
     history.replaceState({ view: "home" }, "", "#home");
     say("home", greeting()); updateHomeCount();
     if (useAI()) checkHealth();
