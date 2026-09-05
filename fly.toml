@@ -1,0 +1,23 @@
+# Fly.io 用: fly launch --no-deploy → fly secrets set ANTHROPIC_API_KEY=... → fly deploy
+app = "yumetan"
+primary_region = "nrt"
+
+[build]
+
+[env]
+  PORT = "3000"
+  CLAUDE_MODEL = "claude-sonnet-5"
+  LIMIT_PER_USER_DAY = "60"
+  LIMIT_GLOBAL_DAY = "3000"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[http_service.checks]]
+  path = "/api/health"
+  interval = "30s"
+  timeout = "5s"

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#0f1222">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ユメタン">
+<meta name="description" content="起きてすぐ、夢を話すだけ。聞いて、覚えて、心の状態を教えてくれるAI">
+<title>ユメタン — 夢を聞いてくれるAI</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <button id="back" class="back" hidden aria-label="戻る">‹ 戻る</button>
+  <h1><span class="moon">🌙</span> ユメタン</h1>
+</header>
+
+<main>
+  <!-- ホーム -->
+  <section id="view-home" class="view active">
+    <div class="home-chara"></div>
+    <button class="home-main" data-go="mode">
+      <span class="icon">🛌</span>
+      <span class="label">夢を記憶する</span>
+      <span class="sub">話す・書く・質問に答える</span>
+    </button>
+    <div class="home-grid">
+      <button class="home-btn" data-go="history"><span class="icon">📔</span><span class="label">夢の記録</span><span class="count" id="home-count"></span></button>
+      <button class="home-btn" data-go="insight"><span class="icon">💭</span><span class="label">最近の心の状態</span></button>
+      <button class="home-btn" data-go="knowledge"><span class="icon">📚</span><span class="label">夢のじてん</span></button>
+      <button class="home-btn" data-go="settings"><span class="icon">⚙️</span><span class="label">設定</span></button>
+    </div>
+    <p class="tagline">起きてすぐ、夢を話して。聞いて、覚えて、心の状態を教えます。</p>
+  </section>
+
+  <!-- 記憶方法を選ぶ -->
+  <section id="view-mode" class="view">
+    <div class="chara-slot"></div>
+    <h2>どうやって話しますか？</h2>
+    <div class="mode-list">
+      <button class="mode-btn" data-mode="voice"><span class="icon">🎙️</span><span><b>話しかける</b><small>音声認識で文字にします</small></span></button>
+      <button class="mode-btn" data-mode="interview"><span class="icon">❓</span><span><b>質問に答える</b><small>はい・いいえで答えるだけで夢を汲み取ります</small></span></button>
+      <button class="mode-btn" data-mode="text"><span class="icon">✍️</span><span><b>自分で全文を書く</b><small>覚えている内容をそのまま入力</small></span></button>
+    </div>
+  </section>
+
+  <!-- 記録（全文入力・音声） -->
+  <section id="view-record" class="view">
+    <div class="chara-slot"></div>
+    <div id="chat" class="chat" aria-live="polite"></div>
+
+    <div id="transcript-wrap" class="transcript-wrap" hidden>
+      <textarea id="transcript" rows="4" placeholder="覚えている範囲で。断片でも、順番がばらばらでも大丈夫"></textarea>
+      <div class="row">
+        <button id="send" class="btn primary big">聞いてもらう</button>
+        <button id="clear" class="btn ghost">消す</button>
+      </div>
+    </div>
+
+    <div id="mic-area" class="mic-area">
+      <p id="status" class="status"></p>
+      <button id="mic" class="mic" aria-label="話す">
+        <svg viewBox="0 0 24 24" width="44" height="44" aria-hidden="true"><path fill="currentColor" d="M12 15a4 4 0 0 0 4-4V6a4 4 0 1 0-8 0v5a4 4 0 0 0 4 4zm6-4a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.93V22h2v-3.07A8 8 0 0 0 20 11h-2z"/></svg>
+      </button>
+    </div>
+    <div class="row small">
+      <button id="new-dream" class="btn ghost" hidden>新しい夢を話す</button>
+    </div>
+  </section>
+
+  <!-- 質問形式 -->
+  <section id="view-interview" class="view">
+    <div class="chara-slot"></div>
+    <p id="iv-progress" class="muted center"></p>
+    <div id="iv-answers" class="answers">
+      <button class="btn answer yes" data-answer="はい">はい</button>
+      <button class="btn answer no" data-answer="いいえ">いいえ</button>
+      <button class="btn answer skip" data-answer="スキップ">スキップ</button>
+      <button class="btn answer other" data-answer="__other">その他…</button>
+    </div>
+    <div id="iv-other" class="transcript-wrap" hidden>
+      <textarea id="iv-other-text" rows="2" placeholder="例: 追いかけてきたのは学校の先生だった"></textarea>
+      <div class="row">
+        <button id="iv-other-send" class="btn primary">これで答える</button>
+        <button id="iv-other-cancel" class="btn ghost">やめる</button>
+      </div>
+    </div>
+    <div id="iv-confirm" class="transcript-wrap" hidden>
+      <p class="muted">まとめるとこんな夢でしたか？ 直してもOK</p>
+      <textarea id="iv-dream-text" rows="5"></textarea>
+      <div class="row">
+        <button id="iv-save" class="btn primary big">これで記録する</button>
+        <button id="iv-more" class="btn ghost">もう少し質問して</button>
+      </div>
+    </div>
+    <div class="row small">
+      <button id="iv-finish" class="btn ghost">もう十分、まとめて</button>
+      <button id="iv-restart" class="btn ghost">最初から</button>
+    </div>
+    <div id="iv-log" class="iv-log"></div>
+  </section>
+
+  <!-- 記録一覧 -->
+  <section id="view-history" class="view">
+    <h2>夢の記録</h2>
+    <div id="history" class="history"></div>
+  </section>
+
+  <!-- 心の状態 -->
+  <section id="view-insight" class="view">
+    <h2>最近の心の状態</h2>
+    <div id="insight" class="insight"></div>
+    <div class="row small">
+      <button id="insight-refresh" class="btn ghost">もう一度分析する</button>
+    </div>
+  </section>
+
+  <!-- じてん -->
+  <section id="view-knowledge" class="view">
+    <h2>ユメタンの記憶（夢と心の対応）</h2>
+    <p class="muted">ユメタンが夢を読むときに使っている知識です。診断ではなく、仮説の道具として使っています。</p>
+    <article id="knowledge" class="knowledge"></article>
+  </section>
+
+  <!-- 設定 -->
+  <section id="view-settings" class="view">
+    <h2>設定</h2>
+    <div class="setting">
+      <span>キャラクター</span>
+      <div class="seg">
+        <button class="seg-btn" data-chara="woman">女性</button>
+        <button class="seg-btn" data-chara="man">男性</button>
+      </div>
+    </div>
+    <label class="setting"><input type="checkbox" id="opt-speak"> 返事を声で読み上げる</label>
+    <label class="setting"><input type="checkbox" id="opt-autosend"> 話し終わったら自動で聞いてもらう</label>
+    <div class="setting col" id="code-setting" hidden>
+      <span>合言葉（配布元から受け取ったもの）</span>
+      <input type="text" id="opt-code" class="input" placeholder="合言葉" autocomplete="off">
+    </div>
+
+    <h3>データ</h3>
+    <p class="muted">夢の記録はこの端末（アプリ）の中だけに保存されます。機種変更や別のブラウザに移すときは書き出してください。</p>
+    <div class="row left">
+      <button id="export" class="btn">書き出す</button>
+      <button id="import-toggle" class="btn">読み込む</button>
+      <button id="wipe" class="btn danger">全部消す</button>
+    </div>
+    <div id="io-wrap" class="transcript-wrap" hidden>
+      <textarea id="io-text" rows="5" placeholder="ここに書き出したデータを貼り付けて「読み込み実行」"></textarea>
+      <div class="row">
+        <button id="io-copy" class="btn">コピー</button>
+        <button id="io-import" class="btn primary">読み込み実行</button>
+      </div>
+    </div>
+
+    <details class="adv">
+      <summary>詳細設定</summary>
+      <div class="setting col">
+        <span>サーバーURL（空なら標準）</span>
+        <input type="url" id="opt-api" class="input" placeholder="https://example.onrender.com" autocomplete="off">
+      </div>
+      <p class="muted" id="sr-support"></p>
+      <p class="muted" id="app-info"></p>
+    </details>
+  </section>
+</main>
+
+<!-- キャラクター（眼鏡・スーツ） -->
+<template id="chara-tpl">
+  <div class="chara">
+    <svg class="chara-svg" viewBox="0 0 200 230" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <g class="only-woman"><path d="M50 100 Q44 40 100 36 Q156 40 150 100 L154 150 Q140 160 128 148 L126 118 L74 118 L72 148 Q60 160 46 150 Z" fill="#3a2a24"/></g>
+      <g class="only-man"><path d="M54 96 Q50 38 100 36 Q150 38 146 96 Z" fill="#2a221f"/></g>
+      <path d="M34 230 L44 176 Q72 158 100 160 Q128 158 156 176 L166 230 Z" fill="#2d3768"/>
+      <path d="M78 164 L100 206 L122 164 Q100 172 78 164 Z" fill="#fff"/>
+      <path d="M78 164 L64 230 L100 206 Z" fill="#232b57"/>
+      <path d="M122 164 L136 230 L100 206 Z" fill="#232b57"/>
+      <g class="only-man"><path d="M100 172 L94 180 L97 222 L100 230 L103 222 L106 180 Z" fill="#c9505f"/></g>
+      <g class="only-woman"><path d="M90 168 Q100 180 110 168" stroke="#d7b7ff" stroke-width="4" fill="none" stroke-linecap="round"/></g>
+      <rect x="88" y="132" width="24" height="38" rx="8" fill="#efc6a4"/>
+      <ellipse cx="58" cy="100" rx="7" ry="10" fill="#efc6a4"/><ellipse cx="142" cy="100" rx="7" ry="10" fill="#efc6a4"/>
+      <ellipse cx="100" cy="98" rx="42" ry="48" fill="#f6d5ba"/>
+      <g class="only-woman"><path d="M58 96 Q58 46 100 46 Q142 46 142 96 Q138 72 118 70 Q104 68 92 74 Q76 80 58 96 Z" fill="#3a2a24"/><circle cx="146" cy="70" r="15" fill="#3a2a24"/></g>
+      <g class="only-man"><path d="M58 88 Q60 48 100 48 Q140 48 142 88 Q128 68 100 70 Q72 68 58 88 Z" fill="#2a221f"/></g>
+      <path class="brow" d="M72 84 Q82 79 92 84" stroke="#3a2a24" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path class="brow" d="M108 84 Q118 79 128 84" stroke="#3a2a24" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <g class="eyes"><ellipse cx="82" cy="101" rx="4" ry="5.5" fill="#2a221f"/><ellipse cx="118" cy="101" rx="4" ry="5.5" fill="#2a221f"/></g>
+      <g stroke="#4a5280" stroke-width="3" fill="#ffffff18"><rect x="65" y="90" width="31" height="23" rx="8"/><rect x="104" y="90" width="31" height="23" rx="8"/><path d="M96 100 L104 100"/><path d="M65 98 L58 95"/><path d="M135 98 L142 95"/></g>
+      <ellipse cx="72" cy="116" rx="7" ry="4" fill="#f4a9a9" opacity=".5"/><ellipse cx="128" cy="116" rx="7" ry="4" fill="#f4a9a9" opacity=".5"/>
+      <g class="mouth"><path d="M90 124 Q100 132 110 124" stroke="#c96a6a" stroke-width="3" fill="none" stroke-linecap="round"/></g>
+    </svg>
+    <div class="speech"><span class="speech-text"></span></div>
+  </div>
+</template>
+
+<div id="toast" class="toast" hidden></div>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+  if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+</script>
+</body>
+</html>

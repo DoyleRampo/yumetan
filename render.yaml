@@ -1,0 +1,18 @@
+# Render.com 用（ダッシュボードで「Blueprint」からこのリポジトリを選ぶ）
+services:
+  - type: web
+    name: yumetan
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false          # ダッシュボードで入力
+      - key: CLAUDE_MODEL
+        value: claude-sonnet-5
+      - key: LIMIT_PER_USER_DAY
+        value: "60"
+      - key: LIMIT_GLOBAL_DAY
+        value: "3000"
+      - key: ACCESS_CODE
+        sync: false          # 任意。設定すると合言葉を知っている人だけ使える

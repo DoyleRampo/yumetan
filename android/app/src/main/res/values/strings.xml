@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ユメタン</string>
+    <string name="title_activity_main">ユメタン</string>
+    <string name="package_name">com.hikaso.yumetan</string>
+    <string name="custom_url_scheme">com.hikaso.yumetan</string>
+</resources>

@@ -1,0 +1,16 @@
+{
+  "appId": "com.hikaso.yumetan",
+  "appName": "ユメタン",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#0f1222"
+  },
+  "android": {
+    "backgroundColor": "#0f1222",
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 800, "backgroundColor": "#0f1222", "launchAutoHide": true }
+  }
+}
