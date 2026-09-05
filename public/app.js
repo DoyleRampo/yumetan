@@ -3,7 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const APP_VERSION = "2.4.0";
+  const APP_VERSION = "2.4.1";
 
   // ---------- 実行環境（Capacitor ネイティブか Web か） ----------
   const Cap = window.Capacitor;
@@ -582,7 +582,12 @@
     // Firebase が設定されていればクラウド保存に切り替える（読み込みは最大4秒待つ）
     try {
       cloud = window.YumetanCloud || null;
-      if (cloud) await Promise.race([cloud.ready, sleep(4000)]);
+      if (cloud) await Promise.race([cloud.ready, sleep(6000)]);
+      if (cloudOn()) {
+        // Firestore が未作成・ルール未設定などで読めないときは端末内保存に戻す
+        try { await cloud.loadOnce(); }
+        catch (e) { cloud.state.enabled = false; cloud.state.error = e?.code || e?.message || String(e); console.warn("Firestore を使えないため端末内保存で動きます:", cloud.state.error); }
+      }
       if (cloudOn()) {
         // 端末内にだけある記録をクラウドへ移す（1回だけ）
         const migrated = await store.get(K.migrated, false);
