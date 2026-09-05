@@ -247,3 +247,6 @@ h3 { font-size: 15px; margin: 22px 0 6px; color: var(--accent); }
 .mic-small { font-size: 18px; padding: 8px 10px; }
 .mic-small.listening { background: #ff6b8b; color: #fff; border-color: #ff6b8b; animation: pulse 1.4s infinite; }
 .bubble .state { font-weight: 700; color: var(--accent); margin-bottom: 4px; font-size: 14px; }
+.ask-voice { display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 4px; }
+.mic.mic-ask { width: 72px; height: 72px; }
+.mic-small { display: none; }

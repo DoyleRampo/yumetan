@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="style.css?v=2.2.0">
+<link rel="stylesheet" href="style.css?v=2.3.0">
 </head>
 <body>
 <header class="top">
@@ -56,11 +56,16 @@
 
     <div id="after" class="after" hidden>
       <button id="save-dream" class="btn primary big save">🌙 この夢を記憶する</button>
-      <p class="muted center small-note">気になることがあれば、ユメタンに聞けます</p>
-      <div class="ask-row">
+      <p class="muted center small-note" id="ask-note">気になることがあれば、ユメタンに聞けます</p>
+      <div class="ask-row" id="ask-text">
         <input id="ask-input" class="input" placeholder="例: どうすればいい？ / なんでこの夢？" autocomplete="off" enterkeyhint="send">
-        <button id="ask-mic" class="btn ghost mic-small" aria-label="声で質問">🎙️</button>
         <button id="ask-send" class="btn">聞く</button>
+      </div>
+      <div class="ask-voice" id="ask-voice" hidden>
+        <button id="ask-mic" class="mic mic-ask" aria-label="声で質問">
+          <svg viewBox="0 0 24 24" width="32" height="32" aria-hidden="true"><path fill="currentColor" d="M12 15a4 4 0 0 0 4-4V6a4 4 0 1 0-8 0v5a4 4 0 0 0 4 4zm6-4a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.93V22h2v-3.07A8 8 0 0 0 20 11h-2z"/></svg>
+        </button>
+        <p class="muted center small-note" id="ask-status">マイクを押して質問</p>
       </div>
     </div>
 
@@ -140,7 +145,7 @@
         <button class="seg-btn" data-chara="man">男性</button>
       </div>
     </div>
-    <label class="setting"><input type="checkbox" id="opt-speak"> 返事を声で読み上げる</label>
+    <label class="setting"><input type="checkbox" id="opt-speak"> 「話しかける」のとき、返事を声で読み上げる</label>
     <label class="setting"><input type="checkbox" id="opt-autosend"> 話し終わったら自動で聞いてもらう</label>
     <div class="setting col" id="code-setting" hidden>
       <span>合言葉（配布元から受け取ったもの）</span>
@@ -204,12 +209,12 @@
 </template>
 
 <div id="toast" class="toast" hidden></div>
-<script src="config.js?v=2.2.0"></script>
-<script src="engine/lexicon.js?v=2.2.0"></script>
-<script src="engine/analyze.js?v=2.2.0"></script>
-<script src="engine/insight.js?v=2.2.0"></script>
-<script src="engine/interview.js?v=2.2.0"></script>
-<script src="app.js?v=2.2.0"></script>
+<script src="config.js?v=2.3.0"></script>
+<script src="engine/lexicon.js?v=2.3.0"></script>
+<script src="engine/analyze.js?v=2.3.0"></script>
+<script src="engine/insight.js?v=2.3.0"></script>
+<script src="engine/interview.js?v=2.3.0"></script>
+<script src="app.js?v=2.3.0"></script>
 <script>
   if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
     navigator.serviceWorker.register("sw.js").then((reg) => reg.update().catch(() => {})).catch(() => {});
