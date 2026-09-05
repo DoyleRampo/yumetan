@@ -174,7 +174,10 @@ app.use((req, res, next) => {
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
 });
-app.use(express.static(path.join(here, "public"), { maxAge: "1h", setHeaders: (res, p) => { if (p.endsWith("sw.js") || p.endsWith(".webmanifest")) res.setHeader("Cache-Control", "no-cache"); } }));
+// 画面のファイルは常に最新を確認させる（更新後に古い画面が残るのを防ぐ）。画像だけ長くキャッシュ
+app.use(express.static(path.join(here, "public"), { etag: true, setHeaders: (res, p) => {
+  res.setHeader("Cache-Control", /\.(png|jpg|svg|ico)$/.test(p) ? "public, max-age=604800" : "no-cache");
+} }));
 
 const asyncRoute = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 function aiGate(req) {
