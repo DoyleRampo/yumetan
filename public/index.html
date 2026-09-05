@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=2.1.1">
 </head>
 <body>
 <header class="top">
@@ -194,15 +194,18 @@
 </template>
 
 <div id="toast" class="toast" hidden></div>
-<script src="config.js"></script>
-<script src="engine/lexicon.js"></script>
-<script src="engine/analyze.js"></script>
-<script src="engine/insight.js"></script>
-<script src="engine/interview.js"></script>
-<script src="app.js"></script>
+<script src="config.js?v=2.1.1"></script>
+<script src="engine/lexicon.js?v=2.1.1"></script>
+<script src="engine/analyze.js?v=2.1.1"></script>
+<script src="engine/insight.js?v=2.1.1"></script>
+<script src="engine/interview.js?v=2.1.1"></script>
+<script src="app.js?v=2.1.1"></script>
 <script>
   if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    navigator.serviceWorker.register("sw.js").then((reg) => reg.update().catch(() => {})).catch(() => {});
+    // 新しいバージョンが入ったら自動で読み直す（古い画面が残らないように）
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => { if (!reloaded) { reloaded = true; location.reload(); } });
   }
 </script>
 </body>
