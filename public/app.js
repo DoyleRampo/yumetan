@@ -3,7 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const APP_VERSION = "3.0.0";
+  const APP_VERSION = "3.1.0";
 
   // ---------- 実行環境（Capacitor ネイティブか Web か） ----------
   const Cap = window.Capacitor;
@@ -151,11 +151,11 @@
   const stack = [];
   function go(view, { push = true } = {}) {
     if (view === current) return;
-    if (current === "record" && currentDream?.analysis && !isSaved(currentDream) && !confirm("この夢はまだ記憶していません。記憶せずに戻りますか？")) {
+    if (current === "home" && view !== "home" && currentDream?.analysis && !isSaved(currentDream) && !confirm("この夢はまだ記憶していません。記憶せずに移動しますか？")) {
       if (!push) history.pushState({ view: current }, "", `#${current}`);
       return;
     }
-    if (current === "record") stopListening({ silent: true });
+    if (current === "home") stopListening({ silent: true });
     stopSpeaking();
     if (push) stack.push(current);
     current = view;
@@ -170,30 +170,27 @@
   window.addEventListener("popstate", () => { const prev = stack.pop() || "home"; go(prev, { push: false }); });
   $$("[data-go]").forEach((b) => (b.onclick = () => go(b.dataset.go)));
   function onEnter(view) {
-    if (view === "home") { say("home", greeting()); updateHomeCount(); }
-    if (view === "mode") say("mode", "どの方法でも大丈夫です。話しやすいものを選んでください。");
+    if (view === "home") { renderToday(); updateHomeCount(); if (!currentDream?.analysis) say("home", greeting()); }
     if (view === "history") renderHistory();
     if (view === "insight") renderInsight();
     if (view === "settings") renderSettings();
   }
   function greeting() {
     const h = new Date().getHours();
-    return h < 11 ? "おはようございます。今日はどんな夢でしたか？" : h < 18 ? "こんにちは。覚えている夢、聞かせてください。" : "こんばんは。今日は夢の話をしましょう。";
+    return h < 11 ? "おはようございます。断片でも大丈夫、そのまま書いて（話して）ください。" : h < 18 ? "こんにちは。覚えている夢、聞かせてください。" : "こんばんは。今日は夢の話をしましょう。";
+  }
+  function renderToday() {
+    const d = new Date();
+    $("#today").textContent = d.toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric", weekday: "short" });
   }
   function updateHomeCount() { const el = $("#home-count"); el.textContent = `${dreams.length}件`; el.hidden = !dreams.length; }
 
   // ---------- 記憶方法の選択 ----------
-  let mode = "voice";
-  $$(".mode-btn").forEach((b) => (b.onclick = () => {
-    if (b.dataset.mode === "interview") { startInterview(); go("interview"); return; }
-    mode = b.dataset.mode;
-    if (mode === "voice" && !speech.supported) { toast("この環境では音声入力が使えません。文字入力に切り替えます。", true); mode = "text"; }
-    resetConversation();
-    go("record");
-  }));
+  let mode = "text"; // 「話す」を使ったら voice（返答の出し方は共通で文字）
+  $$("[data-mode=interview]").forEach((b) => (b.onclick = () => { startInterview(); go("interview"); }));
 
   // ---------- 記録画面（全文入力・音声） ----------
-  const chatEl = $("#chat"), micBtn = $("#mic"), statusEl = $("#status"), micArea = $("#mic-area");
+  const chatEl = $("#chat"), micBtn = $("#mic"), statusEl = $("#status");
   const wrap = $("#transcript-wrap"), ta = $("#transcript");
   const sendBtn = $("#send"), clearBtn = $("#clear"), newBtn = $("#new-dream");
   let currentDream = null, listening = false, wantListening = false, finalText = "", liveText = "", busy = false;
@@ -202,42 +199,47 @@
   let afterReady = false; // 読み取り結果を伝え終わったら true（記憶ボタンと質問欄を出す）
   const isSaved = (d) => Boolean(d && dreams.some((x) => x.id === d.id));
 
+  function placeChara(analyzed) {
+    const box = $("#view-home .home-chara"); if (!box) return;
+    const anchor = analyzed ? afterEl : $("#view-home .journal-nav");
+    if (box.nextElementSibling !== anchor) anchor.parentNode.insertBefore(box, anchor);
+  }
   function applyMode() {
-    const voice = mode === "voice";
     const analyzed = Boolean(currentDream?.analysis);
-    micArea.hidden = !voice || analyzed;
-    wrap.hidden = analyzed || (voice && !ta.value.trim());
+    placeChara(analyzed);
+    wrap.hidden = analyzed;
     afterEl.hidden = !analyzed || !afterReady;
+    $("#headline").innerHTML = analyzed ? "読み取り<br>ました。" : "今日の夢を<br>ひとこと。";
+    clearBtn.hidden = !ta.value.trim();
+    micBtn.hidden = !speech.supported;
+    askMic.hidden = !speech.supported;
     if (analyzed) {
       const saved = isSaved(currentDream);
       saveBtn.disabled = saved; saveBtn.textContent = saved ? "記憶しました" : "この夢を記憶する";
-      $("#ask-text").hidden = voice; $("#ask-voice").hidden = !voice;
-      $("#ask-note").textContent = voice ? "気になることがあれば、声で聞けます" : "気になることがあれば、ユメタンに聞けます";
-      newBtn.hidden = false;
     }
-    if (!voice && !analyzed) setTimeout(() => ta.focus(), 50);
   }
   function resetConversation() {
-    currentDream = null; finalText = ""; liveText = ""; ta.value = ""; askInput.value = ""; chatEl.innerHTML = ""; newBtn.hidden = true; afterReady = false;
-    applyMode();
-    setStatus(mode === "voice" ? "マイクを押して、夢を話してください" : "");
-    say("record", mode === "voice" ? "マイクを押して、そのまま話してください。整理しなくて大丈夫です。" : "覚えている範囲で書いてください。断片でも、順番がばらばらでも構いません。");
+    currentDream = null; mode = "text"; finalText = ""; liveText = ""; ta.value = ""; askInput.value = ""; chatEl.innerHTML = ""; afterReady = false;
+    applyMode(); setStatus("");
+    say("home", greeting());
   }
+  ta.addEventListener("input", () => { clearBtn.hidden = !ta.value.trim(); });
 
   let aizuchiTimer;
-  function aizuchi() { clearTimeout(aizuchiTimer); aizuchiTimer = setTimeout(() => { if (listening) say("record", AIZUCHI[Math.floor(Math.random() * AIZUCHI.length)], { mood: "listening" }); }, 900); }
+  function aizuchi() { clearTimeout(aizuchiTimer); aizuchiTimer = setTimeout(() => { if (listening) say("home", AIZUCHI[Math.floor(Math.random() * AIZUCHI.length)], { mood: "listening" }); }, 900); }
   async function startListening(target = ta) {
     stopSpeaking();
     listenTarget = target; finalText = target === ta ? finalText : ""; liveText = "";
     wantListening = true; listening = true;
     (target === ta ? micBtn : askMic).classList.add("listening");
-    if (target === ta) setStatus("聞いています… 話し終わったらマイクをもう一度押す"); else $("#ask-status").textContent = "聞いています… 終わったらもう一度押す";
-    say("record", target === ta ? "はい、聞いています。" : "どうぞ、聞いています。", { mood: "listening" });
+    if (target === ta) { mode = "voice"; micBtn.querySelector("span").textContent = "止める"; setStatus("聞いています… 話し終わったら「止める」"); }
+    else { $("#ask-status").hidden = false; $("#ask-status").textContent = "聞いています… 終わったらもう一度押す"; }
+    say("home", target === ta ? "はい、聞いています。" : "どうぞ、聞いています。", { mood: "listening" });
     try {
       await speech.start({
         onText: (t, isFinal) => {
           if (isFinal) { finalText += t; liveText = ""; aizuchi(); } else { liveText = t; if (t.length % 12 === 0) aizuchi(); }
-          listenTarget.value = finalText + liveText; if (listenTarget === ta) wrap.hidden = false;
+          listenTarget.value = finalText + liveText; if (listenTarget === ta) clearBtn.hidden = false;
         },
         onEnd: async () => {
           // ネイティブは一区切りごとに止まるので、続けたい間は再開する
@@ -262,10 +264,10 @@
     await speech.stop();
     if (nativeSR && liveText) { finalText += liveText; liveText = ""; listenTarget.value = finalText; }
     listening = false; clearTimeout(aizuchiTimer);
-    micBtn.classList.remove("listening"); askMic.classList.remove("listening"); mood("record", "");
+    micBtn.classList.remove("listening"); askMic.classList.remove("listening"); mood("home", "");
+    micBtn.querySelector("span").textContent = "話す"; $("#ask-status").hidden = true;
     if (silent) return;
-    if (listenTarget === ta) setStatus(finalText.trim() ? (settings.autosend ? "読み取っています…" : "内容を確認して「読み取ってもらう」を押してください") : "マイクを押して、夢を話してください");
-    else $("#ask-status").textContent = "マイクを押して質問";
+    if (listenTarget === ta) setStatus(finalText.trim() ? (settings.autosend ? "読み取っています…" : "内容を確認して「読み取る」を押してください") : "");
     if (nativeSR && finalText.trim() && settings.autosend && !busy) (listenTarget === ta ? send() : ask()); // ネイティブは onEnd が来ないことがあるためここでも送る
   }
   micBtn.onclick = () => (wantListening ? stopListening() : startListening(ta));
@@ -277,8 +279,8 @@
     if (!text || busy) return;
     busy = true; sendBtn.disabled = true; micBtn.disabled = true;
     addBubble("user", text);
-    ta.value = ""; finalText = ""; liveText = ""; if (mode === "voice") wrap.hidden = true;
-    say("record", "なるほど…少し整理しますね。", { mood: "thinking" });
+    ta.value = ""; finalText = ""; liveText = "";
+    say("home", "なるほど…少し整理しますね。", { mood: "thinking" });
     setStatus("ユメタンが読み取っています…");
     const now = new Date().toISOString();
     const dream = currentDream || { id: uuid(), createdAt: now, updatedAt: now, messages: [], analysis: null };
@@ -295,14 +297,14 @@
       renderResult(analysis);
       setStatus("");
       afterReady = false; applyMode();
-      say("record", analysis.reply, { mood: "happy", voice: false }); // 読み取り結果は文字のみ
+      say("home", analysis.reply, { mood: "happy", voice: false }); // 読み取り結果は文字のみ
       afterReady = true; applyMode();
       afterEl.scrollIntoView({ behavior: "smooth", block: "end" });
     } catch (e) {
       dream.messages.pop();
       chatEl.lastElementChild?.remove();
-      ta.value = text; finalText = text; wrap.hidden = false;
-      say("record", "うまく読み取れませんでした。もう一度お願いします。");
+      ta.value = text; finalText = text;
+      say("home", "うまく読み取れませんでした。もう一度お願いします。");
       toast(e.message, true);
       setStatus("読み取れませんでした。もう一度お試しください");
     } finally { busy = false; sendBtn.disabled = false; micBtn.disabled = false; }
@@ -326,7 +328,7 @@
     addBubble("user", text);
     const { reply } = window.YumetanEngine.answerQuestion(text, currentDream.analysis);
     addBubble("ai", reply);
-    say("record", reply, { mood: "happy", voice: false });
+    say("home", reply, { mood: "happy", voice: false });
     afterEl.scrollIntoView({ behavior: "smooth", block: "end" });
   }
   askSend.onclick = ask;
@@ -337,11 +339,11 @@
     if (!dreams.some((x) => x.id === currentDream.id)) dreams.unshift(currentDream);
     await persistDream(currentDream); updateHomeCount();
     applyMode();
-    say("record", "記憶しました。数日分たまると、最近の心の状態が読めるようになります。", { mood: "happy", voice: false });
+    say("home", "記憶しました。数日分たまると、最近の心の状態が読めるようになります。", { mood: "happy", voice: false });
     toast("この夢を記憶しました");
   };
   sendBtn.onclick = send;
-  clearBtn.onclick = () => { ta.value = ""; finalText = ""; liveText = ""; if (mode === "voice") wrap.hidden = true; };
+  clearBtn.onclick = () => { ta.value = ""; finalText = ""; liveText = ""; clearBtn.hidden = true; };
   newBtn.onclick = resetConversation;
   ta.addEventListener("input", () => { if (!listening) finalText = ta.value; });
   ta.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send(); });
@@ -405,8 +407,8 @@
     $("#iv-save").disabled = true;
     say("interview", "記録しますね…", { mood: "thinking" });
     try {
-      mode = "text"; resetConversation();
-      stack.length = 0; go("record");
+      resetConversation();
+      stack.length = 0; go("home");
       await send(text);
     } catch (e) { toast(e.message, true); }
     finally { $("#iv-save").disabled = false; }
@@ -462,7 +464,7 @@
       if (d.analysis) { const t = tagRow(a); t.style.marginTop = "10px"; det.querySelector(".tags").replaceWith(t); }
       const convo = det.querySelector(".convo");
       for (const m of d.messages) { const b = document.createElement("div"); b.className = `bubble ${m.role === "user" ? "user" : "ai"}`; b.textContent = m.text; convo.appendChild(b); }
-      det.querySelector(".continue").onclick = () => { mode = "text"; openDream(d); go("record"); };
+      det.querySelector(".continue").onclick = () => { openDream(d); go("home"); };
       det.querySelector(".delete").onclick = async () => {
         if (!confirm(`「${a.title || "この夢"}」の記録を削除しますか？`)) return;
         dreams = dreams.filter((x) => x.id !== d.id); await removeDream(d.id); det.remove();
@@ -477,9 +479,9 @@
     currentDream = d; finalText = ""; liveText = ""; ta.value = ""; askInput.value = ""; chatEl.innerHTML = "";
     for (const m of d.messages) addBubble(m.role === "user" ? "user" : "ai", m.text);
     if (d.analysis) { chatEl.lastElementChild.remove(); renderResult(d.analysis); }
-    afterReady = true; newBtn.hidden = false; applyMode();
+    afterReady = true; applyMode();
     setStatus("");
-    say("record", "この夢について、聞きたいことがあればどうぞ。");
+    say("home", "この夢について、聞きたいことがあればどうぞ。");
   }
 
   // ---------- 心の状態 ----------
@@ -536,6 +538,7 @@
     $("#opt-api").value = settings.apiBase || "";
     $("#opt-ai").checked = useAI();
     $("#sr-support").textContent = speech.supported ? `音声入力: 使えます（${nativeSR ? "ネイティブ" : "ブラウザ"}）` : "音声入力: このブラウザでは使えません（Chrome / Safari / Edge、またはアプリ版を使ってください）";
+    renderAccount();
     $("#sync-info").textContent = cloudOn()
       ? `夢の記録はクラウド（Firebase）に同期されています。この端末の同期ID: ${cloud.uid().slice(0, 8)}…。圏外でも使え、つながったときに同期します。`
       : "夢の記録はこの端末（アプリ）の中だけに保存されます。機種変更や別のブラウザに移すときは書き出してください。";
@@ -584,9 +587,90 @@
     catch { toast("サーバーに接続できません。通信環境か設定のサーバーURLを確認してください。", true); }
   }
 
+  // ---------- アカウント（ログイン / ログアウト / 削除） ----------
+  function renderAccount() {
+    const info = $("#account-info"), actions = $("#account-actions");
+    actions.innerHTML = "";
+    if (!cloudOn()) { info.textContent = "クラウド未接続のため、アカウント機能は使えません（通信環境を確認してください）。"; return; }
+    if (cloud.isAnonymous()) {
+      info.textContent = "今は登録なしで使っています（この端末だけ）。ログインすると、別の端末でも同じ記録が使えます。";
+      const b = document.createElement("button"); b.className = "btn primary"; b.textContent = "ログイン / 新規登録"; b.onclick = () => go("login"); actions.appendChild(b);
+    } else {
+      info.textContent = `ログイン中: ${cloud.email()}`;
+      const out = document.createElement("button"); out.className = "btn"; out.textContent = "ログアウト";
+      out.onclick = async () => {
+        if (!confirm("ログアウトしますか？ 記録はアカウントに残り、次にログインすると戻ります。")) return;
+        try { await cloud.signOut(); toast("ログアウトしました"); } catch (e) { toast(authMessage(e), true); }
+      };
+      const del = document.createElement("button"); del.className = "btn danger"; del.textContent = "アカウント削除";
+      del.onclick = async () => {
+        if (!confirm("アカウントと、クラウド上の夢の記録をすべて削除します。元に戻せません。よろしいですか？")) return;
+        const pw = prompt("確認のため、パスワードを入力してください");
+        if (pw == null) return;
+        try { await cloud.deleteAccount(pw); dreams = []; currentDream = null; await store.set(K.insight, null); toast("アカウントを削除しました"); }
+        catch (e) { toast(authMessage(e), true); }
+      };
+      actions.append(out, del);
+    }
+  }
+  const authMessage = (e) => ({
+    "auth/invalid-email": "メールアドレスの形式が正しくありません。",
+    "auth/user-not-found": "そのメールアドレスは登録されていません。",
+    "auth/wrong-password": "パスワードが違います。",
+    "auth/invalid-credential": "メールアドレスかパスワードが違います。",
+    "auth/email-already-in-use": "そのメールアドレスはすでに登録されています。「ログイン」を押してください。",
+    "auth/credential-already-in-use": "そのメールアドレスはすでに登録されています。「ログイン」を押してください。",
+    "auth/weak-password": "パスワードは6文字以上にしてください。",
+    "auth/too-many-requests": "試行回数が多すぎます。しばらく待ってからお試しください。",
+    "auth/requires-recent-login": "安全のため、もう一度ログインしてからお試しください。",
+    "auth/operation-not-allowed": "サーバー側でメールログインが有効になっていません（Firebase コンソール → Authentication → メール/パスワード を有効化）。",
+    "auth/network-request-failed": "通信できませんでした。",
+  }[e?.code] || e?.message || String(e));
+  const loginForm = $("#login-form"), loginMsg = $("#login-msg");
+  let loginMode = "signin";
+  function setLoginMode(m) {
+    loginMode = m;
+    $("#login-submit").textContent = m === "signup" ? "新規登録" : "ログイン";
+    $("#login-signup").textContent = m === "signup" ? "ログインはこちら" : "新規登録はこちら";
+    $("#login-pass").autocomplete = m === "signup" ? "new-password" : "current-password";
+    loginMsg.hidden = true;
+  }
+  $("#login-signup").onclick = () => setLoginMode(loginMode === "signup" ? "signin" : "signup");
+  $("#login-reset").onclick = async () => {
+    const email = $("#login-email").value.trim();
+    if (!email) { loginMsg.hidden = false; loginMsg.textContent = "メールアドレスを入力してから押してください。"; return; }
+    try { await cloud.resetPassword(email); loginMsg.hidden = false; loginMsg.textContent = "パスワード再設定のメールを送りました。"; }
+    catch (e) { loginMsg.hidden = false; loginMsg.textContent = authMessage(e); }
+  };
+  loginForm.onsubmit = async (e) => {
+    e.preventDefault();
+    if (!cloudOn()) { toast("クラウドに接続できていません", true); return; }
+    const email = $("#login-email").value.trim(), pass = $("#login-pass").value;
+    $("#login-submit").disabled = true; loginMsg.hidden = true;
+    try {
+      if (loginMode === "signup") {
+        await cloud.signUp(email, pass);
+        toast("登録しました。この端末の記録はそのまま使えます");
+      } else {
+        const carry = cloud.isAnonymous() && dreams.length ? dreams.slice() : [];
+        await cloud.signIn(email, pass);
+        if (carry.length && confirm(`この端末にある ${carry.length} 件の記録を、ログインしたアカウントにも入れますか？`)) {
+          await Promise.race([cloud.ready, sleep(1000)]);
+          for (const d of carry) { try { await cloud.saveDream(d); } catch {} }
+        }
+        toast("ログインしました");
+      }
+      $("#login-pass").value = "";
+      back();
+    } catch (err) { loginMsg.hidden = false; loginMsg.textContent = authMessage(err); }
+    finally { $("#login-submit").disabled = false; }
+  };
+
   // クラウド保存を有効化: 読めるか確認 → 端末内の記録を移行 → 変化を購読
+  let unsubscribeCloud = null;
   async function activateCloud() {
     if (!cloudOn()) return;
+    if (unsubscribeCloud) { try { unsubscribeCloud(); } catch {} unsubscribeCloud = null; }
     try { await cloud.loadOnce(); }
     catch (e) { cloud.state.enabled = false; cloud.state.error = e?.code || e?.message || String(e); console.warn("Firestore を使えないため端末内保存で動きます:", cloud.state.error); return; }
     try {
@@ -598,14 +682,15 @@
         await store.set(K.dreams, []); // 移行済みの端末内コピーは消す（以後はクラウドが正）
         if (n) toast(`${n}件の記録をクラウドに移しました`);
       }
-      cloud.subscribe((list) => {
+      unsubscribeCloud = cloud.subscribe((list) => {
         dreams = list; // 別端末での追加・削除もここに届く
         if (currentDream) { const same = dreams.find((d) => d.id === currentDream.id); if (same) currentDream = same; }
         updateHomeCount();
         if (current === "history") renderHistory();
         if (current === "settings") renderSettings();
-        if (current === "record") applyMode();
+        if (current === "home") applyMode();
       });
+      cloud.onUser(() => { dreams = []; currentDream = null; activateCloud(); renderSettings(); });
     } catch (e) { console.warn("cloud activate failed", e); }
   }
 
@@ -622,6 +707,7 @@
     cloud = window.YumetanCloud || null;
     if (cloud) cloud.ready.then(activateCloud).catch((e) => console.warn("cloud init failed", e));
     history.replaceState({ view: "home" }, "", "#home");
+    renderToday(); applyMode();
     say("home", greeting()); updateHomeCount();
     if (useAI()) checkHealth();
   })();

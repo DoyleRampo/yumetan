@@ -15,8 +15,8 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.0.0">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Shippori+Mincho:wght@500;700&display=swap">
+<link rel="stylesheet" href="style.css?v=3.1.0">
 </head>
 <body>
 <!-- キャラクター用のグラデーション定義（非表示画面の複製から参照できるよう1か所にまとめる） -->
@@ -37,65 +37,48 @@
 </header>
 
 <main>
-  <!-- ホーム -->
+  <!-- ホーム = 日記帳（書く・話す・読み取る・記憶する） -->
   <section id="view-home" class="view active">
-    <div class="home-chara"></div>
-    <button class="home-main" data-go="mode">
-      <span class="label">夢を記憶する</span>
-      <span class="sub">話す・書く・質問に答える</span>
-    </button>
-    <div class="home-list">
-      <button class="home-btn" data-go="history"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h6a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4z"/><path d="M20 4h-6a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h7z"/></svg><span class="label">夢の記録</span><span class="count" id="home-count" hidden></span><svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-      <button class="home-btn" data-go="insight"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg><span class="label">最近の心の状態</span><svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-      <button class="home-btn" data-go="settings"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="label">設定</span><svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+    <div class="journal-head">
+      <div class="date" id="today"></div>
+      <h2 class="headline" id="headline">今日の夢を<br>ひとこと。</h2>
     </div>
-    <p class="tagline">起きてすぐ、夢を話して。<br>聞いて、覚えて、心の状態を教えます。</p>
-  </section>
 
-  <!-- 記憶方法を選ぶ -->
-  <section id="view-mode" class="view">
-    <div class="chara-slot"></div>
-    <h3>どうやって話しますか？</h3>
-    <div class="mode-list">
-      <button class="mode-btn" data-mode="voice"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span><span><b>話しかける</b><small>音声で文字にします</small></span><svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-      <button class="mode-btn" data-mode="interview"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/></svg></span><span><b>質問に答える</b><small>はい・いいえで答えるだけ</small></span><svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-      <button class="mode-btn" data-mode="text"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16z"/><path d="M13 7l4 4"/></svg></span><span><b>自分で全文を書く</b><small>覚えている内容をそのまま</small></span><svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-    </div>
-  </section>
-
-  <!-- 記録（全文入力・音声） -->
-  <section id="view-record" class="view">
-    <div class="chara-slot"></div>
     <div id="chat" class="chat" aria-live="polite"></div>
+
+    <div id="transcript-wrap" class="transcript-wrap">
+      <textarea id="transcript" class="paper" rows="4" placeholder="覚えている範囲で。断片でも、順番がばらばらでも大丈夫"></textarea>
+      <p id="status" class="status"></p>
+      <div class="journal-actions">
+        <button id="mic" class="btn outline" aria-label="話す"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span>話す</span></button>
+        <button id="send" class="btn primary">読み取る</button>
+      </div>
+      <button id="clear" class="btn ghost small-link" hidden>消す</button>
+    </div>
 
     <div id="after" class="after" hidden>
       <button id="save-dream" class="btn primary big save">この夢を記憶する</button>
       <p class="muted center small-note" id="ask-note">気になることがあれば、ユメタンに聞けます</p>
       <div class="ask-row" id="ask-text">
         <input id="ask-input" class="input" placeholder="例: どうすればいい？ / なんでこの夢？" autocomplete="off" enterkeyhint="send">
+        <button id="ask-mic" class="btn outline icon-only" aria-label="声で質問"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
         <button id="ask-send" class="btn">聞く</button>
       </div>
-      <div class="ask-voice" id="ask-voice" hidden>
-        <button id="ask-mic" class="mic mic-ask" aria-label="声で質問"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
-        <p class="muted center small-note" id="ask-status">マイクを押して質問</p>
-      </div>
+      <p class="muted center small-note" id="ask-status" hidden></p>
+      <button id="new-dream" class="btn ghost small-link">新しい夢を書く</button>
     </div>
 
-    <div id="transcript-wrap" class="transcript-wrap" hidden>
-      <textarea id="transcript" rows="4" placeholder="覚えている範囲で。断片でも、順番がばらばらでも大丈夫"></textarea>
-      <div class="row">
-        <button id="send" class="btn primary big">読み取ってもらう</button>
-        <button id="clear" class="btn ghost">消す</button>
-      </div>
+    <div class="journal-links">
+      <button class="link-btn" data-mode="interview">言葉にしにくいときは、質問に答えて記録<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
     </div>
 
-    <div id="mic-area" class="mic-area">
-      <p id="status" class="status"></p>
-      <button id="mic" class="mic" aria-label="話す"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
-    </div>
-    <div class="row small">
-      <button id="new-dream" class="btn ghost" hidden>新しい夢を話す</button>
-    </div>
+    <div class="home-chara"></div>
+
+    <nav class="journal-nav">
+      <button data-go="history"><span>夢の記録</span><span class="count" id="home-count" hidden></span></button>
+      <button data-go="insight"><span>心の状態</span></button>
+      <button data-go="settings"><span>設定</span></button>
+    </nav>
   </section>
 
   <!-- 質問形式 -->
@@ -145,6 +128,24 @@
     </div>
   </section>
 
+  <!-- ログイン / 新規登録 -->
+  <section id="view-login" class="view">
+    <h2>ログイン / 新規登録</h2>
+    <p class="muted">メールアドレスで登録すると、機種変更や別の端末でも同じ記録が使えます。今この端末にある記録はそのまま引き継がれます。</p>
+    <form id="login-form" class="form" autocomplete="on">
+      <label class="field"><span>メールアドレス</span><input type="email" id="login-email" class="input" placeholder="you@example.com" autocomplete="email" required></label>
+      <label class="field"><span>パスワード（6文字以上）</span><input type="password" id="login-pass" class="input" placeholder="••••••••" autocomplete="current-password" minlength="6" required></label>
+      <p class="muted" id="login-msg" hidden></p>
+      <div class="row">
+        <button type="submit" class="btn primary big" id="login-submit" data-action="signin">ログイン</button>
+      </div>
+      <div class="row small">
+        <button type="button" class="btn ghost" id="login-signup">新規登録はこちら</button>
+        <button type="button" class="btn ghost" id="login-reset">パスワードを忘れた</button>
+      </div>
+    </form>
+  </section>
+
   <!-- 設定 -->
   <section id="view-settings" class="view">
     <h2>設定</h2>
@@ -160,6 +161,12 @@
     <div class="setting col" id="code-setting" hidden>
       <span>合言葉（配布元から受け取ったもの）</span>
       <input type="text" id="opt-code" class="input" placeholder="合言葉" autocomplete="off">
+    </div>
+
+    <h3>アカウント</h3>
+    <div id="account-box" class="account">
+      <p class="muted" id="account-info">読み込み中…</p>
+      <div class="row left" id="account-actions"></div>
     </div>
 
     <h3>データ</h3>
@@ -271,14 +278,14 @@
 </template>
 
 <div id="toast" class="toast" hidden></div>
-<script src="config.js?v=3.0.0"></script>
-<script src="firebase-config.js?v=3.0.0"></script>
-<script type="module" src="cloud.js?v=3.0.0"></script>
-<script src="engine/lexicon.js?v=3.0.0"></script>
-<script src="engine/analyze.js?v=3.0.0"></script>
-<script src="engine/insight.js?v=3.0.0"></script>
-<script src="engine/interview.js?v=3.0.0"></script>
-<script src="app.js?v=3.0.0"></script>
+<script src="config.js?v=3.1.0"></script>
+<script src="firebase-config.js?v=3.1.0"></script>
+<script type="module" src="cloud.js?v=3.1.0"></script>
+<script src="engine/lexicon.js?v=3.1.0"></script>
+<script src="engine/analyze.js?v=3.1.0"></script>
+<script src="engine/insight.js?v=3.1.0"></script>
+<script src="engine/interview.js?v=3.1.0"></script>
+<script src="app.js?v=3.1.0"></script>
 <script>
   if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
     navigator.serviceWorker.register("sw.js").then((reg) => reg.update().catch(() => {})).catch(() => {});
