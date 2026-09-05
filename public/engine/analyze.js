@@ -57,7 +57,19 @@
   }
 
   // messages: [{role, text}], history: 過去の夢（analysis付き）, prev: この夢の直前の分析
-  function analyzeDream({ messages, history = [], prev = null }) {
+  // 今の心の状態を短いラベルにする（結果カードの見出し）
+  function stateLabel({ mood, intensity, emotions, topTheme, dream_type }) {
+    const emo = emotions.slice(0, 2).join("・");
+    let level;
+    if (dream_type === "nightmare" || (mood <= -1 && intensity >= 4)) level = "心の負荷が高め";
+    else if (mood <= -1) level = "少し疲れ気味";
+    else if (mood === 0) level = "頭の中を整理中";
+    else if (mood === 1) level = "落ち着いている";
+    else level = "気持ちに余裕あり";
+    return emo ? `${level}（${emo}）` : level;
+  }
+
+  function analyzeDream({ messages, history = [], prev = null, askQuestion = false }) {
     const userTexts = messages.filter((m) => m.role === "user").map((m) => String(m.text || "").trim());
     const latest = userTexts[userTexts.length - 1] || "";
     const full = userTexts.join("。");
@@ -70,6 +82,7 @@
       return {
         reply: pick(L.NO_DREAM.replies, seed), title: "夢を覚えていない日", summary: summarize(full), emotions: [], symbols: [], themes: [], theme_ids: [],
         mood: 0, intensity: 1, dream_type: "fragment", outcome: null, mental_state_hint: L.NO_DREAM.hints[0], note: "", asked: [], engine: "local",
+        state_label: "よく眠れた日", category: "mundane",
       };
     }
 
@@ -124,7 +137,10 @@
     const ack = mood <= -1 ? pick(L.ACKS.neg, seed) : mood >= 1 ? pick(L.ACKS.pos, seed) : pick(L.ACKS.neu, seed);
     const wantsClose = has(compact(latest), CLOSING_WORDS);
     let reply;
-    if (wantsClose || turn >= 3) {
+    const recurNote = recurLabel ? pick(L.RECUR_NOTES, seed).replace("{theme}", recurLabel) + " " : "";
+    if (!askQuestion) {
+      reply = (!topThemes.length && text.length < 10) ? `${pick(L.SHORT_INPUT.replies, seed)} ${hint}` : `${ack} ${recurNote}${hint}`;
+    } else if (wantsClose || turn >= 3) {
       reply = `${pick(L.CLOSINGS, seed)}${turn === 1 ? " " + hint : ""}`;
     } else if (!topThemes.length && text.length < 10) {
       reply = pick(L.SHORT_INPUT.replies, seed);
@@ -133,7 +149,6 @@
       for (const t of strong) { q = t.theme.questions.find((x) => !asked.includes(x)); if (q) break; }
       if (!q) q = L.FALLBACK_QUESTIONS.find((x) => !asked.includes(x)) || pick(L.FALLBACK_QUESTIONS, seed);
       asked.push(q);
-      const recurNote = recurLabel && turn === 1 ? pick(L.RECUR_NOTES, seed).replace("{theme}", recurLabel) + " " : "";
       reply = turn === 1 ? `${ack} ${recurNote}${hint} ${q}` : `${ack} ${q}`;
     }
 
@@ -146,8 +161,54 @@
       themes: topThemes.map((t) => t.theme.label), theme_ids: topThemes.map((t) => t.theme.id),
       mood, intensity, dream_type: DREAM_TYPES.includes(dream_type) ? dream_type : "ordinary", outcome,
       mental_state_hint: hint, note, asked, engine: "local",
+      state_label: stateLabel({ mood, intensity, emotions, topTheme: top, dream_type }),
+      category: top?.cat || (topThemes[0]?.theme.cat) || "surreal",
     };
   }
 
-  root.YumetanEngine = { analyzeDream, detectThemes, detectEmotions, hash, pick };
+  // ---------- 心の状態を出したあとの質問に答える（ルールベース） ----------
+  const QA = [
+    { id: "why", kw: ["なぜ", "なんで", "何で", "どうして", "原因", "理由", "意味", "なに", "何を表", "何の夢"], },
+    { id: "how", kw: ["どうすれ", "どうしたら", "どうすべ", "対処", "対策", "改善", "よくな", "良くな", "治", "アドバイス", "何をした", "コツ", "防"], },
+    { id: "judge", kw: ["悪い夢", "いい夢", "良い夢", "大丈夫", "やばい", "ヤバい", "危険", "病気", "おかしい", "変？", "普通", "正常", "異常"], },
+    { id: "stress", kw: ["ストレス", "疲れ", "しんどい", "限界", "メンタル", "精神状態", "心の状態", "今の状態"], },
+    { id: "recur", kw: ["また見", "またこの", "また夢", "また同じ", "繰り返", "くり返", "何度も", "同じ夢", "続く", "毎日", "毎回", "見なくな", "見る？", "見るの", "見ちゃう"], },
+    { id: "prophecy", kw: ["予知", "正夢", "予言", "現実にな", "本当にな", "占い", "運勢", "吉", "凶"], },
+    { id: "feel", kw: ["気持ち", "感情", "どう感じ", "何を感じ"], },
+    { id: "sleep", kw: ["眠", "睡眠", "寝", "夜中", "起き"], },
+    { id: "save", kw: ["記憶", "保存", "残し", "記録"], },
+    { id: "thanks", kw: ["ありがと", "助かった", "分かった", "わかった", "なるほど", "了解", "おっけ", "OK", "ok"], },
+  ];
+  const QA_TEXT = {
+    why: (a, th) => `${th ? `「${th.label}」の夢は、` : "この夢は、"}${a.mental_state_hint} 夢は、起きている間に心を強く動かしたことを引き継ぎます。前日か数日内に、似た気持ちになった場面がなかったか思い出してみてください。${a.note ? " " + a.note : ""}`,
+    how: (a, th) => `${(L.CATEGORY_INFO[a.category] || L.CATEGORY_INFO.mundane).suggestion} 夢そのものを変えようとするより、日中の気がかりを一つ軽くするほうが効きます。`,
+    judge: (a) => a.dream_type === "nightmare" ? "怖い夢でしたが、それ自体は異常ではありません。健康な人でも夢の感情の8割はネガティブです。ただ、週1回以上の悪夢が2週間以上続いて眠るのが怖くなるようなら、睡眠外来や心療内科で相談すると楽になります。"
+      : a.mood >= 1 ? "良い夢です。心が休めているサインで、ストレスが下がっている時期に増えます。" : "良い・悪いで言えば『ふつう』の範囲です。嫌な夢でも、心が感情を処理している証拠なので心配いりません。",
+    stress: (a) => `今回の夢から読むと「${a.state_label}」です。${a.intensity >= 4 ? "感情の強さが高めなので、体も緊張しているかもしれません。肩と顎の力を抜いてみてください。" : "感情の強さはほどほどで、極端な負荷は見えません。"} 数日分たまると「最近の心の状態」でもっと正確に読めます。`,
+    recur: (a, th) => `同じ夢が繰り返されるのは、未解決の気がかりが残っているサインです。${th ? `「${th.label}」の夢は特にそうで、` : ""}原因の出来事が片付くか、夢の中で対処できるようになると自然に減っていきます。記憶しておくと、繰り返しを追えます。`,
+    prophecy: () => "夢は未来の予告ではなく、今の気持ちの映し方です。当たったように感じるのは、心配していたことが現実でも起きやすいからで、夢が原因ではありません。",
+    feel: (a) => a.emotions.length ? `夢の中の気持ちは「${a.emotions.join("・")}」が中心でした。この気持ちが、今の生活のどこかで小さく続いている可能性があります。` : "はっきりした感情は読み取れませんでした。起きたときの気分が一番のヒントです。",
+    sleep: (a) => `${a.dream_type === "nightmare" || a.intensity >= 4 ? "強い夢は眠りが浅いときに残りやすいです。" : "夢をしっかり覚えているのは、眠りの後半で目が覚めた証拠です。"} 寝る前1時間のスマホとカフェインを減らすと、夢が穏やかになりやすいです。${a.note ? " " + a.note : ""}`,
+    save: () => "下の「この夢を記憶する」ボタンを押すと、この端末に保存されます。数日分たまると「最近の心の状態」が読めるようになります。",
+    thanks: () => "こちらこそ。今日も無理せず過ごしてください。記憶しておくなら、下のボタンをどうぞ。",
+    fallback: (a) => `${pick(L.FALLBACK_HINTS, a.summary + "q")} 夢の細かい筋書きより、起きたときの気分が今の心の天気です。`,
+  };
+  const QUESTION_MARKS = ["？", "?", "なぜ", "なんで", "どう", "何", "なに", "か。", "かな", "ですか", "ますか", "の？", "って"];
+  function isQuestion(text) {
+    const t = compact(text);
+    return QUESTION_MARKS.some((m) => t.includes(m)) || t.length <= 12;
+  }
+  function answerQuestion(question, analysis) {
+    const t = compact(question);
+    const mentioned = L.THEMES.find((th) => countMatches(t, th.kw).length) || null;
+    const top = L.THEMES.find((th) => th.id === analysis.theme_ids?.[0]) || null;
+    let intent = QA.find((q) => countMatches(t, q.kw).length)?.id;
+    const weakPlace = mentioned && ["place", "mundane"].includes(mentioned.cat) && countMatches(t, mentioned.kw).length < 2;
+    if (!intent && mentioned && mentioned !== top && !weakPlace) return { reply: `「${mentioned.label}」の夢は、${pick(mentioned.hints, t)}${mentioned.body ? " " + mentioned.body : ""}`, intent: "theme" };
+    if (!intent) intent = "fallback";
+    return { reply: QA_TEXT[intent](analysis, mentioned || top), intent };
+  }
+
+  root.YumetanEngine = { analyzeDream, detectThemes, detectEmotions, hash, pick, answerQuestion, isQuestion, stateLabel };
+
 })(typeof window !== "undefined" ? window : globalThis);

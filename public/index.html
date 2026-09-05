@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="style.css?v=2.1.1">
+<link rel="stylesheet" href="style.css?v=2.2.0">
 </head>
 <body>
 <header class="top">
@@ -54,10 +54,20 @@
     <div class="chara-slot"></div>
     <div id="chat" class="chat" aria-live="polite"></div>
 
+    <div id="after" class="after" hidden>
+      <button id="save-dream" class="btn primary big save">🌙 この夢を記憶する</button>
+      <p class="muted center small-note">気になることがあれば、ユメタンに聞けます</p>
+      <div class="ask-row">
+        <input id="ask-input" class="input" placeholder="例: どうすればいい？ / なんでこの夢？" autocomplete="off" enterkeyhint="send">
+        <button id="ask-mic" class="btn ghost mic-small" aria-label="声で質問">🎙️</button>
+        <button id="ask-send" class="btn">聞く</button>
+      </div>
+    </div>
+
     <div id="transcript-wrap" class="transcript-wrap" hidden>
       <textarea id="transcript" rows="4" placeholder="覚えている範囲で。断片でも、順番がばらばらでも大丈夫"></textarea>
       <div class="row">
-        <button id="send" class="btn primary big">聞いてもらう</button>
+        <button id="send" class="btn primary big">読み取ってもらう</button>
         <button id="clear" class="btn ghost">消す</button>
       </div>
     </div>
@@ -91,10 +101,10 @@
       </div>
     </div>
     <div id="iv-confirm" class="transcript-wrap" hidden>
-      <p class="muted">まとめるとこんな夢でしたか？ 直してもOK</p>
+      <p class="muted">まとめるとこんな夢でしたか？ 直してもOK。読み取ったあとで記憶できます</p>
       <textarea id="iv-dream-text" rows="5"></textarea>
       <div class="row">
-        <button id="iv-save" class="btn primary big">これで記録する</button>
+        <button id="iv-save" class="btn primary big">この夢を読み取る</button>
         <button id="iv-more" class="btn ghost">もう少し質問して</button>
       </div>
     </div>
@@ -194,12 +204,12 @@
 </template>
 
 <div id="toast" class="toast" hidden></div>
-<script src="config.js?v=2.1.1"></script>
-<script src="engine/lexicon.js?v=2.1.1"></script>
-<script src="engine/analyze.js?v=2.1.1"></script>
-<script src="engine/insight.js?v=2.1.1"></script>
-<script src="engine/interview.js?v=2.1.1"></script>
-<script src="app.js?v=2.1.1"></script>
+<script src="config.js?v=2.2.0"></script>
+<script src="engine/lexicon.js?v=2.2.0"></script>
+<script src="engine/analyze.js?v=2.2.0"></script>
+<script src="engine/insight.js?v=2.2.0"></script>
+<script src="engine/interview.js?v=2.2.0"></script>
+<script src="app.js?v=2.2.0"></script>
 <script>
   if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
     navigator.serviceWorker.register("sw.js").then((reg) => reg.update().catch(() => {})).catch(() => {});

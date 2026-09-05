@@ -3,7 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const APP_VERSION = "2.1.1";
+  const APP_VERSION = "2.2.0";
 
   // ---------- 実行環境（Capacitor ネイティブか Web か） ----------
   const Cap = window.Capacitor;
@@ -140,6 +140,10 @@
   const stack = [];
   function go(view, { push = true } = {}) {
     if (view === current) return;
+    if (current === "record" && currentDream?.analysis && !isSaved(currentDream) && !confirm("この夢はまだ記憶していません。記憶せずに戻りますか？")) {
+      if (!push) history.pushState({ view: current }, "", `#${current}`);
+      return;
+    }
     if (current === "record") stopListening({ silent: true });
     stopSpeaking();
     if (push) stack.push(current);
@@ -182,15 +186,25 @@
   const wrap = $("#transcript-wrap"), ta = $("#transcript");
   const sendBtn = $("#send"), clearBtn = $("#clear"), newBtn = $("#new-dream");
   let currentDream = null, listening = false, wantListening = false, finalText = "", liveText = "", busy = false;
+  const afterEl = $("#after"), saveBtn = $("#save-dream"), askInput = $("#ask-input"), askMic = $("#ask-mic"), askSend = $("#ask-send");
+  let listenTarget = ta; // 音声の書き込み先（夢の本文 or 質問欄）
+  const isSaved = (d) => Boolean(d && dreams.some((x) => x.id === d.id));
 
   function applyMode() {
     const voice = mode === "voice";
-    micArea.hidden = !voice;
-    wrap.hidden = voice && !ta.value.trim();
-    if (!voice) setTimeout(() => ta.focus(), 50);
+    const analyzed = Boolean(currentDream?.analysis);
+    micArea.hidden = !voice || analyzed;
+    wrap.hidden = analyzed || (voice && !ta.value.trim());
+    afterEl.hidden = !analyzed;
+    if (analyzed) {
+      const saved = isSaved(currentDream);
+      saveBtn.disabled = saved; saveBtn.textContent = saved ? "✓ 記憶しました" : "🌙 この夢を記憶する";
+      newBtn.hidden = false;
+    }
+    if (!voice && !analyzed) setTimeout(() => ta.focus(), 50);
   }
   function resetConversation() {
-    currentDream = null; finalText = ""; liveText = ""; ta.value = ""; chatEl.innerHTML = ""; newBtn.hidden = true;
+    currentDream = null; finalText = ""; liveText = ""; ta.value = ""; askInput.value = ""; chatEl.innerHTML = ""; newBtn.hidden = true;
     applyMode();
     setStatus(mode === "voice" ? "マイクを押して、夢を話してください" : "");
     say("record", mode === "voice" ? "マイクを押して、そのまま話してください。整理しなくて大丈夫です。" : "覚えている範囲で書いてください。断片でも、順番がばらばらでも構いません。");
@@ -198,24 +212,25 @@
 
   let aizuchiTimer;
   function aizuchi() { clearTimeout(aizuchiTimer); aizuchiTimer = setTimeout(() => { if (listening) say("record", AIZUCHI[Math.floor(Math.random() * AIZUCHI.length)], { mood: "listening" }); }, 900); }
-  async function startListening() {
+  async function startListening(target = ta) {
     stopSpeaking();
-    wantListening = true; listening = true; liveText = "";
-    micBtn.classList.add("listening");
-    setStatus("聞いています… 話し終わったらマイクをもう一度押す");
-    say("record", "はい、聞いています。", { mood: "listening" });
+    listenTarget = target; finalText = target === ta ? finalText : ""; liveText = "";
+    wantListening = true; listening = true;
+    (target === ta ? micBtn : askMic).classList.add("listening");
+    if (target === ta) setStatus("聞いています… 話し終わったらマイクをもう一度押す");
+    say("record", target === ta ? "はい、聞いています。" : "どうぞ、聞いています。", { mood: "listening" });
     try {
       await speech.start({
         onText: (t, isFinal) => {
           if (isFinal) { finalText += t; liveText = ""; aizuchi(); } else { liveText = t; if (t.length % 12 === 0) aizuchi(); }
-          ta.value = finalText + liveText; wrap.hidden = false;
+          listenTarget.value = finalText + liveText; if (listenTarget === ta) wrap.hidden = false;
         },
         onEnd: async () => {
           // ネイティブは一区切りごとに止まるので、続けたい間は再開する
-          if (nativeSR && liveText) { finalText += liveText; liveText = ""; ta.value = finalText; }
+          if (nativeSR && liveText) { finalText += liveText; liveText = ""; listenTarget.value = finalText; }
           if (wantListening) { try { await speech.start(speech._cb); return; } catch {} }
-          listening = false; micBtn.classList.remove("listening");
-          if (finalText.trim() && settings.autosend && !busy) send();
+          listening = false; micBtn.classList.remove("listening"); askMic.classList.remove("listening");
+          if (finalText.trim() && settings.autosend && !busy) (listenTarget === ta ? send() : ask());
         },
         onError: (code) => {
           stopListening({ silent: true });
@@ -231,23 +246,25 @@
   async function stopListening({ silent = false } = {}) {
     wantListening = false;
     await speech.stop();
-    if (nativeSR && liveText) { finalText += liveText; liveText = ""; ta.value = finalText; }
+    if (nativeSR && liveText) { finalText += liveText; liveText = ""; listenTarget.value = finalText; }
     listening = false; clearTimeout(aizuchiTimer);
-    micBtn.classList.remove("listening"); mood("record", "");
+    micBtn.classList.remove("listening"); askMic.classList.remove("listening"); mood("record", "");
     if (silent) return;
-    setStatus(finalText.trim() ? (settings.autosend ? "送っています…" : "内容を確認して「聞いてもらう」を押してください") : "マイクを押して、夢を話してください");
-    if (nativeSR && finalText.trim() && settings.autosend && !busy) send(); // ネイティブは onEnd が来ないことがあるためここでも送る
+    if (listenTarget === ta) setStatus(finalText.trim() ? (settings.autosend ? "読み取っています…" : "内容を確認して「読み取ってもらう」を押してください") : "マイクを押して、夢を話してください");
+    if (nativeSR && finalText.trim() && settings.autosend && !busy) (listenTarget === ta ? send() : ask()); // ネイティブは onEnd が来ないことがあるためここでも送る
   }
-  micBtn.onclick = () => (wantListening ? stopListening() : startListening());
+  micBtn.onclick = () => (wantListening ? stopListening() : startListening(ta));
+  askMic.onclick = () => (wantListening ? stopListening() : startListening(askInput));
 
-  async function send() {
-    const text = ta.value.trim();
+  // 夢を読み取る（この時点では保存しない。「この夢を記憶する」で保存）
+  async function send(extraText) {
+    const text = (typeof extraText === "string" ? extraText : ta.value).trim();
     if (!text || busy) return;
     busy = true; sendBtn.disabled = true; micBtn.disabled = true;
     addBubble("user", text);
     ta.value = ""; finalText = ""; liveText = ""; if (mode === "voice") wrap.hidden = true;
     say("record", "なるほど…少し整理しますね。", { mood: "thinking" });
-    setStatus("ユメタンが考えています…");
+    setStatus("ユメタンが読み取っています…");
     const now = new Date().toISOString();
     const dream = currentDream || { id: uuid(), createdAt: now, updatedAt: now, messages: [], analysis: null };
     dream.messages.push({ role: "user", text, at: now });
@@ -255,24 +272,54 @@
       const history = dreams.filter((d) => d.id !== dream.id && d.analysis).slice(0, 6);
       const { analysis } = useAI()
         ? await api("/api/listen", { messages: dream.messages, history })
-        : { analysis: window.YumetanEngine.analyzeDream({ messages: dream.messages, history, prev: currentDream ? currentDream.analysis : null }) };
+        : { analysis: window.YumetanEngine.analyzeDream({ messages: dream.messages, history, prev: dream.analysis, askQuestion: false }) };
       dream.messages.push({ role: "assistant", text: analysis.reply, at: new Date().toISOString() });
       dream.analysis = analysis; dream.updatedAt = new Date().toISOString();
-      if (!currentDream) { dreams.unshift(dream); currentDream = dream; }
-      await saveDreams();
-      const b = addBubble("ai", analysis.reply); b.appendChild(tagRow(analysis));
+      currentDream = dream;
+      if (isSaved(dream)) await saveDreams(); // 記憶済みの夢に追記したときだけ自動更新
+      renderResult(analysis);
       say("record", analysis.reply, { mood: "happy", voice: true });
-      newBtn.hidden = false;
-      setStatus(mode === "voice" ? "続きを話すならマイクを。終わりなら「新しい夢を話す」" : "続きを書くこともできます");
+      applyMode();
+      setStatus("");
+      afterEl.scrollIntoView({ behavior: "smooth", block: "end" });
     } catch (e) {
       dream.messages.pop();
       chatEl.lastElementChild?.remove();
       ta.value = text; finalText = text; wrap.hidden = false;
-      say("record", "うまく聞き取れませんでした。もう一度お願いします。");
+      say("record", "うまく読み取れませんでした。もう一度お願いします。");
       toast(e.message, true);
-      setStatus("送れませんでした。もう一度お試しください");
+      setStatus("読み取れませんでした。もう一度お試しください");
     } finally { busy = false; sendBtn.disabled = false; micBtn.disabled = false; }
   }
+  // 結果の吹き出し（状態ラベル + 返事 + タグ）
+  function renderResult(a) {
+    const b = addBubble("ai", a.reply);
+    if (a.state_label) { const st = document.createElement("div"); st.className = "state"; st.textContent = `今の心の状態: ${a.state_label}`; b.prepend(st); }
+    b.appendChild(tagRow(a));
+    return b;
+  }
+  // 読み取り後の質問（または夢の追加情報）
+  async function ask() {
+    const text = askInput.value.trim();
+    if (!text || !currentDream?.analysis || busy) return;
+    askInput.value = ""; finalText = ""; liveText = "";
+    if (useAI() || !window.YumetanEngine.isQuestion(text)) { await send(text); return; } // 追加の内容なら読み取り直す
+    addBubble("user", text);
+    const { reply } = window.YumetanEngine.answerQuestion(text, currentDream.analysis);
+    addBubble("ai", reply);
+    say("record", reply, { mood: "happy", voice: true });
+    afterEl.scrollIntoView({ behavior: "smooth", block: "end" });
+  }
+  askSend.onclick = ask;
+  askInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ask(); } });
+  // この夢を記憶する
+  saveBtn.onclick = async () => {
+    if (!currentDream?.analysis || isSaved(currentDream)) return;
+    dreams.unshift(currentDream); await saveDreams(); updateHomeCount();
+    applyMode();
+    say("record", "記憶しました。数日分たまると、最近の心の状態が読めるようになります。", { mood: "happy", voice: true });
+    toast("この夢を記憶しました");
+  };
   sendBtn.onclick = send;
   clearBtn.onclick = () => { ta.value = ""; finalText = ""; liveText = ""; if (mode === "voice") wrap.hidden = true; };
   newBtn.onclick = resetConversation;
@@ -334,9 +381,9 @@
     $("#iv-save").disabled = true;
     say("interview", "記録しますね…", { mood: "thinking" });
     try {
-      mode = "text"; resetConversation(); ta.value = text;
+      mode = "text"; resetConversation();
       stack.length = 0; go("record");
-      await send();
+      await send(text);
     } catch (e) { toast(e.message, true); }
     finally { $("#iv-save").disabled = false; }
   };
@@ -384,7 +431,7 @@
           <p class="muted">${esc(a.mental_state_hint || "")}</p>
           <div class="convo"></div>
           <div class="actions">
-            <button class="btn ghost continue">この夢の続きを話す</button>
+            <button class="btn ghost continue">この夢について聞く</button>
             <button class="btn ghost danger delete">削除</button>
           </div>
         </div>`;
@@ -403,12 +450,12 @@
     }
   }
   function openDream(d) {
-    currentDream = d; finalText = ""; liveText = ""; ta.value = ""; chatEl.innerHTML = "";
+    currentDream = d; finalText = ""; liveText = ""; ta.value = ""; askInput.value = ""; chatEl.innerHTML = "";
     for (const m of d.messages) addBubble(m.role === "user" ? "user" : "ai", m.text);
-    if (d.analysis) chatEl.lastElementChild.appendChild(tagRow(d.analysis));
+    if (d.analysis) { chatEl.lastElementChild.remove(); renderResult(d.analysis); }
     newBtn.hidden = false; applyMode();
-    setStatus("この夢の続きを話せます");
-    say("record", "この夢の続き、聞かせてください。");
+    setStatus("");
+    say("record", "この夢について、聞きたいことがあればどうぞ。");
   }
 
   // ---------- 心の状態 ----------
