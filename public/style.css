@@ -232,3 +232,5 @@ h3 { font-size: 15px; margin: 22px 0 6px; color: var(--accent); }
 .answer { padding: 18px 10px; }
 @media (min-width: 700px) { main { padding-top: 16px; } .mic { width: 96px; height: 96px; } }
 @media (max-height: 700px) { .chara-svg { width: 104px; } .speech { font-size: 14px; margin-bottom: 30px; } }
+.home-btn.wide { grid-column: span 2; flex-direction: row; padding: 14px; gap: 10px; }
+.home-btn.wide .icon { font-size: 22px; }

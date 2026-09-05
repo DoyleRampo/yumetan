@@ -7,6 +7,8 @@
 - **読み取る**: 複数日の夢のパターンから「最近の心の状態」を2〜3文で。ストレス度、目立つ感情、傾向、小さな提案。
 - **知識を持つ**: 夢と精神状態の対応知識（`knowledge/dream_psychology.md`）を睡眠研究・心理学から調査してまとめ、AIの「記憶」として使用。
 
+**分析は端末内のルールエンジンで行います（AI・API不要、通信不要、無料）。** `public/engine/` に判断材料（夢のテーマ約60種、感情語彙、結末、身体要因、分類できない夢への汎用回答、最近の傾向の文章テンプレート）を持ち、キーワード照合と集計で「その夢が示す心の状態」と「最近の心の状態」を出します。Claude API を使う分析は「設定 → 詳細設定 → AIで分析する」で切り替えられます（サーバーに API キーと残高が必要）。
+
 3つの使い方があります。
 
 | 形 | 向いている人 | 必要なもの |
@@ -113,7 +115,13 @@ npm start                # http://localhost:3000
 利用者の端末（ブラウザ / PWA / iOS / Android）
   ├─ 夢の記録・設定を端末内に保存（localStorage / Capacitor Preferences）
   ├─ 音声認識・読み上げ（Web Speech API / ネイティブ）
+  ├─ 分析（既定）: public/engine/ のルールエンジン
+  │     lexicon.js   判断材料（テーマ・感情・結末・汎用回答・テンプレート）
+  │     analyze.js   1つの夢 → タイトル / 感情 / テーマ / 気分 / 悪夢判定 / 心の状態の一文 / 返事
+  │     insight.js   複数の夢 → ストレス度 / 傾向 / 反復テーマ / 良い面 / 提案 / 注意
+  │     interview.js はい・いいえの分岐シナリオ → 夢の文章
   │
+  │  （AIをオンにしたときだけ）
   │  POST /api/listen     { messages, history }   → 返事 + 分析
   │  POST /api/interview  { answers, finish, more } → 次の質問 or まとめ
   │  POST /api/insight    { dreams }              → 最近の心の状態

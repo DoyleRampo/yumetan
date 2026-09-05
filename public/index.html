@@ -33,8 +33,7 @@
     <div class="home-grid">
       <button class="home-btn" data-go="history"><span class="icon">📔</span><span class="label">夢の記録</span><span class="count" id="home-count"></span></button>
       <button class="home-btn" data-go="insight"><span class="icon">💭</span><span class="label">最近の心の状態</span></button>
-      <button class="home-btn" data-go="knowledge"><span class="icon">📚</span><span class="label">夢のじてん</span></button>
-      <button class="home-btn" data-go="settings"><span class="icon">⚙️</span><span class="label">設定</span></button>
+      <button class="home-btn wide" data-go="settings"><span class="icon">⚙️</span><span class="label">設定</span></button>
     </div>
     <p class="tagline">起きてすぐ、夢を話して。聞いて、覚えて、心の状態を教えます。</p>
   </section>
@@ -121,13 +120,6 @@
     </div>
   </section>
 
-  <!-- じてん -->
-  <section id="view-knowledge" class="view">
-    <h2>ユメタンの記憶（夢と心の対応）</h2>
-    <p class="muted">ユメタンが夢を読むときに使っている知識です。診断ではなく、仮説の道具として使っています。</p>
-    <article id="knowledge" class="knowledge"></article>
-  </section>
-
   <!-- 設定 -->
   <section id="view-settings" class="view">
     <h2>設定</h2>
@@ -162,6 +154,7 @@
 
     <details class="adv">
       <summary>詳細設定</summary>
+      <label class="setting"><input type="checkbox" id="opt-ai"> AI（Claude）で分析する（サーバーにAPIキーと残高が必要）</label>
       <div class="setting col">
         <span>サーバーURL（空なら標準）</span>
         <input type="url" id="opt-api" class="input" placeholder="https://example.onrender.com" autocomplete="off">
@@ -202,6 +195,10 @@
 
 <div id="toast" class="toast" hidden></div>
 <script src="config.js"></script>
+<script src="engine/lexicon.js"></script>
+<script src="engine/analyze.js"></script>
+<script src="engine/insight.js"></script>
+<script src="engine/interview.js"></script>
 <script src="app.js"></script>
 <script>
   if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {

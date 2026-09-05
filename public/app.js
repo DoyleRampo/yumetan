@@ -3,7 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const APP_VERSION = "2.0.0";
+  const APP_VERSION = "2.1.0";
 
   // ---------- 実行環境（Capacitor ネイティブか Web か） ----------
   const Cap = window.Capacitor;
@@ -29,7 +29,8 @@
   const K = { settings: "yumetan.settings", dreams: "yumetan.dreams", insight: "yumetan.insight", user: "yumetan.userId" };
 
   // ---------- 設定 ----------
-  const settings = { speak: true, autosend: true, chara: "woman", code: "", apiBase: "" };
+  const settings = { speak: true, autosend: true, chara: "woman", code: "", apiBase: "", engine: "local" };
+  const useAI = () => settings.engine === "ai";
   async function loadSettings() { Object.assign(settings, await store.get(K.settings, {})); }
   const saveSettings = () => store.set(K.settings, settings);
 
@@ -158,7 +159,6 @@
     if (view === "mode") say("mode", "どの方法でも大丈夫です。話しやすいものを選んでください。");
     if (view === "history") renderHistory();
     if (view === "insight") renderInsight();
-    if (view === "knowledge") renderKnowledge();
     if (view === "settings") renderSettings();
   }
   function greeting() {
@@ -252,7 +252,10 @@
     const dream = currentDream || { id: uuid(), createdAt: now, updatedAt: now, messages: [], analysis: null };
     dream.messages.push({ role: "user", text, at: now });
     try {
-      const { analysis } = await api("/api/listen", { messages: dream.messages, history: dreams.filter((d) => d.id !== dream.id && d.analysis).slice(0, 6) });
+      const history = dreams.filter((d) => d.id !== dream.id && d.analysis).slice(0, 6);
+      const { analysis } = useAI()
+        ? await api("/api/listen", { messages: dream.messages, history })
+        : { analysis: window.YumetanEngine.analyzeDream({ messages: dream.messages, history, prev: currentDream ? currentDream.analysis : null }) };
       dream.messages.push({ role: "assistant", text: analysis.reply, at: new Date().toISOString() });
       dream.analysis = analysis; dream.updatedAt = new Date().toISOString();
       if (!currentDream) { dreams.unshift(dream); currentDream = dream; }
@@ -277,7 +280,7 @@
   ta.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send(); });
 
   // ---------- 質問形式（アキネーター風） ----------
-  const FIRST_QUESTION = "夢に、知っている人が出てきましたか？";
+  const FIRST_QUESTION = window.YumetanInterview.FIRST_QUESTION;
   const iv = { answers: [], question: "", busy: false };
   const ivAnswers = $("#iv-answers"), ivOther = $("#iv-other"), ivOtherText = $("#iv-other-text"), ivConfirm = $("#iv-confirm"), ivDreamText = $("#iv-dream-text"), ivLog = $("#iv-log"), ivProgress = $("#iv-progress");
   function startInterview() {
@@ -301,7 +304,8 @@
     iv.busy = true; ivAnswers.setAttribute("aria-busy", "true"); ivOther.hidden = true;
     say("interview", finish ? "分かりました。まとめますね…" : "…", { mood: "thinking" });
     try {
-      const { step } = await api("/api/interview", { answers: iv.answers, finish, more });
+      const { step } = useAI() ? await api("/api/interview", { answers: iv.answers, finish, more }) : { step: window.YumetanInterview.next({ answers: iv.answers, finish, more }) };
+      if (!useAI()) await sleep(350); // 考えている間を少しだけ見せる
       if (step.done) {
         ivDreamText.value = step.dream_text;
         ivConfirm.hidden = false; ivAnswers.hidden = true; $("#iv-finish").hidden = true;
@@ -423,11 +427,12 @@
     if (targets.length < 2) { el.innerHTML = `<p class="empty">分析にはあと ${2 - targets.length} 件の夢が必要です。<br><span class="muted">毎朝ひとつ話すと、数日で傾向が見えてきます。</span></p>`; return; }
     const cached = await store.get(K.insight);
     let insight = cached?.insight, fromCache = true;
-    if (refresh || !cached || cached.fingerprint !== fingerprint(targets)) {
-      el.innerHTML = `<p class="muted">夢の記録を読み返しています…（少し時間がかかります）</p>`;
+    if (refresh || !cached || cached.fingerprint !== fingerprint(targets) || (cached.insight?.engine === "local") !== !useAI()) {
+      el.innerHTML = `<p class="muted">夢の記録を読み返しています…</p>`;
       $("#insight-refresh").disabled = true;
       try {
-        ({ insight } = await api("/api/insight", { dreams: targets }));
+        if (useAI()) ({ insight } = await api("/api/insight", { dreams: targets }));
+        else insight = window.YumetanInsight.compute(targets);
         await store.set(K.insight, { insight, fingerprint: fingerprint(targets) });
         fromCache = false;
       } catch (e) { if (!insight) { el.innerHTML = `<p class="empty">${esc(e.message)}</p>`; $("#insight-refresh").disabled = false; return; } toast(e.message, true); }
@@ -451,55 +456,22 @@
   }
   $("#insight-refresh").onclick = () => renderInsight(true);
 
-  // ---------- じてん ----------
-  let knowledgeLoaded = false;
-  async function renderKnowledge() {
-    if (knowledgeLoaded) return;
-    const el = $("#knowledge");
-    try { const res = await fetch(apiBase() + "/api/knowledge"); el.innerHTML = md(await res.text()); knowledgeLoaded = true; }
-    catch { el.innerHTML = `<p class="empty">読み込めませんでした（通信環境を確認してください）</p>`; }
-  }
-  function md(src) {
-    const inline = (s) => esc(s)
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/`([^`]+)`/g, "<code>$1</code>")
-      .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-      .replace(/(^|[^"'>])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
-    const lines = src.split("\n"); const out = []; let i = 0;
-    while (i < lines.length) {
-      const l = lines[i];
-      if (/^\s*$/.test(l)) { i++; continue; }
-      if (/^---+$/.test(l.trim())) { out.push("<hr>"); i++; continue; }
-      const h = l.match(/^(#{1,4})\s+(.*)/); if (h) { out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); i++; continue; }
-      if (l.startsWith("|")) {
-        const rows = []; while (i < lines.length && lines[i].startsWith("|")) rows.push(lines[i++]);
-        const cells = (r) => r.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
-        const [head, ...rest] = rows.filter((r) => !/^[\s|:-]+$/.test(r));
-        out.push(`<table><thead><tr>${cells(head).map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>${rest.map((r) => `<tr>${cells(r).map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
-        continue;
-      }
-      if (/^\s*[-*]\s+/.test(l)) { const items = []; while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*[-*]\s+/, "")); out.push(`<ul>${items.map((x) => `<li>${inline(x)}</li>`).join("")}</ul>`); continue; }
-      if (/^\s*\d+\.\s+/.test(l)) { const items = []; while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*\d+\.\s+/, "")); out.push(`<ol>${items.map((x) => `<li>${inline(x)}</li>`).join("")}</ol>`); continue; }
-      const para = []; while (i < lines.length && !/^\s*$/.test(lines[i]) && !/^(#|\||---|\s*[-*]\s|\s*\d+\.\s)/.test(lines[i])) para.push(lines[i++]);
-      out.push(`<p>${inline(para.join("\n"))}</p>`);
-    }
-    return out.join("\n");
-  }
-
   // ---------- 設定 ----------
   function renderSettings() {
     $("#opt-speak").checked = settings.speak;
     $("#opt-autosend").checked = settings.autosend;
     $("#opt-code").value = settings.code || "";
     $("#opt-api").value = settings.apiBase || "";
+    $("#opt-ai").checked = useAI();
     $("#sr-support").textContent = speech.supported ? `音声入力: 使えます（${nativeSR ? "ネイティブ" : "ブラウザ"}）` : "音声入力: このブラウザでは使えません（Chrome / Safari / Edge、またはアプリ版を使ってください）";
-    $("#app-info").textContent = `ユメタン v${APP_VERSION} / ${isNative ? "アプリ版" : "Web版"} / 接続先: ${apiBase() || "同じサーバー"}`;
+    $("#app-info").textContent = `ユメタン v${APP_VERSION} / ${isNative ? "アプリ版" : "Web版"} / 分析: ${useAI() ? "AI（Claude）" : "端末内エンジン"} / 接続先: ${apiBase() || "同じサーバー"}`;
     applyChara();
   }
   $("#opt-speak").onchange = (e) => { settings.speak = e.target.checked; saveSettings(); if (!settings.speak) stopSpeaking(); };
   $("#opt-autosend").onchange = (e) => { settings.autosend = e.target.checked; saveSettings(); };
   $("#opt-code").onchange = (e) => { settings.code = e.target.value.trim(); saveSettings(); toast("合言葉を保存しました"); };
-  $("#opt-api").onchange = (e) => { settings.apiBase = e.target.value.trim(); saveSettings(); knowledgeLoaded = false; checkHealth(); };
+  $("#opt-api").onchange = (e) => { settings.apiBase = e.target.value.trim(); saveSettings(); if (useAI()) checkHealth(); };
+  $("#opt-ai").onchange = (e) => { settings.engine = e.target.checked ? "ai" : "local"; saveSettings(); if (useAI()) checkHealth(); else toast("端末内の分析エンジンを使います（通信不要）"); };
   $$(".seg-btn").forEach((b) => (b.onclick = () => { settings.chara = b.dataset.chara; saveSettings(); applyChara(); speak(settings.chara === "man" ? "はい、担当を替わりました。" : "はい、私が担当します。"); }));
 
   // データの書き出し / 読み込み
@@ -542,6 +514,6 @@
     mountCharas();
     history.replaceState({ view: "home" }, "", "#home");
     say("home", greeting()); updateHomeCount();
-    checkHealth();
+    if (useAI()) checkHealth();
   })();
 })();
