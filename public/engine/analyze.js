@@ -69,7 +69,24 @@
     return emo ? `${level}（${emo}）` : level;
   }
 
-  function analyzeDream({ messages, history = [], prev = null, askQuestion = false }) {
+  // プロフィール（睡眠・立場・気がかり）に合わせて仮説を一言足す
+  const SHORT_SLEEP = ["5時間未満", "5〜6時間"];
+  function profileNote(profile, topTheme, dream_type) {
+    if (!profile) return "";
+    const cat = topTheme?.cat, id = topTheme?.id;
+    const stress = profile.stressTopics || [];
+    if (SHORT_SLEEP.includes(profile.sleepHours) && (id === "paralysis" || dream_type === "fragment" || dream_type === "nightmare")) return "睡眠時間が短めなので、体の疲れも影響していそうです。";
+    if (profile.role === "学生" && (cat === "evaluation" || id === "school")) return "学生の時期は、評価や試験の場面が夢に出やすいです。";
+    if (stress.includes("仕事・学業") && (cat === "evaluation" || id === "work" || id === "late")) return "気がかりに挙げていた仕事・学業のプレッシャーとつながっていそうです。";
+    if (stress.includes("人間関係") && cat === "social") return "気がかりに挙げていた人間関係が、夢の場面に出てきているようです。";
+    if (stress.includes("お金") && id === "money") return "気がかりに挙げていたお金のことが、そのまま夢に出ています。";
+    if (stress.includes("健康") && cat === "body") return "気がかりに挙げていた健康のことと、体の感覚がつながっているのかもしれません。";
+    if (stress.includes("家族") && ["parent", "sibling", "house", "deceased"].includes(id)) return "気がかりに挙げていた家族のテーマが顔を出しています。";
+    if (stress.includes("将来") && (cat === "transition" || id === "lost")) return "将来への迷いが、夢の中の道や変化に映っているようです。";
+    return "";
+  }
+
+  function analyzeDream({ messages, history = [], prev = null, askQuestion = false, profile = null }) {
     const userTexts = messages.filter((m) => m.role === "user").map((m) => String(m.text || "").trim());
     const latest = userTexts[userTexts.length - 1] || "";
     const full = userTexts.join("。");
@@ -130,11 +147,14 @@
     const top = strong[0]?.theme;
     let hint = top ? pick(top.hints, seed) : pick(L.FALLBACK_HINTS, seed);
     if (recurLabel && top && top.label === recurLabel) hint = `同じ「${recurLabel}」の夢が続いています。` + hint;
+    const pnote = profileNote(profile, top, dream_type);
+    if (pnote) hint = hint + " " + pnote;
     const note = top?.body || "";
 
     // 返答
     const asked = [...(prev?.asked || [])];
-    const ack = mood <= -1 ? pick(L.ACKS.neg, seed) : mood >= 1 ? pick(L.ACKS.pos, seed) : pick(L.ACKS.neu, seed);
+    let ack = mood <= -1 ? pick(L.ACKS.neg, seed) : mood >= 1 ? pick(L.ACKS.pos, seed) : pick(L.ACKS.neu, seed);
+    if (profile?.nickname && hash(seed) % 3 === 0) ack = `${profile.nickname}さん、${ack}`;
     const wantsClose = has(compact(latest), CLOSING_WORDS);
     let reply;
     const recurNote = recurLabel ? pick(L.RECUR_NOTES, seed).replace("{theme}", recurLabel) + " " : "";

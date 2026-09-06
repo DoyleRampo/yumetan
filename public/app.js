@@ -3,7 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const APP_VERSION = "3.1.0";
+  const APP_VERSION = "3.2.0";
 
   // ---------- 実行環境（Capacitor ネイティブか Web か） ----------
   const Cap = window.Capacitor;
@@ -29,7 +29,7 @@
   const K = { settings: "yumetan.settings", dreams: "yumetan.dreams", insight: "yumetan.insight", user: "yumetan.userId", migrated: "yumetan.migrated" };
 
   // ---------- 設定 ----------
-  const settings = { speak: false, autosend: true, chara: "woman", code: "", apiBase: "", engine: "local", speakReset: false };
+  const settings = { speak: false, autosend: true, chara: "woman", code: "", apiBase: "", engine: "local", speakReset: false, profile: null };
   const useAI = () => settings.engine === "ai";
   async function loadSettings() {
     Object.assign(settings, await store.get(K.settings, {}));
@@ -160,7 +160,7 @@
     if (push) stack.push(current);
     current = view;
     $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
-    $("#back").hidden = view === "home";
+    $("#back").hidden = view === "home" || (view === "onboard" && !settings.profile);
     window.scrollTo({ top: 0 });
     if (push) history.pushState({ view }, "", `#${view}`);
     onEnter(view);
@@ -174,10 +174,12 @@
     if (view === "history") renderHistory();
     if (view === "insight") renderInsight();
     if (view === "settings") renderSettings();
+    if (view === "onboard") renderOnboard();
   }
   function greeting() {
     const h = new Date().getHours();
-    return h < 11 ? "おはようございます。断片でも大丈夫、そのまま書いて（話して）ください。" : h < 18 ? "こんにちは。覚えている夢、聞かせてください。" : "こんばんは。今日は夢の話をしましょう。";
+    const name = settings.profile?.nickname ? `${settings.profile.nickname}さん、` : "";
+    return h < 11 ? `${name}おはようございます。断片でも大丈夫、そのまま書いて（話して）ください。` : h < 18 ? `${name}こんにちは。覚えている夢、聞かせてください。` : `${name}こんばんは。今日は夢の話をしましょう。`;
   }
   function renderToday() {
     const d = new Date();
@@ -289,7 +291,7 @@
       const history = dreams.filter((d) => d.id !== dream.id && d.analysis).slice(0, 6);
       const { analysis } = useAI()
         ? await api("/api/listen", { messages: dream.messages, history })
-        : { analysis: window.YumetanEngine.analyzeDream({ messages: dream.messages, history, prev: dream.analysis, askQuestion: false }) };
+        : { analysis: window.YumetanEngine.analyzeDream({ messages: dream.messages, history, prev: dream.analysis, askQuestion: false, profile: settings.profile }) };
       dream.messages.push({ role: "assistant", text: analysis.reply, at: new Date().toISOString() });
       dream.analysis = analysis; dream.updatedAt = new Date().toISOString();
       currentDream = dream;
@@ -505,7 +507,7 @@
       $("#insight-refresh").disabled = true;
       try {
         if (useAI()) ({ insight } = await api("/api/insight", { dreams: targets }));
-        else insight = window.YumetanInsight.compute(targets);
+        else insight = window.YumetanInsight.compute(targets, settings.profile);
         await store.set(K.insight, { insight, fingerprint: fingerprint(targets) });
         fromCache = false;
       } catch (e) { if (!insight) { el.innerHTML = `<p class="empty">${esc(e.message)}</p>`; $("#insight-refresh").disabled = false; return; } toast(e.message, true); }
@@ -539,6 +541,8 @@
     $("#opt-ai").checked = useAI();
     $("#sr-support").textContent = speech.supported ? `音声入力: 使えます（${nativeSR ? "ネイティブ" : "ブラウザ"}）` : "音声入力: このブラウザでは使えません（Chrome / Safari / Edge、またはアプリ版を使ってください）";
     renderAccount();
+    const pf = settings.profile;
+    $("#profile-info").textContent = pf ? `${pf.nickname}さん / ${pf.ageGroup} / ${pf.role} / 睡眠 ${pf.sleepHours} / 起床 ${pf.wakeTime}${pf.stressTopics?.length ? " / 気がかり: " + pf.stressTopics.join("・") : ""}` : "未登録";
     $("#sync-info").textContent = cloudOn()
       ? `夢の記録はクラウド（Firebase）に同期されています。この端末の同期ID: ${cloud.uid().slice(0, 8)}…。圏外でも使え、つながったときに同期します。`
       : "夢の記録はこの端末（アプリ）の中だけに保存されます。機種変更や別のブラウザに移すときは書き出してください。";
@@ -586,6 +590,63 @@
     try { const h = await api("/api/health"); $("#code-setting").hidden = !h.needsCode; if (h.needsCode && !settings.code) toast("このサーバーは合言葉が必要です。設定画面で入力してください。"); }
     catch { toast("サーバーに接続できません。通信環境か設定のサーバーURLを確認してください。", true); }
   }
+
+  // ---------- 初回登録（プロフィール + ログイン情報） ----------
+  const obForm = $("#ob-form"), obMsg = $("#ob-msg");
+  $("#profile-edit").onclick = () => go("onboard");
+  function renderOnboard() {
+    const pf = settings.profile;
+    $("#ob-kicker").textContent = pf ? "プロフィール" : "はじめまして";
+    $("#ob-title").innerHTML = pf ? "あなたのことを、<br>更新します。" : "あなたのことを、<br>すこし教えてください。";
+    $("#ob-nickname").value = pf?.nickname || "";
+    if (pf) { $("#ob-age").value = pf.ageGroup; $("#ob-gender").value = pf.gender; $("#ob-role").value = pf.role; $("#ob-sleep").value = pf.sleepHours; $("#ob-wake").value = pf.wakeTime; }
+    $$("#ob-stress input").forEach((c) => (c.checked = Boolean(pf?.stressTopics?.includes(c.value))));
+    const needAccount = !cloudOn() || cloud.isAnonymous();
+    $("#ob-account").hidden = !needAccount || (pf && !cloudOn());
+    $("#ob-submit").textContent = pf ? (needAccount && cloudOn() ? "保存する（登録もする場合はメール入力）" : "保存する") : "登録してはじめる";
+    $("#ob-skip").hidden = Boolean(pf);
+    $("#ob-skip").textContent = "登録せずに、この端末だけで使う";
+    obMsg.hidden = true;
+  }
+  function readProfile() {
+    return {
+      nickname: $("#ob-nickname").value.trim(), ageGroup: $("#ob-age").value, gender: $("#ob-gender").value, role: $("#ob-role").value,
+      sleepHours: $("#ob-sleep").value, wakeTime: $("#ob-wake").value,
+      stressTopics: $$("#ob-stress input:checked").map((c) => c.value),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  async function saveProfile(pf) {
+    settings.profile = pf; await saveSettings();
+    if (cloudOn()) { try { await cloud.saveProfile(pf); } catch (e) { console.warn("profile sync failed", e); } }
+  }
+  obForm.onsubmit = async (e) => {
+    e.preventDefault();
+    const pf = readProfile();
+    if (!pf.nickname) { obMsg.hidden = false; obMsg.textContent = "呼び名を入力してください。"; return; }
+    const email = $("#ob-email").value.trim(), pass = $("#ob-pass").value;
+    $("#ob-submit").disabled = true; obMsg.hidden = true;
+    try {
+      const wasFirst = !settings.profile;
+      await saveProfile(pf);
+      if (!$("#ob-account").hidden && (email || pass)) {
+        if (!cloudOn()) throw new Error("クラウドに接続できないため、登録は後で設定画面から行ってください。");
+        if (!email || pass.length < 6) throw new Error("メールアドレスと6文字以上のパスワードを入力してください。");
+        await cloud.signUp(email, pass);
+        $("#ob-pass").value = "";
+        toast(`${pf.nickname}さん、登録しました`);
+      } else toast(wasFirst ? `${pf.nickname}さん、はじめましょう` : "保存しました");
+      if (wasFirst) { stack.length = 0; go("home", { push: false }); history.replaceState({ view: "home" }, "", "#home"); } else back();
+    } catch (err) { obMsg.hidden = false; obMsg.textContent = authMessage(err); }
+    finally { $("#ob-submit").disabled = false; }
+  };
+  $("#ob-skip").onclick = async () => {
+    const pf = readProfile();
+    if (!pf.nickname) { obMsg.hidden = false; obMsg.textContent = "呼び名だけ入力してください。"; return; }
+    await saveProfile(pf);
+    toast(`${pf.nickname}さん、はじめましょう`);
+    stack.length = 0; go("home", { push: false }); history.replaceState({ view: "home" }, "", "#home");
+  };
 
   // ---------- アカウント（ログイン / ログアウト / 削除） ----------
   function renderAccount() {
@@ -674,6 +735,8 @@
     try { await cloud.loadOnce(); }
     catch (e) { cloud.state.enabled = false; cloud.state.error = e?.code || e?.message || String(e); console.warn("Firestore を使えないため端末内保存で動きます:", cloud.state.error); return; }
     try {
+      // プロフィール: クラウドにあれば取り込み、無ければ端末のものを上げる
+      try { const cp = await cloud.loadProfile(); if (cp) { settings.profile = cp; await saveSettings(); if (current === "onboard") { stack.length = 0; go("home", { push: false }); } } else if (settings.profile) await cloud.saveProfile(settings.profile); } catch {}
       const local = (await store.get(K.dreams, [])) || [];
       if (local.length) {
         const existing = new Set((await cloud.loadOnce()).map((d) => d.id));
@@ -708,6 +771,7 @@
     if (cloud) cloud.ready.then(activateCloud).catch((e) => console.warn("cloud init failed", e));
     history.replaceState({ view: "home" }, "", "#home");
     renderToday(); applyMode();
+    if (!settings.profile) go("onboard", { push: false });
     say("home", greeting()); updateHomeCount();
     if (useAI()) checkHealth();
   })();

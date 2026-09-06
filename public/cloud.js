@@ -45,6 +45,8 @@ window.YumetanCloud = {
   async loadOnce() { const { getDocs, query, orderBy } = state.fns; const snap = await getDocs(query(this.col(), orderBy("createdAt", "desc"))); return snap.docs.map((d) => d.data()); },
   async deleteAllDreams() { const { getDocs, deleteDoc } = state.fns; const snap = await getDocs(this.col()); for (const d of snap.docs) await deleteDoc(d.ref); return snap.size; },
   uid() { return state.user?.uid || ""; },
+  async saveProfile(profile) { const { doc, setDoc } = state.fns; await setDoc(doc(state.db, "users", state.user.uid), { profile, updatedAt: new Date().toISOString() }, { merge: true }); },
+  async loadProfile() { const { doc, getDoc } = state.fns; const snap = await getDoc(doc(state.db, "users", state.user.uid)); return snap.exists() ? snap.data().profile || null : null; },
 
   // ---------- アカウント ----------
   isAnonymous() { return Boolean(state.user?.isAnonymous); },

@@ -8,7 +8,7 @@
   const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
   const q = (s) => `「${s}」`;
 
-  function compute(dreamsInput) {
+  function compute(dreamsInput, profile = null) {
     const dreams = dreamsInput.filter((d) => d && d.analysis).sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
     const n = dreams.length;
     if (n < 2) return null;
@@ -80,13 +80,16 @@
     // 提案
     let cat = catSorted[0]?.[0] || "mundane";
     if (stress_level === "low" && !["positive", "freedom"].includes(cat)) cat = avgMood >= 1 ? "positive" : cat;
-    const suggestion = (L.CATEGORY_INFO[cat] || L.CATEGORY_INFO.mundane).suggestion;
+    let suggestion = (L.CATEGORY_INFO[cat] || L.CATEGORY_INFO.mundane).suggestion;
+    if (profile && ["5時間未満", "5〜6時間"].includes(profile.sleepHours) && (nightmares >= 1 || avgInt >= 3.5)) suggestion = "睡眠が短めなので、まず今週だけ30分早く布団に入ってみてください。夢の強さが落ち着くことが多いです。";
+    const stressHit = profile && (profile.stressTopics || []).find((t) => ({ "仕事・学業": ["evaluation", "control"], "人間関係": ["social"], "お金": ["evaluation"], "健康": ["body"], "家族": ["social", "loss"], "将来": ["transition", "control"] }[t] || []).includes(cat));
 
     // 注意
     const riskText = dreams.some((d) => (d.messages || []).some((m) => m.role === "user" && RISK_WORDS.some((w) => String(m.text).includes(w))));
     const heavyNightmares = (nightmares >= 3 || (n >= 4 && nightmares / n >= 0.5)) && avgInt >= 3.5;
     const caution = riskText || heavyNightmares ? T.caution : null;
 
+    if (stressHit) parts.push(`登録時に気がかりに挙げていた「${stressHit}」と、夢の傾向が重なっています。`);
     return {
       headline: T.headline[`${stress_level}-${trend}`] || T.headline["medium-unknown"],
       state: parts.join(""),

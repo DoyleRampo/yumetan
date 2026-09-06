@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Shippori+Mincho:wght@500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.1.0">
+<link rel="stylesheet" href="style.css?v=3.2.0">
 </head>
 <body>
 <!-- キャラクター用のグラデーション定義（非表示画面の複製から参照できるよう1か所にまとめる） -->
@@ -79,6 +79,52 @@
       <button data-go="insight"><span>心の状態</span></button>
       <button data-go="settings"><span>設定</span></button>
     </nav>
+  </section>
+
+  <!-- 初回登録（プロフィール + アカウント） -->
+  <section id="view-onboard" class="view">
+    <div class="journal-head">
+      <div class="date" id="ob-kicker">はじめまして</div>
+      <h2 class="headline" id="ob-title">あなたのことを、<br>すこし教えてください。</h2>
+    </div>
+    <p class="muted">夢の読み取りを、あなたの生活に合わせるために使います。あとから設定で変えられます。</p>
+    <form id="ob-form" class="form" autocomplete="on">
+      <label class="field"><span>呼び名（ユメタンがこう呼びます）</span><input type="text" id="ob-nickname" class="input" placeholder="例: ゆう" maxlength="20" required autocomplete="nickname"></label>
+      <div class="grid2">
+        <label class="field"><span>年代</span><select id="ob-age" class="input"><option value="10代">10代</option><option value="20代">20代</option><option value="30代">30代</option><option value="40代">40代</option><option value="50代">50代</option><option value="60代以上">60代以上</option></select></label>
+        <label class="field"><span>性別（任意）</span><select id="ob-gender" class="input"><option value="答えない">答えない</option><option value="女性">女性</option><option value="男性">男性</option><option value="その他">その他</option></select></label>
+      </div>
+      <label class="field"><span>ふだんの立場</span><select id="ob-role" class="input"><option value="会社員・公務員">会社員・公務員</option><option value="学生">学生</option><option value="自営業・フリーランス">自営業・フリーランス</option><option value="主婦・主夫">主婦・主夫</option><option value="休職中・無職">休職中・無職</option><option value="その他">その他</option></select></label>
+      <div class="grid2">
+        <label class="field"><span>平均の睡眠時間</span><select id="ob-sleep" class="input"><option value="5時間未満">5時間未満</option><option value="5〜6時間">5〜6時間</option><option value="6〜7時間">6〜7時間</option><option value="7〜8時間">7〜8時間</option><option value="8時間以上">8時間以上</option></select></label>
+        <label class="field"><span>起きる時間</span><select id="ob-wake" class="input"><option value="6時より前">6時より前</option><option value="6〜7時">6〜7時</option><option value="7〜8時">7〜8時</option><option value="8〜9時">8〜9時</option><option value="9時より後">9時より後</option></select></label>
+      </div>
+      <div class="field"><span>いま気がかりなこと（複数可）</span>
+        <div class="chips" id="ob-stress">
+          <label class="chip"><input type="checkbox" value="仕事・学業"><span>仕事・学業</span></label>
+          <label class="chip"><input type="checkbox" value="人間関係"><span>人間関係</span></label>
+          <label class="chip"><input type="checkbox" value="お金"><span>お金</span></label>
+          <label class="chip"><input type="checkbox" value="健康"><span>健康</span></label>
+          <label class="chip"><input type="checkbox" value="家族"><span>家族</span></label>
+          <label class="chip"><input type="checkbox" value="将来"><span>将来</span></label>
+          <label class="chip"><input type="checkbox" value="特にない"><span>特にない</span></label>
+        </div>
+      </div>
+
+      <div id="ob-account">
+        <h3>ログイン情報</h3>
+        <p class="muted">機種変更や別の端末でも同じ記録を使うために登録します。</p>
+        <label class="field"><span>メールアドレス</span><input type="email" id="ob-email" class="input" placeholder="you@example.com" autocomplete="email"></label>
+        <label class="field"><span>パスワード（6文字以上）</span><input type="password" id="ob-pass" class="input" placeholder="••••••••" autocomplete="new-password" minlength="6"></label>
+      </div>
+      <p class="muted" id="ob-msg" hidden></p>
+      <div class="row">
+        <button type="submit" class="btn primary big" id="ob-submit">登録してはじめる</button>
+      </div>
+      <div class="row small">
+        <button type="button" class="btn ghost" id="ob-skip">登録せずに、この端末だけで使う</button>
+      </div>
+    </form>
   </section>
 
   <!-- 質問形式 -->
@@ -162,6 +208,10 @@
       <span>合言葉（配布元から受け取ったもの）</span>
       <input type="text" id="opt-code" class="input" placeholder="合言葉" autocomplete="off">
     </div>
+
+    <h3>プロフィール</h3>
+    <p class="muted" id="profile-info"></p>
+    <div class="row left"><button class="btn" id="profile-edit">プロフィールを編集</button></div>
 
     <h3>アカウント</h3>
     <div id="account-box" class="account">
@@ -278,14 +328,14 @@
 </template>
 
 <div id="toast" class="toast" hidden></div>
-<script src="config.js?v=3.1.0"></script>
-<script src="firebase-config.js?v=3.1.0"></script>
-<script type="module" src="cloud.js?v=3.1.0"></script>
-<script src="engine/lexicon.js?v=3.1.0"></script>
-<script src="engine/analyze.js?v=3.1.0"></script>
-<script src="engine/insight.js?v=3.1.0"></script>
-<script src="engine/interview.js?v=3.1.0"></script>
-<script src="app.js?v=3.1.0"></script>
+<script src="config.js?v=3.2.0"></script>
+<script src="firebase-config.js?v=3.2.0"></script>
+<script type="module" src="cloud.js?v=3.2.0"></script>
+<script src="engine/lexicon.js?v=3.2.0"></script>
+<script src="engine/analyze.js?v=3.2.0"></script>
+<script src="engine/insight.js?v=3.2.0"></script>
+<script src="engine/interview.js?v=3.2.0"></script>
+<script src="app.js?v=3.2.0"></script>
 <script>
   if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
     navigator.serviceWorker.register("sw.js").then((reg) => reg.update().catch(() => {})).catch(() => {});
