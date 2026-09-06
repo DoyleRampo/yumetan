@@ -3,7 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const APP_VERSION = "3.2.0";
+  const APP_VERSION = "3.3.0";
 
   // ---------- 実行環境（Capacitor ネイティブか Web か） ----------
   const Cap = window.Capacitor;
@@ -29,7 +29,7 @@
   const K = { settings: "yumetan.settings", dreams: "yumetan.dreams", insight: "yumetan.insight", user: "yumetan.userId", migrated: "yumetan.migrated" };
 
   // ---------- 設定 ----------
-  const settings = { speak: false, autosend: true, chara: "woman", code: "", apiBase: "", engine: "local", speakReset: false, profile: null };
+  const settings = { speak: false, autosend: true, chara: "woman", code: "", apiBase: "", engine: "local", speakReset: false, profile: null, introDone: false };
   const useAI = () => settings.engine === "ai";
   async function loadSettings() {
     Object.assign(settings, await store.get(K.settings, {}));
@@ -160,7 +160,7 @@
     if (push) stack.push(current);
     current = view;
     $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
-    $("#back").hidden = view === "home" || (view === "onboard" && !settings.profile);
+    $("#back").hidden = view === "home" || view === "intro" || (view === "onboard" && !settings.profile);
     window.scrollTo({ top: 0 });
     if (push) history.pushState({ view }, "", `#${view}`);
     onEnter(view);
@@ -175,6 +175,7 @@
     if (view === "insight") renderInsight();
     if (view === "settings") renderSettings();
     if (view === "onboard") renderOnboard();
+    if (view === "intro") showSlide(0);
   }
   function greeting() {
     const h = new Date().getHours();
@@ -591,6 +592,31 @@
     catch { toast("サーバーに接続できません。通信環境か設定のサーバーURLを確認してください。", true); }
   }
 
+  // ---------- オンボーディング（初回のみ、登録の前） ----------
+  const INTRO_LINES = ["はじめまして。ユメタンです。あなたの夢を聞いて、覚えて、心の状態を読み取ります。", "", "", "無理に意味づけはしません。気づきのきっかけとして、そばにいます。"];
+  let slideIndex = 0;
+  function showSlide(i) {
+    const slides = $$("#intro-slides .slide");
+    slideIndex = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((el, k) => el.classList.toggle("active", k === slideIndex));
+    $$("#intro-dots i").forEach((d, k) => d.classList.toggle("on", k <= slideIndex));
+    $("#intro-next").textContent = slideIndex === slides.length - 1 ? "はじめる" : "次へ";
+    $("#intro-skip").hidden = slideIndex === slides.length - 1;
+    const line = INTRO_LINES[slideIndex];
+    const slot = slides[slideIndex].querySelector(".speech-text"); if (slot && line) slot.textContent = line;
+    window.scrollTo({ top: 0 });
+  }
+  async function finishIntro() {
+    settings.introDone = true; await saveSettings();
+    const next = settings.profile ? "home" : "onboard"; // 別端末で登録済みならホームへ
+    stack.length = 0; go(next, { push: false }); history.replaceState({ view: next }, "", `#${next}`);
+  }
+  $("#intro-next").onclick = () => { if (slideIndex >= $$("#intro-slides .slide").length - 1) finishIntro(); else showSlide(slideIndex + 1); };
+  $("#intro-skip").onclick = finishIntro;
+  let touchX = null;
+  $("#intro-slides").addEventListener("touchstart", (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+  $("#intro-slides").addEventListener("touchend", (e) => { if (touchX == null) return; const dx = e.changedTouches[0].clientX - touchX; touchX = null; if (dx < -50) showSlide(slideIndex + 1); else if (dx > 50) showSlide(slideIndex - 1); }, { passive: true });
+
   // ---------- 初回登録（プロフィール + ログイン情報） ----------
   const obForm = $("#ob-form"), obMsg = $("#ob-msg");
   $("#profile-edit").onclick = () => go("onboard");
@@ -771,7 +797,7 @@
     if (cloud) cloud.ready.then(activateCloud).catch((e) => console.warn("cloud init failed", e));
     history.replaceState({ view: "home" }, "", "#home");
     renderToday(); applyMode();
-    if (!settings.profile) go("onboard", { push: false });
+    if (!settings.profile) go(settings.introDone ? "onboard" : "intro", { push: false });
     say("home", greeting()); updateHomeCount();
     if (useAI()) checkHealth();
   })();

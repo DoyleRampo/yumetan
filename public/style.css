@@ -302,3 +302,22 @@ select.input { appearance: none; -webkit-appearance: none; background-image: lin
 .chip span { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--text-2); font-size: 14px; cursor: pointer; }
 .chip input:checked + span { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); font-weight: 700; }
 #ob-account h3 { margin-top: 10px; }
+
+/* ---------- オンボーディング ---------- */
+.intro { display: flex; flex-direction: column; min-height: calc(100vh - 56px - 60px); min-height: calc(100dvh - 56px - 60px); }
+.intro-slides { flex: 1; position: relative; }
+.slide { display: none; flex-direction: column; gap: 12px; animation: fadein .3s ease-out; }
+.slide.active { display: flex; }
+.slide .date { font-size: 13px; color: var(--muted); letter-spacing: .12em; }
+.slide .headline { margin: 0; }
+.slide .lead { margin: 0; font-size: 15px; line-height: 1.75; color: var(--text-2); }
+.slide .chara-slot { margin: 6px 0 0; }
+.slide .chara-svg { width: 96px; }
+.slide .speech { font-size: 14px; color: var(--text-2); margin-bottom: 26px; min-height: 0; padding: 12px 14px; }
+.demo { margin-top: 6px; pointer-events: none; }
+.demo-paper { font-size: 16px; line-height: 40px; color: var(--text-2); background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 39px, var(--line) 39px, var(--line) 40px); min-height: 80px; }
+.demo-actions { display: flex; gap: 10px; margin-top: 12px; }
+.demo-actions .btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; min-height: 48px; font-weight: 700; }
+.intro-foot { padding-top: 18px; }
+.intro-btns { display: flex; gap: 10px; align-items: center; }
+.intro-btns .btn.primary { flex: 1; }

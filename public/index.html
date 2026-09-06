@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Shippori+Mincho:wght@500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.2.0">
+<link rel="stylesheet" href="style.css?v=3.3.0">
 </head>
 <body>
 <!-- キャラクター用のグラデーション定義（非表示画面の複製から参照できるよう1か所にまとめる） -->
@@ -79,6 +79,62 @@
       <button data-go="insight"><span>心の状態</span></button>
       <button data-go="settings"><span>設定</span></button>
     </nav>
+  </section>
+
+  <!-- 初回のみ: オンボーディング（登録の前） -->
+  <section id="view-intro" class="view">
+    <div class="intro">
+      <div class="intro-slides" id="intro-slides">
+        <div class="slide active">
+          <div class="chara-slot"></div>
+          <div class="date">ユメタンへようこそ</div>
+          <h2 class="headline">起きてすぐ、<br>夢をひとこと。</h2>
+          <p class="lead">寝ぼけたままで大丈夫。書いても、話しても、質問に「はい・いいえ」で答えるだけでも記録できます。</p>
+          <div class="demo">
+            <div class="demo-paper">知らない駅で、階段を上っても改札に着けなかった…</div>
+            <div class="demo-actions"><span class="btn outline">話す</span><span class="btn primary">読み取る</span></div>
+          </div>
+        </div>
+        <div class="slide">
+          <div class="date">その場でわかる</div>
+          <h2 class="headline">今の心の状態を、<br>すぐに読み取る。</h2>
+          <p class="lead">夢のテーマや感情から、いまの心の状態を一言で。理由も短く添えます。気になることは、その場でユメタンに聞けます。</p>
+          <div class="demo">
+            <div class="result">
+              <div class="label">今の心の状態</div>
+              <div class="state">心の負荷が高め（焦り）</div>
+              <div class="tags"><span class="tag">ふつうの夢</span><span class="tag emo">焦り</span><span class="tag">遅刻・間に合わない</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="slide">
+          <div class="date">記憶がたまると</div>
+          <h2 class="headline">最近の傾向が、<br>見えてくる。</h2>
+          <p class="lead">記憶した夢が2件以上たまると、ストレス度・目立つ感情・繰り返しのテーマ・上向きか下向きかを、数日単位で読み取ります。</p>
+          <div class="demo">
+            <div class="insight">
+              <div class="card">
+                <p class="headline" style="font-size:20px">持ち直してきています</p>
+                <div class="meter medium"><div class="lbl"><span>ストレス</span><b>中くらい</b></div><div class="bar"><i class="on"></i><i class="on"></i><i></i></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="slide">
+          <div class="chara-slot"></div>
+          <div class="date">ひとつだけ、お約束</div>
+          <h2 class="headline">夢は診断ではなく、<br>心の天気。</h2>
+          <p class="lead">当たる・当たらないではなく、気持ちに気づくための目安です。記録はあなただけが見られます。つらいときは、専門家への相談もそっとお伝えします。</p>
+        </div>
+      </div>
+      <div class="intro-foot">
+        <div class="progress" id="intro-dots"><i class="on"></i><i></i><i></i><i></i></div>
+        <div class="intro-btns">
+          <button class="btn ghost" id="intro-skip">スキップ</button>
+          <button class="btn primary big" id="intro-next">次へ</button>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- 初回登録（プロフィール + アカウント） -->
@@ -328,14 +384,14 @@
 </template>
 
 <div id="toast" class="toast" hidden></div>
-<script src="config.js?v=3.2.0"></script>
-<script src="firebase-config.js?v=3.2.0"></script>
-<script type="module" src="cloud.js?v=3.2.0"></script>
-<script src="engine/lexicon.js?v=3.2.0"></script>
-<script src="engine/analyze.js?v=3.2.0"></script>
-<script src="engine/insight.js?v=3.2.0"></script>
-<script src="engine/interview.js?v=3.2.0"></script>
-<script src="app.js?v=3.2.0"></script>
+<script src="config.js?v=3.3.0"></script>
+<script src="firebase-config.js?v=3.3.0"></script>
+<script type="module" src="cloud.js?v=3.3.0"></script>
+<script src="engine/lexicon.js?v=3.3.0"></script>
+<script src="engine/analyze.js?v=3.3.0"></script>
+<script src="engine/insight.js?v=3.3.0"></script>
+<script src="engine/interview.js?v=3.3.0"></script>
+<script src="app.js?v=3.3.0"></script>
 <script>
   if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
     navigator.serviceWorker.register("sw.js").then((reg) => reg.update().catch(() => {})).catch(() => {});
