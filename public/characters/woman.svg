@@ -35,19 +35,20 @@
   <!-- Face, ears and delicate reflected light. -->
   <path d="M106 159C87 150 95 188 110 189M212 159C231 150 223 188 208 189" fill="#edc8c6" stroke="#c895a3" stroke-width="1.1"/>
   <path d="M106 170q-9-10-5 4m111-4q9-10 5 4" fill="none" stroke="#bb899b" stroke-width="1.2"/>
-  <path d="M105 123Q109 76 160 76 213 76 217 127L212 177Q207 205 185 225 170 239 160 239 150 239 135 226 111 205 107 177Z" fill="url(#portrait-skin)" stroke="#cba1b0" stroke-width=".8"/>
+  <path d="M106 122Q111 74 160 74 210 74 216 124L211 176Q206 205 184 226 170 239 160 240 149 239 135 227 112 206 108 176Z" fill="url(#portrait-skin)" stroke="#cba1b0" stroke-width=".8"/>
   <path d="M107 136Q110 194 140 222 124 204 121 178Z" fill="#c998ad" opacity=".18"/>
   <ellipse cx="125" cy="187" rx="23" ry="12" fill="url(#portrait-blush)"/><ellipse cx="194" cy="187" rx="22" ry="12" fill="url(#portrait-blush)"/>
   <path class="brow" d="M114 145Q130 137 148 145" fill="none" stroke="#665269" stroke-width="2.3" stroke-linecap="round"/>
   <path class="brow" d="M174 145Q190 136 207 142" fill="none" stroke="#665269" stroke-width="2.3" stroke-linecap="round"/>
   <g class="eyes">
-    <path d="M112 164Q128 150 149 162 137 177 121 172Z" fill="#fff3f0"/>
-    <path d="M172 162Q191 149 209 160L202 171Q184 178 172 162Z" fill="#fff3f0"/>
+    <path d="M112 163Q129 149 150 161 138 176 121 171Z" fill="#fff3f0"/>
+    <path d="M171 161Q190 148 209 159L202 170Q184 176 171 161Z" fill="#fff3f0"/>
     <ellipse cx="133" cy="163.5" rx="8" ry="9.5" fill="url(#portrait-iris-w)"/><ellipse cx="189" cy="162.5" rx="8" ry="9.5" fill="url(#portrait-iris-w)"/>
     <ellipse cx="133" cy="162" rx="3.2" ry="5.7" fill="#392f4e"/><ellipse cx="189" cy="161" rx="3.2" ry="5.7" fill="#392f4e"/>
     <path d="M129 169q4 3 8-1m48 0q4 3 8-1" fill="none" stroke="#ebc7ee" stroke-width="1.5"/>
     <g fill="#fffaf4"><ellipse cx="130" cy="159" rx="2.4" ry="2.8"/><ellipse cx="186" cy="158" rx="2.4" ry="2.8"/><circle cx="136" cy="167" r="1.1"/><circle cx="192" cy="166" r="1.1"/></g>
-    <path d="M109 159 114 164Q129 150 149 162M172 162Q191 149 208 160L212 155" fill="none" stroke="#473345" stroke-width="2.8" stroke-linecap="round"/>
+    <path d="M109 158 114 163Q129 149 150 161M171 161Q190 148 208 159L212 154" fill="none" stroke="#473345" stroke-width="2.8" stroke-linecap="round"/>
+    <path d="m113 159-4-5m98 3 5-6" stroke="#473345" stroke-width="1.3" stroke-linecap="round"/>
     <path d="m112 161-3-6m98 4 4-7" stroke="#473345" stroke-width="1.6" stroke-linecap="round"/>
     <path d="M119 172q13 7 26-3m32 0q12 7 25 0" fill="none" stroke="#ac788c" stroke-width=".9"/>
   </g>
@@ -55,8 +56,8 @@
   <path d="m163 188 3 2" stroke="#bf8395" stroke-width=".9" stroke-linecap="round"/>
   <path d="M157 178v7" stroke="#fff1e8" stroke-width="2" stroke-linecap="round" opacity=".7"/>
   <g class="mouth">
-    <path d="M145 210Q153 205 160 208 167 205 177 208 169 217 160 217 152 216 145 210Z" fill="#bb738c"/>
-    <path d="M146 210Q159 213 176 208" fill="none" stroke="#8c4e69" stroke-width="1"/>
+    <path d="M145 209Q153 204 160 207 167 204 177 208 169 218 160 218 151 217 145 209Z" fill="#bb738c"/>
+    <path d="M146 209Q159 212 176 208" fill="none" stroke="#8c4e69" stroke-width="1"/>
     <path d="M152 213q8 4 15 0" fill="none" stroke="#f0b9c2" stroke-width="1.6" stroke-linecap="round"/>
   </g>
   <path d="M155 224q6 2 11-1" stroke="#ffebe6" stroke-width="1.5" stroke-linecap="round"/>
@@ -94,28 +95,28 @@
   <!-- Angular face, long neck, soft rather than severe expression. -->
   <path d="M104 154C85 147 94 184 109 187M215 153C234 146 225 183 210 187" fill="#e8c4c3" stroke="#be91a4" stroke-width="1.1"/>
   <path d="m101 164 3 12m116-13-3 12" stroke="#b7879e" stroke-width="1.2" stroke-linecap="round"/>
-  <path d="M102 122Q102 72 161 70 219 73 219 126L212 182 200 210Q184 229 162 241 140 232 122 213L108 187Z" fill="url(#portrait-skin)" stroke="#c39ba9" stroke-width=".8"/>
+  <path d="M103 121Q104 70 161 69 217 71 219 124L212 181 199 209Q183 229 161 241 140 231 122 211L108 185Z" fill="url(#portrait-skin)" stroke="#c39ba9" stroke-width=".8"/>
   <path d="M106 142 118 183 127 208 147 227Q121 214 109 187Z" fill="#ba8ba5" opacity=".22"/>
   <path d="M214 155 202 196 190 215 173 230Q199 212 211 183Z" fill="#b888a1" opacity=".16"/>
   <ellipse cx="124" cy="185" rx="20" ry="9" fill="url(#portrait-blush)"/><ellipse cx="195" cy="183" rx="19" ry="9" fill="url(#portrait-blush)"/>
   <path class="brow" d="M112 142Q128 134 149 145L148 148Q129 141 114 145Z" fill="#434054"/>
   <path class="brow" d="M173 143Q192 131 209 138L208 141Q190 138 174 147Z" fill="#434054"/>
   <g class="eyes">
-    <path d="M112 161Q130 150 150 163 133 174 118 168Z" fill="#f7eeed"/>
-    <path d="M172 162Q190 148 210 156L204 166Q186 174 172 162Z" fill="#f7eeed"/>
+    <path d="M112 160Q130 149 150 162 133 173 118 167Z" fill="#f7eeed"/>
+    <path d="M172 161Q190 147 210 155L204 165Q186 173 172 161Z" fill="#f7eeed"/>
     <ellipse cx="133" cy="161.5" rx="7.1" ry="7.8" fill="url(#portrait-iris-m)"/><ellipse cx="191" cy="160" rx="7.1" ry="7.8" fill="url(#portrait-iris-m)"/>
     <ellipse cx="133" cy="160" rx="2.8" ry="4.8" fill="#202c44"/><ellipse cx="191" cy="158.5" rx="2.8" ry="4.8" fill="#202c44"/>
     <path d="M129 166q4 3 8 0m50-1q4 3 8 0" fill="none" stroke="#bcd8e2" stroke-width="1.3"/>
     <g fill="#fff8ee"><ellipse cx="130.5" cy="158" rx="2" ry="2.3"/><ellipse cx="188.5" cy="156.5" rx="2" ry="2.3"/><circle cx="136" cy="165" r=".9"/><circle cx="194" cy="163.5" r=".9"/></g>
-    <path d="M110 158 114 161Q130 150 150 163M172 162Q190 148 208 157L212 153" fill="none" stroke="#373448" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M110 157 114 160Q130 149 150 162M172 161Q190 147 208 156L212 152" fill="none" stroke="#373448" stroke-width="2.4" stroke-linecap="round"/>
     <path d="M119 170q14 5 27-3m30 0q13 4 27-1" fill="none" stroke="#a7788c" stroke-width=".9"/>
   </g>
   <path d="m162 165-5 24 4 4 5-2" fill="none" stroke="#b88497" stroke-width="1.2" stroke-linecap="round"/>
   <path d="m160 174-1 10" stroke="#fff0e5" stroke-width="2.1" stroke-linecap="round"/>
   <path d="m166 189 3 2" stroke="#b88497" stroke-width="1" stroke-linecap="round"/>
   <g class="mouth">
-    <path d="M145 210Q153 206 162 208L179 205Q171 216 161 216 152 216 145 210Z" fill="#b78293" opacity=".7"/>
-    <path d="M144 209Q161 214 179 205" fill="none" stroke="#825c75" stroke-width="1.3" stroke-linecap="round"/>
+    <path d="M145 209Q154 205 162 207L179 204Q171 216 161 216 152 216 145 209Z" fill="#b78293" opacity=".7"/>
+    <path d="M144 208Q161 213 179 204" fill="none" stroke="#825c75" stroke-width="1.3" stroke-linecap="round"/>
     <path d="M155 214q8 2 14-2" fill="none" stroke="#eac0c8" stroke-width="1.5" stroke-linecap="round"/>
   </g>
   <path d="M156 225q7 1 13-2" fill="none" stroke="#d4a6b4" stroke-width="1" stroke-linecap="round"/>
