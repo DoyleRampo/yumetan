@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<meta name="theme-color" content="#0b1020">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101021">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -16,51 +16,80 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Shippori+Mincho:wght@500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.3.0">
+<link rel="stylesheet" href="style.css?v=3.5.0">
 </head>
-<body>
+<body data-view="home">
+<div class="night-sky" aria-hidden="true"></div>
 <!-- キャラクター用のグラデーション定義（非表示画面の複製から参照できるよう1か所にまとめる） -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
-    <linearGradient id="skin" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6dcc8"/><stop offset="0.6" stop-color="#f0cdb3"/><stop offset="1" stop-color="#e2b394"/></linearGradient>
-    <linearGradient id="skinShade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d9a98c"/><stop offset="1" stop-color="#e8bfa4"/></linearGradient>
-    <linearGradient id="suit" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b3760"/><stop offset="1" stop-color="#1a2240"/></linearGradient>
-    <linearGradient id="lapel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#202a4d"/><stop offset="1" stop-color="#141b33"/></linearGradient>
-    <linearGradient id="hairW" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a3226"/><stop offset="0.5" stop-color="#2f1f17"/><stop offset="1" stop-color="#1f150f"/></linearGradient>
-    <linearGradient id="hairM" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a2b22"/><stop offset="0.5" stop-color="#241a14"/><stop offset="1" stop-color="#15100c"/></linearGradient>
-    <radialGradient id="iris" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#8a5a3c"/><stop offset="0.7" stop-color="#4b2e1e"/><stop offset="1" stop-color="#2a1810"/></radialGradient>
-    <linearGradient id="lens" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0.04"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.12"/></linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.6"><stop offset="0" stop-color="#f2b56b" stop-opacity="0.22"/><stop offset="1" stop-color="#f2b56b" stop-opacity="0"/></radialGradient>
-  </defs></svg>
+  <linearGradient id="portrait-skin" x1=".1" y1=".2" x2=".85" y2="1"><stop stop-color="#fff0e6"/><stop offset=".55" stop-color="#f5d8d0"/><stop offset="1" stop-color="#dba9b1"/></linearGradient>
+  <linearGradient id="portrait-neck" x2=".7" y2="1"><stop stop-color="#bd8798"/><stop offset=".6" stop-color="#ecc6c5"/><stop offset="1" stop-color="#f5d8d0"/></linearGradient>
+  <linearGradient id="portrait-hair-w" x1="0" y1="0" x2="1" y2=".8"><stop stop-color="#29263e"/><stop offset=".35" stop-color="#656078"/><stop offset=".62" stop-color="#454057"/><stop offset="1" stop-color="#272438"/></linearGradient>
+  <linearGradient id="portrait-hair-m" x1=".2" y1="0" x2=".8" y2="1"><stop stop-color="#596477"/><stop offset=".32" stop-color="#303c51"/><stop offset=".7" stop-color="#1c273d"/><stop offset="1" stop-color="#111b2d"/></linearGradient>
+  <linearGradient id="portrait-jacket" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3f405d"/><stop offset=".5" stop-color="#262a43"/><stop offset="1" stop-color="#171c31"/></linearGradient>
+  <linearGradient id="portrait-lapel" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#55516e"/><stop offset=".65" stop-color="#2d304b"/><stop offset="1" stop-color="#20253d"/></linearGradient>
+  <linearGradient id="portrait-silk" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f0e6eb"/><stop offset=".6" stop-color="#c9bdcf"/><stop offset="1" stop-color="#9f94af"/></linearGradient>
+  <linearGradient id="portrait-gold" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#f4ddb1"/><stop offset=".5" stop-color="#c0a179"/><stop offset="1" stop-color="#e4cba4"/></linearGradient>
+  <radialGradient id="portrait-iris-w" cx=".5" cy=".75" r=".85"><stop stop-color="#dbc0f0"/><stop offset=".45" stop-color="#9b7cb5"/><stop offset=".8" stop-color="#514161"/><stop offset="1" stop-color="#29283d"/></radialGradient>
+  <radialGradient id="portrait-iris-m" cx=".5" cy=".8" r=".85"><stop stop-color="#b1d5d3"/><stop offset=".45" stop-color="#668e9e"/><stop offset=".8" stop-color="#354b63"/><stop offset="1" stop-color="#1a2941"/></radialGradient>
+  <radialGradient id="portrait-blush"><stop stop-color="#d9849b" stop-opacity=".32"/><stop offset="1" stop-color="#d9849b" stop-opacity="0"/></radialGradient>
+  <radialGradient id="portrait-halo"><stop stop-color="#bda2dd" stop-opacity=".19"/><stop offset="1" stop-color="#bda2dd" stop-opacity="0"/></radialGradient>
+  <linearGradient id="portrait-lens" x2=".7" y2="1"><stop stop-color="#ece8ff" stop-opacity=".16"/><stop offset=".55" stop-color="#ece8ff" stop-opacity="0"/><stop offset="1" stop-color="#ece8ff" stop-opacity=".07"/></linearGradient>
+</defs></svg>
 <header class="top">
   <button id="back" class="back" hidden aria-label="戻る"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span>戻る</span></button>
   <h1><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span>ユメタン</span></h1>
+  <span class="brand-caption">DREAM JOURNAL</span>
+  <span class="header-note">夢と、心が出会う場所。</span>
 </header>
 
 <main>
   <!-- ホーム = 日記帳（書く・話す・読み取る・記憶する） -->
   <section id="view-home" class="view active">
-    <div class="journal-head">
-      <div class="date" id="today"></div>
-      <h2 class="headline" id="headline">今日の夢を<br>ひとこと。</h2>
+    <div class="journal-head night-hero">
+      <div class="hero-copy">
+        <div class="date" id="today"></div>
+        <p class="eyebrow">A LITTLE DREAM, A LITTLE DISCOVERY</p>
+        <h2 class="headline" id="headline">夢のかけらに、<br>心の声を見つけよう。</h2>
+        <p class="hero-description" id="hero-description">消えてしまう前に、そっと残す。<br>あなたの夢を、ユメタンが一緒に読み解きます。</p>
+      </div>
+      <svg class="moon-art" viewBox="0 0 360 310" fill="none" aria-hidden="true">
+        <defs>
+          <radialGradient id="moonHalo"><stop stop-color="#a797dc" stop-opacity=".25"/><stop offset="1" stop-color="#a797dc" stop-opacity="0"/></radialGradient>
+          <linearGradient id="moonLight" x1="140" y1="65" x2="215" y2="220" gradientUnits="userSpaceOnUse"><stop stop-color="#f8ecd1"/><stop offset=".6" stop-color="#d9c5b1"/><stop offset="1" stop-color="#9684b2"/></linearGradient>
+        </defs>
+        <circle cx="180" cy="152" r="150" fill="url(#moonHalo)"/>
+        <g stroke="#bcafd8" stroke-opacity=".23"><circle cx="180" cy="152" r="107"/><circle cx="180" cy="152" r="122" stroke-dasharray="1 8"/><ellipse cx="180" cy="152" rx="153" ry="54" transform="rotate(-30 180 152)"/><path d="M180 20v25m0 214v25M45 152h26m218 0h26"/></g>
+        <path d="M197 73a79 79 0 1 0 51 122A73 73 0 0 1 197 73Z" fill="url(#moonLight)"/>
+        <path d="m256 74 3 10 10 3-10 3-3 10-3-10-10-3 10-3Z" fill="#d9c5ab"/>
+        <path d="m94 220 3 8 8 3-8 3-3 8-3-8-8-3 8-3Z" fill="#d9c5ab"/>
+        <g fill="#d6c9ed"><circle cx="72" cy="84" r="2"/><circle cx="280" cy="193" r="2"/><circle cx="216" cy="252" r="2"/><circle cx="125" cy="44" r="1.5"/><circle cx="307" cy="115" r="1.5"/></g>
+      </svg>
     </div>
 
+    <div class="home-workspace">
+    <div class="dream-column">
     <div id="chat" class="chat" aria-live="polite"></div>
 
-    <div id="transcript-wrap" class="transcript-wrap">
-      <textarea id="transcript" class="paper" rows="4" placeholder="覚えている範囲で。断片でも、順番がばらばらでも大丈夫"></textarea>
-      <p id="status" class="status"></p>
+    <div id="transcript-wrap" class="transcript-wrap dream-editor">
+      <div class="editor-heading"><label for="transcript">今日の夢ノート</label><span>MY DREAM</span></div>
+      <p class="editor-hint" id="dream-hint">ひとことでも、思い出せる場面だけでも。</p>
+      <textarea id="transcript" class="paper" rows="4" aria-describedby="dream-hint status" placeholder="どんな夢を見ましたか？
+たとえば、月明かりの海を歩いていた…"></textarea>
+      <div class="writing-prompts" aria-label="書き出しのヒント"><span>思い出すヒント</span><button type="button" data-prompt="夢の中にいた場所は、">場所</button><button type="button" data-prompt="夢に出てきたのは、">登場人物</button><button type="button" data-prompt="夢の中で感じたのは、">気持ち</button></div>
+      <p id="status" class="status" role="status"></p>
       <div class="journal-actions">
-        <button id="mic" class="btn outline" aria-label="話す"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span>話す</span></button>
-        <button id="send" class="btn primary">読み取る</button>
+        <button id="mic" class="btn outline" aria-label="話す"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span>声で話す</span></button>
+        <button id="send" class="btn primary">夢を読み解く <span aria-hidden="true">✧</span></button>
       </div>
-      <button id="clear" class="btn ghost small-link" hidden>消す</button>
+      <div class="editor-foot"><span>読み解いたあとに、記録として保存できます</span><button id="clear" class="btn ghost small-link" hidden>入力をクリア</button></div>
     </div>
 
     <div id="after" class="after" hidden>
       <button id="save-dream" class="btn primary big save">この夢を記憶する</button>
       <p class="muted center small-note" id="ask-note">気になることがあれば、ユメタンに聞けます</p>
       <div class="ask-row" id="ask-text">
-        <input id="ask-input" class="input" placeholder="例: どうすればいい？ / なんでこの夢？" autocomplete="off" enterkeyhint="send">
+        <input id="ask-input" class="input" aria-label="夢についての質問" placeholder="例: どうすればいい？ / なんでこの夢？" autocomplete="off" enterkeyhint="send">
         <button id="ask-mic" class="btn outline icon-only" aria-label="声で質問"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
         <button id="ask-send" class="btn">聞く</button>
       </div>
@@ -68,17 +97,20 @@
       <button id="new-dream" class="btn ghost small-link">新しい夢を書く</button>
     </div>
 
-    <div class="journal-links">
-      <button class="link-btn" data-mode="interview">言葉にしにくいときは、質問に答えて記録<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-    </div>
-
     <div class="home-chara"></div>
-
-    <nav class="journal-nav">
-      <button data-go="history"><span>夢の記録</span><span class="count" id="home-count" hidden></span></button>
-      <button data-go="insight"><span>心の状態</span></button>
-      <button data-go="settings"><span>設定</span></button>
-    </nav>
+    </div>
+    <aside class="night-sidebar" aria-label="夢を記録するヒント">
+      <button class="guided-card" data-mode="interview">
+        <span class="card-icon" aria-hidden="true">✧</span><span class="eyebrow">LET’S FIND YOUR DREAM</span>
+        <strong>うまく言葉に<br>できなくても大丈夫。</strong>
+        <span class="muted">やさしい質問に答えながら、<br>夢のかけらを集めましょう。</span>
+        <span class="guided-link">質問に答えて記録する <span aria-hidden="true">↗</span></span>
+      </button>
+      <div class="night-note"><span aria-hidden="true">☾</span><div><h3>夢を残す、小さな習慣。</h3><p>目覚めたときの気持ちも一緒に。<br>少しずつ、心の変化が見えてきます。</p></div></div>
+      <button class="collection-link" data-go="history"><span>あなたの夢の記録</span><span><b id="home-count">0</b> <span aria-hidden="true">→</span></span></button>
+    </aside>
+    </div>
+    <p class="home-footer">✧ &nbsp; あなたのペースで、あなたの言葉で。</p>
   </section>
 
   <!-- 初回のみ: オンボーディング（登録の前） -->
@@ -185,6 +217,8 @@
 
   <!-- 質問形式 -->
   <section id="view-interview" class="view">
+    <p class="eyebrow">PIECE BY PIECE</p><h2>夢のかけらを、ひとつずつ。</h2>
+    <p class="page-description">思い出せないことは、スキップして大丈夫。</p>
     <div class="chara-slot"></div>
     <div id="iv-progress" class="progress" aria-label="進み具合"></div>
     <div id="iv-answers" class="answers">
@@ -194,7 +228,7 @@
       <button class="btn answer other" data-answer="__other">その他…</button>
     </div>
     <div id="iv-other" class="transcript-wrap" hidden>
-      <textarea id="iv-other-text" rows="2" placeholder="例: 追いかけてきたのは学校の先生だった"></textarea>
+      <textarea id="iv-other-text" rows="2" aria-label="質問への回答" placeholder="例: 追いかけてきたのは学校の先生だった"></textarea>
       <div class="row">
         <button id="iv-other-send" class="btn primary">これで答える</button>
         <button id="iv-other-cancel" class="btn ghost">やめる</button>
@@ -202,7 +236,7 @@
     </div>
     <div id="iv-confirm" class="transcript-wrap" hidden>
       <p class="muted">まとめるとこんな夢でしたか？ 直してもOK。読み取ったあとで記憶できます</p>
-      <textarea id="iv-dream-text" rows="5"></textarea>
+      <textarea id="iv-dream-text" rows="5" aria-label="夢のまとめを編集"></textarea>
       <div class="row">
         <button id="iv-save" class="btn primary big">この夢を読み取る</button>
         <button id="iv-more" class="btn ghost">もう少し質問して</button>
@@ -217,13 +251,17 @@
 
   <!-- 記録一覧 -->
   <section id="view-history" class="view">
-    <h2>夢の記録</h2>
+    <p class="eyebrow">YOUR DREAM COLLECTION</p><h2>夢の記録</h2>
+    <p class="page-description">あの日の夢をひらいて、心の足あとをたどる。</p>
+    <label class="search-field"><span aria-hidden="true">⌕</span><input id="history-search" type="search" placeholder="言葉・気持ち・夢のタイトルで検索" aria-label="夢の記録を検索"></label>
+    <p id="history-count" class="muted" role="status"></p>
     <div id="history" class="history"></div>
   </section>
 
   <!-- 心の状態 -->
   <section id="view-insight" class="view">
-    <h2>最近の心の状態</h2>
+    <p class="eyebrow">WITHIN YOUR DREAMS</p><h2>最近の心の状態</h2>
+    <p class="page-description">夢を重ねて見えてくる、今のあなたの心模様。</p>
     <div id="insight" class="insight"></div>
     <div class="row small">
       <button id="insight-refresh" class="btn ghost">もう一度分析する</button>
@@ -250,14 +288,24 @@
 
   <!-- 設定 -->
   <section id="view-settings" class="view">
-    <h2>設定</h2>
-    <div class="setting">
-      <span>キャラクター</span>
-      <div class="seg">
-        <button class="seg-btn" data-chara="woman">女性</button>
-        <button class="seg-btn" data-chara="man">男性</button>
+    <p class="eyebrow">MAKE YOURSELF AT HOME</p><h2>設定</h2>
+    <p class="page-description">心地よく使える、あなたらしいユメタンに。</p>
+    <fieldset class="character-picker">
+      <legend>あなたの夢の案内人</legend>
+      <p class="muted">心地よく話せる相手を選んでください。いつでも変更できます。</p>
+      <div class="character-options">
+        <button type="button" class="seg-btn character-option" data-chara="woman" aria-pressed="false">
+          <span class="character-preview" data-character-preview="woman" aria-hidden="true"></span>
+          <span class="character-choice-name">女性 <span class="character-check" aria-hidden="true">✓</span></span>
+          <span class="character-choice-note">月明かりのような、やさしさ。</span>
+        </button>
+        <button type="button" class="seg-btn character-option" data-chara="man" aria-pressed="false">
+          <span class="character-preview" data-character-preview="man" aria-hidden="true"></span>
+          <span class="character-choice-name">男性 <span class="character-check" aria-hidden="true">✓</span></span>
+          <span class="character-choice-note">静かな夜に寄り添う、穏やかさ。</span>
+        </button>
       </div>
-    </div>
+    </fieldset>
     <label class="setting"><input type="checkbox" id="opt-speak"> 質問形式の質問文を声で読み上げる</label>
     <label class="setting"><input type="checkbox" id="opt-autosend"> 話し終わったら自動で読み取る</label>
     <div class="setting col" id="code-setting" hidden>
@@ -303,95 +351,151 @@
   </section>
 </main>
 
-<!-- キャラクター（眼鏡・スーツ。女性/男性 切替） -->
+<nav class="journal-nav" aria-label="メインナビゲーション">
+  <button data-go="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 3 6 16l-1 4 4-1L22 6zM14 5l5 5M4 4h5M4 8h2"/></svg><span>夢を書く</span></button>
+  <button data-go="history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c-4-2-7-2-10-1v15c3-1 6-1 10 1 4-2 7-2 10-1V4c-3-1-6-1-10 1Zm0 0v15"/></svg><span>夢の記録</span></button>
+  <button data-go="insight"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z"/></svg><span>心の状態</span></button>
+  <button data-go="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-1 3-3 1-2 4 2 2v4l4 3 3-1 3 1 4-3v-4l2-2-2-4-3-1-1-3Z"/><circle cx="12" cy="12" r="3"/></svg><span>設定</span></button>
+</nav>
+
+
+<!-- 月夜の案内人。目・口・眉を独立させたアニメーション対応イラスト。 -->
 <template id="chara-tpl">
   <div class="chara">
-    <svg class="chara-svg" viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <circle cx="120" cy="150" r="118" fill="url(#glow)"/>
-  <!-- 後ろ髪 -->
-  <g class="only-woman"><path d="M58 132 C52 70 86 40 120 40 C154 40 188 70 182 132 L186 196 C178 208 160 204 156 192 L154 142 L86 142 L84 192 C80 204 62 208 54 196 Z" fill="url(#hairW)"/></g>
-  <g class="only-man"><path d="M68 120 C64 60 92 42 120 42 C148 42 176 60 172 120 Z" fill="url(#hairM)"/></g>
-  <!-- 体（スーツ） -->
-  <path d="M18 280 C20 232 58 210 94 200 L120 216 L146 200 C182 210 220 232 222 280 Z" fill="url(#suit)"/>
-  <path d="M94 200 L120 240 L146 200 C136 208 104 208 94 200 Z" fill="#f7f5f0"/>
-  <path d="M94 200 L80 280 L120 240 Z" fill="url(#lapel)"/>
-  <path d="M146 200 L160 280 L120 240 Z" fill="url(#lapel)"/>
-  <g class="only-man"><path d="M120 218 L112 228 L116 270 L120 280 L124 270 L128 228 Z" fill="#a83e3c"/><path d="M112 228 L120 236 L128 228 L120 218 Z" fill="#8f3331"/></g>
-  <g class="only-woman"><path d="M102 206 C110 222 130 222 138 206" stroke="#c9b6ff" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.9"/></g>
-  <!-- 首 -->
-  <path d="M104 166 L104 204 C112 214 128 214 136 204 L136 166 Z" fill="url(#skinShade)"/>
-  <path d="M104 172 C110 186 130 186 136 172 L136 166 L104 166 Z" fill="#cf9b7c" opacity="0.45"/>
-  <!-- 耳 -->
-  <ellipse cx="77" cy="122" rx="7" ry="10" fill="#e8bfa4"/><ellipse cx="163" cy="122" rx="7" ry="10" fill="#e8bfa4"/>
-  <ellipse cx="78" cy="122" rx="3.5" ry="5.5" fill="none" stroke="#c98f70" stroke-width="1.2"/><ellipse cx="162" cy="122" rx="3.5" ry="5.5" fill="none" stroke="#c98f70" stroke-width="1.2"/>
-  <!-- 顔 -->
-  <path d="M120 58 C156 58 166 90 165 120 C164 152 148 178 120 180 C92 178 76 152 75 120 C74 90 84 58 120 58 Z" fill="url(#skin)"/>
-  <path d="M78 118 C80 150 96 172 120 176 C110 176 92 160 86 130 Z" fill="#d9a98c" opacity="0.28"/>
-  <path d="M162 118 C160 150 144 172 120 176 C130 176 148 160 154 130 Z" fill="#d9a98c" opacity="0.28"/>
-  <!-- 前髪 -->
-  <g class="only-woman">
-    <path d="M76 116 C76 66 98 48 122 48 C150 48 166 72 165 112 C158 86 142 78 128 84 C118 70 100 76 92 96 C86 106 80 110 76 116 Z" fill="url(#hairW)"/>
-    <path d="M96 70 C108 58 126 56 140 64" stroke="#7a5843" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.35"/>
-    <path d="M62 150 C60 170 62 188 66 198" stroke="#5a3d2e" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.6"/>
-    <path d="M178 150 C180 170 178 188 174 198" stroke="#5a3d2e" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.6"/>
-  </g>
-  <g class="only-man">
-    <path d="M76 106 C80 70 100 56 124 58 C150 60 164 80 164 106 C152 86 136 84 122 90 C110 78 92 86 84 102 C81 104 78 105 76 106 Z" fill="url(#hairM)"/>
-    <path d="M96 66 C106 60 118 60 128 62" stroke="#5a4335" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.35"/>
-    <path d="M76 106 C74 116 75 126 78 132 L84 120 L82 104 Z" fill="url(#hairM)"/>
-    <path d="M164 106 C166 116 165 126 162 132 L156 120 L158 104 Z" fill="url(#hairM)"/>
-  </g>
-  <!-- 眉 -->
-  <path class="brow" d="M90 103 C97 96 108 97 115 101" stroke="#3a2a20" stroke-width="3" fill="none" stroke-linecap="round"/>
-  <path class="brow" d="M125 101 C132 97 143 96 150 103" stroke="#3a2a20" stroke-width="3" fill="none" stroke-linecap="round"/>
-  <!-- 目 -->
+<svg class="chara-svg" viewBox="0 0 320 380" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<circle cx="160" cy="185" r="153" fill="url(#portrait-halo)"/>
+  <g fill="none" stroke="#d6bddb" stroke-width=".7" opacity=".28"><circle cx="160" cy="166" r="123"/><circle cx="160" cy="166" r="134" stroke-dasharray="1 7"/><path d="M160 21v16M19 166h16m250 0h16"/></g>
+  <g fill="#d8c1a5"><path d="m266 91 2 7 7 2-7 2-2 7-2-7-7-2 7-2Z"/><path d="m52 220 1.5 5 5 1.5-5 1.5-1.5 5-1.5-5-5-1.5 5-1.5Z"/><circle cx="73" cy="73" r="1.7"/><circle cx="265" cy="237" r="1.4"/></g>
+<g class="only-woman">
+  <!-- Flowing hair, behind the shoulders. -->
+  <path d="M97 79C62 108 78 162 69 209 64 238 46 259 64 285 75 300 62 330 50 347 90 363 107 343 119 329L207 338C254 358 277 331 262 305 246 278 257 263 247 239 232 204 244 151 231 112 219 68 172 44 133 57Z" fill="url(#portrait-hair-w)" stroke="#242336" stroke-width="1.5"/>
+  <g fill="none" stroke-linecap="round"><path d="M94 116C75 191 101 220 79 268S102 312 78 342" stroke="#a293b5" stroke-width="3" opacity=".36"/><path d="M82 163C78 218 96 226 83 253S69 280 82 294" stroke="#d0b4d4" opacity=".35"/><path d="M228 139C243 198 219 220 239 266S229 312 248 332" stroke="#8e80a2" stroke-width="4" opacity=".32"/><path d="M233 169C238 205 228 228 239 249" stroke="#c7b4d4" opacity=".3"/></g>
+  <!-- Tailored midnight suit and draped silk blouse. -->
+  <path d="M121 259 87 273Q42 280 31 324L23 380H297L289 324Q283 287 236 274L197 259Z" fill="url(#portrait-jacket)" stroke="#202138" stroke-width="1.5"/>
+  <path d="M141 220 139 261Q156 285 181 261L179 219Z" fill="url(#portrait-neck)"/>
+  <path d="M135 255Q161 277 187 255L212 380H108Z" fill="url(#portrait-silk)"/>
+  <path d="M137 258Q157 289 185 261L174 293 148 292Z" fill="#f6eaf0" opacity=".72"/>
+  <g fill="none" stroke="#978aa4" stroke-width="1.2" opacity=".6"><path d="M148 292q3 42-2 73M174 293q-9 35 1 68M151 300q10 7 22 0"/></g>
+  <path d="M132 254 99 273 81 309 105 319 89 335 139 380 147 311Z" fill="url(#portrait-lapel)"/>
+  <path d="M190 254 222 274 239 309 215 321 231 335 181 380 174 311Z" fill="url(#portrait-lapel)"/>
+  <g fill="none" stroke="#9d8bac" stroke-width=".8" opacity=".6"><path d="m130 260-28 17-15 30 23 13-15 15 39 39M192 260l26 17 15 30-23 14 15 14-39 39M49 325l-5 55M272 325l5 55"/></g>
+  <path d="M140 264Q160 299 181 264" fill="none" stroke="url(#portrait-gold)" stroke-width="1.3"/>
+  <path d="M163 285a7 7 0 1 0 3 11 6 6 0 0 1-3-11Z" fill="url(#portrait-gold)"/>
+  <path d="m219 293 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z" fill="url(#portrait-gold)"/>
+  <!-- Face, ears and delicate reflected light. -->
+  <path d="M106 159C87 150 95 188 110 189M212 159C231 150 223 188 208 189" fill="#edc8c6" stroke="#c895a3" stroke-width="1.1"/>
+  <path d="M106 170q-9-10-5 4m111-4q9-10 5 4" fill="none" stroke="#bb899b" stroke-width="1.2"/>
+  <path d="M105 123Q109 76 160 76 213 76 217 127L212 177Q207 205 185 225 170 239 160 239 150 239 135 226 111 205 107 177Z" fill="url(#portrait-skin)" stroke="#cba1b0" stroke-width=".8"/>
+  <path d="M107 136Q110 194 140 222 124 204 121 178Z" fill="#c998ad" opacity=".18"/>
+  <ellipse cx="125" cy="187" rx="23" ry="12" fill="url(#portrait-blush)"/><ellipse cx="194" cy="187" rx="22" ry="12" fill="url(#portrait-blush)"/>
+  <path class="brow" d="M114 145Q130 137 148 145" fill="none" stroke="#665269" stroke-width="2.3" stroke-linecap="round"/>
+  <path class="brow" d="M174 145Q190 136 207 142" fill="none" stroke="#665269" stroke-width="2.3" stroke-linecap="round"/>
   <g class="eyes">
-    <path d="M91 117 C97 109 111 109 117 117 C111 122 97 122 91 117 Z" fill="#fbfaf8"/>
-    <path d="M123 117 C129 109 143 109 149 117 C143 122 129 122 123 117 Z" fill="#fbfaf8"/>
-    <circle cx="104" cy="116" r="5.4" fill="url(#iris)"/><circle cx="136" cy="116" r="5.4" fill="url(#iris)"/>
-    <circle cx="104" cy="116" r="2.4" fill="#120b08"/><circle cx="136" cy="116" r="2.4" fill="#120b08"/>
-    <circle cx="102.2" cy="114" r="1.4" fill="#fff"/><circle cx="134.2" cy="114" r="1.4" fill="#fff"/>
-    <path d="M91 117 C97 109 111 109 117 117" stroke="#2a1b14" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-    <path d="M123 117 C129 109 143 109 149 117" stroke="#2a1b14" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-    <path d="M94 119 C99 122 110 122 116 118" stroke="#8c5b45" stroke-width="1" fill="none" opacity="0.6"/>
-    <path d="M124 118 C130 122 141 122 146 119" stroke="#8c5b45" stroke-width="1" fill="none" opacity="0.6"/>
+    <path d="M112 164Q128 150 149 162 137 177 121 172Z" fill="#fff3f0"/>
+    <path d="M172 162Q191 149 209 160L202 171Q184 178 172 162Z" fill="#fff3f0"/>
+    <ellipse cx="133" cy="163.5" rx="8" ry="9.5" fill="url(#portrait-iris-w)"/><ellipse cx="189" cy="162.5" rx="8" ry="9.5" fill="url(#portrait-iris-w)"/>
+    <ellipse cx="133" cy="162" rx="3.2" ry="5.7" fill="#392f4e"/><ellipse cx="189" cy="161" rx="3.2" ry="5.7" fill="#392f4e"/>
+    <path d="M129 169q4 3 8-1m48 0q4 3 8-1" fill="none" stroke="#ebc7ee" stroke-width="1.5"/>
+    <g fill="#fffaf4"><ellipse cx="130" cy="159" rx="2.4" ry="2.8"/><ellipse cx="186" cy="158" rx="2.4" ry="2.8"/><circle cx="136" cy="167" r="1.1"/><circle cx="192" cy="166" r="1.1"/></g>
+    <path d="M109 159 114 164Q129 150 149 162M172 162Q191 149 208 160L212 155" fill="none" stroke="#473345" stroke-width="2.8" stroke-linecap="round"/>
+    <path d="m112 161-3-6m98 4 4-7" stroke="#473345" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M119 172q13 7 26-3m32 0q12 7 25 0" fill="none" stroke="#ac788c" stroke-width=".9"/>
   </g>
-  <path d="M94 108 C100 104 110 104 116 108" stroke="#c99a7e" stroke-width="1" fill="none" opacity="0.5"/>
-  <path d="M124 108 C130 104 140 104 146 108" stroke="#c99a7e" stroke-width="1" fill="none" opacity="0.5"/>
-  <!-- 鼻 -->
-  <path d="M118 118 C114 128 113 136 116 142 C118 144 122 144 124 142 C127 136 126 128 122 120" stroke="#c48c6f" stroke-width="1.4" fill="none" stroke-linecap="round" opacity="0.55"/>
-  <ellipse cx="115" cy="142" rx="2.2" ry="1.3" fill="#b97b60" opacity="0.5"/><ellipse cx="125" cy="142" rx="2.2" ry="1.3" fill="#b97b60" opacity="0.5"/>
-  <!-- 頬 -->
-  <ellipse cx="96" cy="136" rx="9" ry="5" fill="#e79a8f" opacity="0.22"/><ellipse cx="144" cy="136" rx="9" ry="5" fill="#e79a8f" opacity="0.22"/>
-  <!-- 口 -->
+  <path d="M160 169 155 191q3 4 8 1" fill="none" stroke="#c8919f" stroke-width="1.1" stroke-linecap="round"/>
+  <path d="m163 188 3 2" stroke="#bf8395" stroke-width=".9" stroke-linecap="round"/>
+  <path d="M157 178v7" stroke="#fff1e8" stroke-width="2" stroke-linecap="round" opacity=".7"/>
   <g class="mouth">
-    <path d="M106 154 C111 150 116 151 120 152 C124 151 129 150 134 154 C129 156 111 156 106 154 Z" fill="#b95a63"/>
-    <path d="M106 154 C111 163 129 163 134 154 C128 158 112 158 106 154 Z" fill="#d97a82"/>
-    <path d="M104 153 C112 157 128 157 136 153" stroke="#8f3f47" stroke-width="1" fill="none" opacity="0.6"/>
+    <path d="M145 210Q153 205 160 208 167 205 177 208 169 217 160 217 152 216 145 210Z" fill="#bb738c"/>
+    <path d="M146 210Q159 213 176 208" fill="none" stroke="#8c4e69" stroke-width="1"/>
+    <path d="M152 213q8 4 15 0" fill="none" stroke="#f0b9c2" stroke-width="1.6" stroke-linecap="round"/>
   </g>
-  <!-- 眼鏡 -->
-  <g class="glasses" stroke="#7d869f" stroke-width="2" fill="none">
-    <rect x="87" y="106" width="32" height="22" rx="8" fill="url(#lens)"/>
-    <rect x="121" y="106" width="32" height="22" rx="8" fill="url(#lens)"/>
-    <path d="M119 115 L121 115"/><path d="M87 114 L78 111"/><path d="M153 114 L162 111"/>
+  <path d="M155 224q6 2 11-1" stroke="#ffebe6" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Swept fringe, individual locks and moon pin. -->
+  <path d="M95 158C76 104 93 72 125 60 164 42 207 60 225 91 238 118 231 158 214 186L208 141C206 117 188 97 176 88 157 121 125 136 106 140L111 177Z" fill="url(#portrait-hair-w)" stroke="#383046" stroke-width="1"/>
+  <path d="M176 88C159 118 125 134 106 140 133 115 141 82 167 68" fill="#8b7b97" opacity=".36"/>
+  <path d="M173 76C148 83 143 110 113 126M165 67C128 65 105 88 99 116M185 82Q218 110 216 147" fill="none" stroke="#c1a6c5" stroke-width="1.2" opacity=".55" stroke-linecap="round"/>
+  <path d="M149 72Q128 85 120 105M199 91q14 17 17 38" fill="none" stroke="#b4a4c1" stroke-width="4" opacity=".18" stroke-linecap="round"/>
+  <path d="M106 138C96 185 128 214 115 258 108 282 119 313 102 332 139 316 118 292 128 263 144 220 113 191 119 136Z" fill="url(#portrait-hair-w)"/>
+  <path d="M110 149C108 201 133 223 120 267" fill="none" stroke="#b09abd" stroke-width="1.4" opacity=".55"/>
+  <path d="M210 142C215 193 196 217 206 252 214 278 199 302 213 320 195 309 199 293 198 281 183 239 206 207 202 167Z" fill="url(#portrait-hair-w)"/>
+  <path d="M209 164C208 211 193 230 204 262" fill="none" stroke="#aa93b6" stroke-width="1.2" opacity=".45"/>
+  <path d="m205 114 15 18m-18-13 14 18" stroke="url(#portrait-gold)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M218 115a6 6 0 1 0 4 10 5.5 5.5 0 0 1-4-10Z" fill="url(#portrait-gold)"/>
+  <g stroke="url(#portrait-gold)" fill="none" stroke-width="1.25"><path d="M103 181v15m115-15v15"/><path d="m103 193 3 5-3 6-3-6Zm115 0 3 5-3 6-3-6Z"/></g>
+  <!-- Fine metal glasses stay still while the eyes blink. -->
+  <g class="glasses" stroke="url(#portrait-gold)" stroke-width="1.25" fill="url(#portrait-lens)"><path d="M109 155Q128 151 151 155L149 174Q132 183 114 175Z"/><path d="M171 155Q191 150 213 153L207 174Q190 181 174 173Z"/><path d="M151 159q10-5 20 0M109 159l-7-3m111 1 6-4" fill="none"/></g>
+  <path d="m116 158 10-1m52 0 9-1" stroke="#fff2e5" stroke-width=".9" opacity=".7"/>
+</g>
+<g class="only-man">
+  <!-- A structured suit, open collar and silver details. -->
+  <path d="m128 250-49 22Q31 286 24 329L18 380H302L296 329Q289 287 241 273L191 250Z" fill="url(#portrait-jacket)" stroke="#20263d" stroke-width="1.5"/>
+  <path d="m140 217-3 44 23 28 25-28-4-47Z" fill="url(#portrait-neck)"/>
+  <path d="m136 254 24 26 27-27 30 127H104Z" fill="url(#portrait-silk)"/>
+  <path d="m136 248 24 32-21 22-17-37Zm50-1-26 33 22 21 18-37Z" fill="#e2dce7"/>
+  <path d="m155 279-8 12 11 15-7 61 10 13 12-14-11-61 10-16-7-10Z" fill="#3e3c57"/>
+  <path d="m156 281 8 0 4 8-8 8-8-8Z" fill="#686079"/>
+  <path d="m160 306 5 48" stroke="#9e8da5" stroke-width="1.2" opacity=".5"/>
+  <path d="m129 253-35 21-18 35 28 15-21 15 53 41 10-70Z" fill="url(#portrait-lapel)"/>
+  <path d="m193 252 34 23 17 34-27 15 21 15-53 41-10-71Z" fill="url(#portrait-lapel)"/>
+  <g fill="none" stroke="#9195b1" stroke-width=".8" opacity=".6"><path d="m126 261-29 18-15 28 28 17-20 15 42 35M196 261l28 18 14 28-27 17 20 15-41 35M43 330l-4 50m239-50 4 50"/></g>
+  <path d="m223 344 41-5 1 7-41 5Z" fill="#1d2339"/><path d="m227 343 9-12 10 9 8-8 7 6Z" fill="#a1a6bd"/>
+  <path d="M223 294a7 7 0 1 0 4 12 6 6 0 0 1-4-12Z" fill="#c6c8dd"/>
+  <path d="m228 293 1 3 3 1-3 1-1 3-1-3-3-1 3-1Z" fill="#ece0c8"/>
+  <!-- Angular face, long neck, soft rather than severe expression. -->
+  <path d="M104 154C85 147 94 184 109 187M215 153C234 146 225 183 210 187" fill="#e8c4c3" stroke="#be91a4" stroke-width="1.1"/>
+  <path d="m101 164 3 12m116-13-3 12" stroke="#b7879e" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M102 122Q102 72 161 70 219 73 219 126L212 182 200 210Q184 229 162 241 140 232 122 213L108 187Z" fill="url(#portrait-skin)" stroke="#c39ba9" stroke-width=".8"/>
+  <path d="M106 142 118 183 127 208 147 227Q121 214 109 187Z" fill="#ba8ba5" opacity=".22"/>
+  <path d="M214 155 202 196 190 215 173 230Q199 212 211 183Z" fill="#b888a1" opacity=".16"/>
+  <ellipse cx="124" cy="185" rx="20" ry="9" fill="url(#portrait-blush)"/><ellipse cx="195" cy="183" rx="19" ry="9" fill="url(#portrait-blush)"/>
+  <path class="brow" d="M112 142Q128 134 149 145L148 148Q129 141 114 145Z" fill="#434054"/>
+  <path class="brow" d="M173 143Q192 131 209 138L208 141Q190 138 174 147Z" fill="#434054"/>
+  <g class="eyes">
+    <path d="M112 161Q130 150 150 163 133 174 118 168Z" fill="#f7eeed"/>
+    <path d="M172 162Q190 148 210 156L204 166Q186 174 172 162Z" fill="#f7eeed"/>
+    <ellipse cx="133" cy="161.5" rx="7.1" ry="7.8" fill="url(#portrait-iris-m)"/><ellipse cx="191" cy="160" rx="7.1" ry="7.8" fill="url(#portrait-iris-m)"/>
+    <ellipse cx="133" cy="160" rx="2.8" ry="4.8" fill="#202c44"/><ellipse cx="191" cy="158.5" rx="2.8" ry="4.8" fill="#202c44"/>
+    <path d="M129 166q4 3 8 0m50-1q4 3 8 0" fill="none" stroke="#bcd8e2" stroke-width="1.3"/>
+    <g fill="#fff8ee"><ellipse cx="130.5" cy="158" rx="2" ry="2.3"/><ellipse cx="188.5" cy="156.5" rx="2" ry="2.3"/><circle cx="136" cy="165" r=".9"/><circle cx="194" cy="163.5" r=".9"/></g>
+    <path d="M110 158 114 161Q130 150 150 163M172 162Q190 148 208 157L212 153" fill="none" stroke="#373448" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M119 170q14 5 27-3m30 0q13 4 27-1" fill="none" stroke="#a7788c" stroke-width=".9"/>
   </g>
-  <path d="M92 110 L100 108" stroke="#fff" stroke-width="1.4" opacity="0.5" stroke-linecap="round"/>
-  <path d="M126 110 L134 108" stroke="#fff" stroke-width="1.4" opacity="0.5" stroke-linecap="round"/>
+  <path d="m162 165-5 24 4 4 5-2" fill="none" stroke="#b88497" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="m160 174-1 10" stroke="#fff0e5" stroke-width="2.1" stroke-linecap="round"/>
+  <path d="m166 189 3 2" stroke="#b88497" stroke-width="1" stroke-linecap="round"/>
+  <g class="mouth">
+    <path d="M145 210Q153 206 162 208L179 205Q171 216 161 216 152 216 145 210Z" fill="#b78293" opacity=".7"/>
+    <path d="M144 209Q161 214 179 205" fill="none" stroke="#825c75" stroke-width="1.3" stroke-linecap="round"/>
+    <path d="M155 214q8 2 14-2" fill="none" stroke="#eac0c8" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+  <path d="M156 225q7 1 13-2" fill="none" stroke="#d4a6b4" stroke-width="1" stroke-linecap="round"/>
+  <!-- Blue-black layered fringe with directional highlights. -->
+  <path d="M96 155Q83 143 88 122L83 111Q88 89 108 78L106 69Q120 57 137 60 160 43 186 54L201 51 207 62Q231 67 234 94 244 111 230 137L213 169 211 132Q187 117 179 90 171 117 139 134L145 110Q120 135 105 138L108 169Z" fill="url(#portrait-hair-m)" stroke="#232b40" stroke-width="1.2"/>
+  <path d="M180 78Q163 112 139 134L145 110Q128 128 108 136 125 117 137 92 153 66 180 65Z" fill="#607086" opacity=".34"/>
+  <path d="M178 63Q145 56 120 91M169 72Q151 85 140 105M133 69Q108 84 101 107M189 69Q198 96 221 111M201 68Q225 81 228 100" fill="none" stroke="#9bacc0" stroke-width="1.2" stroke-linecap="round" opacity=".5"/>
+  <path d="M161 66Q138 73 124 96M196 76Q203 92 215 100" fill="none" stroke="#b5bfd3" stroke-width="4" opacity=".12" stroke-linecap="round"/>
+  <path d="M112 89Q97 111 101 133M174 86Q166 110 151 123M206 111q9 15 8 28" fill="none" stroke="#172237" stroke-width="2" opacity=".65"/>
+  <path d="M102 138 111 137 109 170 102 159Zm112-3 9-4-6 28-7 11Z" fill="#273249"/>
+  <circle cx="218" cy="182" r="2.3" fill="#c0c6d8"/><circle cx="217.5" cy="181.5" r=".8" fill="#fff1dd"/>
+  <!-- Slim titanium frames; the lids and mouth remain separate. -->
+  <g class="glasses" fill="url(#portrait-lens)" stroke="#959eaf" stroke-width="1.3"><path d="m108 154 44 1-3 19q-16 6-36-1Z"/><path d="m170 155 44-4-6 20q-18 7-35 2Z"/><path d="M152 159q9-4 18 0m-62-1-7-3m113 0 7-4" fill="none"/></g>
+  <path d="m114 157 12 0m50 1 11-1" stroke="#e3e6ef" stroke-width=".8" opacity=".7"/>
+</g>
 </svg>
 
     <div class="speech"><span class="speech-text"></span></div>
   </div>
 </template>
 
-<div id="toast" class="toast" hidden></div>
-<script src="config.js?v=3.3.0"></script>
-<script src="firebase-config.js?v=3.3.0"></script>
-<script type="module" src="cloud.js?v=3.3.0"></script>
-<script src="engine/lexicon.js?v=3.3.0"></script>
-<script src="engine/analyze.js?v=3.3.0"></script>
-<script src="engine/insight.js?v=3.3.0"></script>
-<script src="engine/interview.js?v=3.3.0"></script>
-<script src="app.js?v=3.3.0"></script>
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="config.js?v=3.5.0"></script>
+<script src="firebase-config.js?v=3.5.0"></script>
+<script type="module" src="cloud.js?v=3.5.0"></script>
+<script src="engine/lexicon.js?v=3.5.0"></script>
+<script src="engine/analyze.js?v=3.5.0"></script>
+<script src="engine/insight.js?v=3.5.0"></script>
+<script src="engine/interview.js?v=3.5.0"></script>
+<script src="app.js?v=3.5.0"></script>
 <script>
   if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
     navigator.serviceWorker.register("sw.js").then((reg) => reg.update().catch(() => {})).catch(() => {});

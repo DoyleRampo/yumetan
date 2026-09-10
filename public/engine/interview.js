@@ -56,8 +56,10 @@
 
   function compose(facts, extras) {
     const s = [];
-    if (facts.people) s.push(facts.people === "自分ひとり" ? "夢の中では自分ひとりだった" : `${facts.people}が出てきた`);
-    if (facts.place) s.push(`場所は${facts.place}だった`);
+    // 「その他」の自由記述が文になっているときは、そのまま使う（「場所は〜だった」で包まない）
+    const raw = (t) => t.length > 10 || /[。、はがをにでだった]/.test(t);
+    if (facts.people) s.push(facts.people === "自分ひとり" ? "夢の中では自分ひとりだった" : raw(facts.people) ? facts.people : `${facts.people}が出てきた`);
+    if (facts.place) s.push(raw(facts.place) ? facts.place : `場所は${facts.place}だった`);
     if (facts.event) s.push(facts.event);
     if (facts.outcome) s.push(facts.outcome);
     if (facts.emotion) s.push(facts.emotion);

@@ -3,7 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const APP_VERSION = "3.3.0";
+  const APP_VERSION = "3.5.0";
 
   // ---------- 実行環境（Capacitor ネイティブか Web か） ----------
   const Cap = window.Capacitor;
@@ -75,11 +75,20 @@
       const view = slot.closest(".view").id.replace("view-", "");
       charas.set(view, { svg: node.querySelector(".chara-svg"), text: node.querySelector(".speech-text"), timer: null });
     }
+    for (const slot of $$("[data-character-preview]")) {
+      const portrait = tpl.content.querySelector(".chara-svg").cloneNode(true);
+      portrait.classList.toggle("man", slot.dataset.characterPreview === "man");
+      slot.replaceChildren(portrait);
+    }
     applyChara();
   }
   function applyChara() {
-    for (const c of charas.values()) c.svg.classList.toggle("man", settings.chara === "man");
-    $$(".seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.chara === settings.chara));
+    $$(".chara-slot .chara-svg, .home-chara .chara-svg").forEach((svg) => svg.classList.toggle("man", settings.chara === "man"));
+    $$(".seg-btn").forEach((b) => {
+      const selected = b.dataset.chara === settings.chara;
+      b.classList.toggle("active", selected);
+      b.setAttribute("aria-pressed", String(selected));
+    });
   }
   function say(view, text, { mood = "", voice = false } = {}) {
     const c = charas.get(view); if (!c) return;
@@ -159,11 +168,18 @@
     stopSpeaking();
     if (push) stack.push(current);
     current = view;
+    document.body.dataset.view = view;
+    $$(".journal-nav [data-go]").forEach((button) => {
+      if (button.dataset.go === view) button.setAttribute("aria-current", "page");
+      else button.removeAttribute("aria-current");
+    });
     $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
     $("#back").hidden = view === "home" || view === "intro" || (view === "onboard" && !settings.profile);
     window.scrollTo({ top: 0 });
     if (push) history.pushState({ view }, "", `#${view}`);
     onEnter(view);
+    const heading = $(`#view-${view} h2`);
+    if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
   }
   function back() { const prev = stack.pop() || "home"; go(prev, { push: false }); history.replaceState({ view: prev }, "", `#${prev}`); }
   $("#back").onclick = back;
@@ -186,7 +202,7 @@
     const d = new Date();
     $("#today").textContent = d.toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric", weekday: "short" });
   }
-  function updateHomeCount() { const el = $("#home-count"); el.textContent = `${dreams.length}件`; el.hidden = !dreams.length; }
+  function updateHomeCount() { $("#home-count").textContent = `${dreams.length}件`; }
 
   // ---------- 記憶方法の選択 ----------
   let mode = "text"; // 「話す」を使ったら voice（返答の出し方は共通で文字）
@@ -204,15 +220,17 @@
 
   function placeChara(analyzed) {
     const box = $("#view-home .home-chara"); if (!box) return;
-    const anchor = analyzed ? afterEl : $("#view-home .journal-nav");
-    if (box.nextElementSibling !== anchor) anchor.parentNode.insertBefore(box, anchor);
+    if (analyzed) afterEl.before(box);
+    else $(".dream-column").append(box);
   }
   function applyMode() {
     const analyzed = Boolean(currentDream?.analysis);
     placeChara(analyzed);
     wrap.hidden = analyzed;
     afterEl.hidden = !analyzed || !afterReady;
-    $("#headline").innerHTML = analyzed ? "読み取り<br>ました。" : "今日の夢を<br>ひとこと。";
+    $("#headline").innerHTML = analyzed ? "夢から届いた、<br>あなたへのメッセージ。" : "夢のかけらに、<br>心の声を見つけよう。";
+    $("#hero-description").textContent = analyzed ? "心に響いた言葉を、そっと持ち帰ってください。" : "消えてしまう前に、そっと残す。あなたの夢を、ユメタンが一緒に読み解きます。";
+    updateComposer();
     clearBtn.hidden = !ta.value.trim();
     micBtn.hidden = !speech.supported;
     askMic.hidden = !speech.supported;
@@ -226,7 +244,22 @@
     applyMode(); setStatus("");
     say("home", greeting());
   }
-  ta.addEventListener("input", () => { clearBtn.hidden = !ta.value.trim(); });
+  function updateComposer() {
+    clearBtn.hidden = !ta.value.trim();
+    sendBtn.disabled = busy || !ta.value.trim();
+    sendBtn.innerHTML = busy ? "読み解いています…" : '夢を読み解く <span aria-hidden="true">✧</span>';
+    wrap.setAttribute("aria-busy", String(busy));
+  }
+  ta.addEventListener("input", updateComposer);
+  $$("[data-prompt]").forEach((button) => {
+    button.onclick = () => {
+      ta.value += (ta.value && !ta.value.endsWith("\n") ? "\n" : "") + button.dataset.prompt;
+      finalText = ta.value;
+      updateComposer();
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    };
+  });
 
   let aizuchiTimer;
   function aizuchi() { clearTimeout(aizuchiTimer); aizuchiTimer = setTimeout(() => { if (listening) say("home", AIZUCHI[Math.floor(Math.random() * AIZUCHI.length)], { mood: "listening" }); }, 900); }
@@ -242,7 +275,7 @@
       await speech.start({
         onText: (t, isFinal) => {
           if (isFinal) { finalText += t; liveText = ""; aizuchi(); } else { liveText = t; if (t.length % 12 === 0) aizuchi(); }
-          listenTarget.value = finalText + liveText; if (listenTarget === ta) clearBtn.hidden = false;
+          listenTarget.value = finalText + liveText; if (listenTarget === ta) updateComposer();
         },
         onEnd: async () => {
           // ネイティブは一区切りごとに止まるので、続けたい間は再開する
@@ -268,9 +301,9 @@
     if (nativeSR && liveText) { finalText += liveText; liveText = ""; listenTarget.value = finalText; }
     listening = false; clearTimeout(aizuchiTimer);
     micBtn.classList.remove("listening"); askMic.classList.remove("listening"); mood("home", "");
-    micBtn.querySelector("span").textContent = "話す"; $("#ask-status").hidden = true;
+    micBtn.querySelector("span").textContent = "声で話す"; $("#ask-status").hidden = true;
     if (silent) return;
-    if (listenTarget === ta) setStatus(finalText.trim() ? (settings.autosend ? "読み取っています…" : "内容を確認して「読み取る」を押してください") : "");
+    if (listenTarget === ta) setStatus(finalText.trim() ? (settings.autosend ? "読み取っています…" : "内容を確認して「夢を読み解く」を押してください") : "");
     if (nativeSR && finalText.trim() && settings.autosend && !busy) (listenTarget === ta ? send() : ask()); // ネイティブは onEnd が来ないことがあるためここでも送る
   }
   micBtn.onclick = () => (wantListening ? stopListening() : startListening(ta));
@@ -280,7 +313,8 @@
   async function send(extraText) {
     const text = (typeof extraText === "string" ? extraText : ta.value).trim();
     if (!text || busy) return;
-    busy = true; sendBtn.disabled = true; micBtn.disabled = true;
+    busy = true; updateComposer(); micBtn.disabled = true; ta.readOnly = true;
+    $$("[data-prompt]").forEach((button) => button.disabled = true);
     addBubble("user", text);
     ta.value = ""; finalText = ""; liveText = "";
     say("home", "なるほど…少し整理しますね。", { mood: "thinking" });
@@ -310,7 +344,8 @@
       say("home", "うまく読み取れませんでした。もう一度お願いします。");
       toast(e.message, true);
       setStatus("読み取れませんでした。もう一度お試しください");
-    } finally { busy = false; sendBtn.disabled = false; micBtn.disabled = false; }
+    } finally { busy = false; ta.readOnly = false; micBtn.disabled = false;
+      $$("[data-prompt]").forEach((button) => button.disabled = false); updateComposer(); }
   }
   // 結果の吹き出し（状態ラベル + 返事 + タグ）
   function renderResult(a) {
@@ -346,7 +381,7 @@
     toast("この夢を記憶しました");
   };
   sendBtn.onclick = send;
-  clearBtn.onclick = () => { ta.value = ""; finalText = ""; liveText = ""; clearBtn.hidden = true; };
+  clearBtn.onclick = () => { ta.value = ""; finalText = ""; liveText = ""; updateComposer(); ta.focus(); };
   newBtn.onclick = resetConversation;
   ta.addEventListener("input", () => { if (!listening) finalText = ta.value; });
   ta.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send(); });
@@ -444,9 +479,24 @@
   // ---------- 夢の記録 ----------
   function renderHistory() {
     const el = $("#history");
-    if (!dreams.length) { el.innerHTML = `<p class="empty">まだ記録がありません。ホームの「夢を記憶する」から話してみてください。</p>`; return; }
+    const query = $("#history-search").value.trim().toLocaleLowerCase();
+    const filtered = dreams.filter((dream) => {
+      const a = dream.analysis || {};
+      return [a.title, a.summary, ...(a.emotions || []), ...(a.themes || []), ...dream.messages.map((m) => m.text)].join(" ").toLocaleLowerCase().includes(query);
+    });
+    $("#history-count").textContent = query ? `${filtered.length}件の夢が見つかりました` : `${dreams.length}件の夢を記録しています`;
+    if (!dreams.length) {
+      el.innerHTML = `<div class="empty"><span class="empty-symbol" aria-hidden="true">☾</span><strong>最初の夢を、この場所に。</strong>覚えているひとことから始めましょう。<br>読み解いたあとに「この夢を記憶する」で残せます。<br><button class="btn primary" id="empty-write">夢を書いてみる</button></div>`;
+      $("#empty-write").onclick = () => { go("home"); ta.focus(); };
+      return;
+    }
+    if (!filtered.length) {
+      el.innerHTML = `<div class="empty"><span class="empty-symbol" aria-hidden="true">✧</span><strong>その言葉の夢は、まだ見つかりません。</strong>別の言葉でも探してみてください。<br><button class="btn" id="reset-search">すべての夢を見る</button></div>`;
+      $("#reset-search").onclick = () => { $("#history-search").value = ""; renderHistory(); $("#history-search").focus(); };
+      return;
+    }
     el.innerHTML = "";
-    for (const d of dreams) {
+    for (const d of filtered) {
       const a = d.analysis || {};
       const det = document.createElement("details"); det.className = "card";
       det.innerHTML = `
@@ -472,12 +522,13 @@
         if (!confirm(`「${a.title || "この夢"}」の記録を削除しますか？`)) return;
         dreams = dreams.filter((x) => x.id !== d.id); await removeDream(d.id); det.remove();
         if (currentDream?.id === d.id) currentDream = null;
-        if (!dreams.length) renderHistory();
+        renderHistory(); updateHomeCount();
         toast("削除しました");
       };
       el.appendChild(det);
     }
   }
+  $("#history-search").addEventListener("input", renderHistory);
   function openDream(d) {
     currentDream = d; finalText = ""; liveText = ""; ta.value = ""; askInput.value = ""; chatEl.innerHTML = "";
     for (const m of d.messages) addBubble(m.role === "user" ? "user" : "ai", m.text);
@@ -500,7 +551,12 @@
   async function renderInsight(refresh = false) {
     const el = $("#insight");
     const targets = insightTargets();
-    if (targets.length < 2) { el.innerHTML = `<p class="empty">分析にはあと ${2 - targets.length} 件の夢が必要です。<br><span class="muted">毎朝ひとつ話すと、数日で傾向が見えてきます。</span></p>`; return; }
+    $("#insight-refresh").hidden = targets.length < 2;
+    if (targets.length < 2) {
+      el.innerHTML = `<div class="empty"><span class="empty-symbol" aria-hidden="true">✧</span><strong>夢がつながると、心が見えてくる。</strong>あと ${2 - targets.length} 件の夢を記録すると、傾向を読み解けます。<br><span class="muted">毎日でなくても大丈夫。あなたのペースで。</span><br><button class="btn primary" id="insight-write">夢を記録する</button></div>`;
+      $("#insight-write").onclick = () => { go("home"); if (!currentDream?.analysis) ta.focus(); };
+      return;
+    }
     const cached = await store.get(K.insight);
     let insight = cached?.insight, fromCache = true;
     if (refresh || !cached || cached.fingerprint !== fingerprint(targets) || (cached.insight?.engine === "local") !== !useAI()) {
