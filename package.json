@@ -1,7 +1,7 @@
 {
   "name": "yumetan",
-  "version": "1.0.0",
-  "description": "ユメタン — 起きてすぐ、夢を口で話すだけ。聞いて、覚えて、心の状態を教えてくれるAI",
+  "version": "4.0.0",
+  "description": "ユメタン — 16タイプの夢キャラクターを育てる、夢と睡眠の日記AI（日本語・English・한국어・中文）",
   "type": "module",
   "private": true,
   "scripts": {
@@ -24,6 +24,7 @@
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.1",
     "@capacitor/ios": "^8.5.1",
+    "@capacitor/local-notifications": "^8.0.0",
     "@capacitor/preferences": "^8.0.1",
     "express": "^4.21.0",
     "zod": "^3.23.8"

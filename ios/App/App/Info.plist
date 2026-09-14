@@ -20,8 +20,16 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>clock-alarm</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>手書きの夢ノートを撮影して記録するためにカメラを使います</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>手書きの夢ノートの写真を選ぶために写真ライブラリを使います</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>夢を声で話して記録するためにマイクを使います</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

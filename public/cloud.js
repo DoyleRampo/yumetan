@@ -43,10 +43,27 @@ window.YumetanCloud = {
   async saveDream(dream) { const { doc, setDoc } = state.fns; await setDoc(doc(this.col(), dream.id), dream); },
   async deleteDream(id) { const { doc, deleteDoc } = state.fns; await deleteDoc(doc(this.col(), id)); },
   async loadOnce() { const { getDocs, query, orderBy } = state.fns; const snap = await getDocs(query(this.col(), orderBy("createdAt", "desc"))); return snap.docs.map((d) => d.data()); },
-  async deleteAllDreams() { const { getDocs, deleteDoc } = state.fns; const snap = await getDocs(this.col()); for (const d of snap.docs) await deleteDoc(d.ref); return snap.size; },
+  async deleteAllDreams() {
+    const { getDocs, deleteDoc } = state.fns;
+    const snap = await getDocs(this.col()); for (const d of snap.docs) await deleteDoc(d.ref);
+    try { const ds = await getDocs(this.diaryCol()); for (const d of ds.docs) await deleteDoc(d.ref); } catch {}
+    return snap.size;
+  },
   uid() { return state.user?.uid || ""; },
   async saveProfile(profile) { const { doc, setDoc } = state.fns; await setDoc(doc(state.db, "users", state.user.uid), { profile, updatedAt: new Date().toISOString() }, { merge: true }); },
   async loadProfile() { const { doc, getDoc } = state.fns; const snap = await getDoc(doc(state.db, "users", state.user.uid)); return snap.exists() ? snap.data().profile || null : null; },
+  // 16タイプの状態（タイプ・スコア・レベル）はユーザー文書に持つ
+  async saveTypeState(typeState) { const { doc, setDoc } = state.fns; await setDoc(doc(state.db, "users", state.user.uid), { typeState, updatedAt: new Date().toISOString() }, { merge: true }); },
+  async loadTypeState() { const { doc, getDoc } = state.fns; const snap = await getDoc(doc(state.db, "users", state.user.uid)); return snap.exists() ? snap.data().typeState || null : null; },
+
+  // ---------- 日記（1日1件、date = YYYY-MM-DD） ----------
+  diaryCol() { const { collection, doc } = state.fns; return collection(doc(state.db, "users", state.user.uid), "diary"); },
+  subscribeDiary(cb) {
+    const { onSnapshot, query, orderBy } = state.fns;
+    return onSnapshot(query(this.diaryCol(), orderBy("date", "desc")), (snap) => cb(snap.docs.map((d) => d.data())), (e) => console.warn("diary sync error", e));
+  },
+  async saveDiary(entry) { const { doc, setDoc } = state.fns; await setDoc(doc(this.diaryCol(), entry.id), entry); },
+  async deleteDiary(id) { const { doc, deleteDoc } = state.fns; await deleteDoc(doc(this.diaryCol(), id)); },
 
   // ---------- アカウント ----------
   isAnonymous() { return Boolean(state.user?.isAnonymous); },

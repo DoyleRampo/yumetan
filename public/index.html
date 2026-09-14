@@ -8,15 +8,15 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ユメタン">
-<meta name="description" content="起きてすぐ、夢を話すだけ。聞いて、覚えて、心の状態を教えてくれるAI">
+<meta name="description" content="起きてすぐ、夢を話すだけ。16タイプの夢キャラクターを育てる、夢と睡眠の日記AI">
 <title>ユメタン — 夢を聞いてくれるAI</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Shippori+Mincho:wght@500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.5.0">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Shippori+Mincho:wght@500;700&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css?v=4.0.0">
 </head>
 <body data-view="home">
 <div class="night-sky" aria-hidden="true"></div>
@@ -37,10 +37,10 @@
   <linearGradient id="portrait-lens" x2=".7" y2="1"><stop stop-color="#ece8ff" stop-opacity=".16"/><stop offset=".55" stop-color="#ece8ff" stop-opacity="0"/><stop offset="1" stop-color="#ece8ff" stop-opacity=".07"/></linearGradient>
 </defs></svg>
 <header class="top">
-  <button id="back" class="back" hidden aria-label="戻る"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span>戻る</span></button>
-  <h1><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span>ユメタン</span></h1>
+  <button id="back" class="back" hidden data-i18n-aria="nav.back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span data-i18n="nav.back">戻る</span></button>
+  <h1><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span data-i18n="app.name">ユメタン</span></h1>
   <span class="brand-caption">DREAM JOURNAL</span>
-  <span class="header-note">夢と、心が出会う場所。</span>
+  <span class="header-note" data-i18n="app.tagline">夢と、心が出会う場所。</span>
 </header>
 
 <main>
@@ -49,9 +49,9 @@
     <div class="journal-head night-hero">
       <div class="hero-copy">
         <div class="date" id="today"></div>
-        <p class="eyebrow">A LITTLE DREAM, A LITTLE DISCOVERY</p>
-        <h2 class="headline" id="headline">夢のかけらに、<br>心の声を見つけよう。</h2>
-        <p class="hero-description" id="hero-description">消えてしまう前に、そっと残す。<br>あなたの夢を、ユメタンが一緒に読み解きます。</p>
+        <p class="eyebrow" data-i18n="home.eyebrow">A LITTLE DREAM, A LITTLE DISCOVERY</p>
+        <h2 class="headline" id="headline" data-i18n-html="home.headline">夢のかけらに、<br>心の声を見つけよう。</h2>
+        <p class="hero-description" id="hero-description" data-i18n-html="home.desc">消えてしまう前に、そっと残す。<br>あなたの夢を、ユメタンが一緒に読み解きます。</p>
       </div>
       <svg class="moon-art" viewBox="0 0 360 310" fill="none" aria-hidden="true">
         <defs>
@@ -67,103 +67,138 @@
       </svg>
     </div>
 
+    <!-- マイキャラの小さなバッジ（タイプ・レベル） -->
+    <button id="home-chara-badge" class="chara-badge" data-go="chara" hidden>
+      <img id="home-chara-img" alt="" width="44" height="44">
+      <span class="chara-badge-text"><b id="home-chara-name"></b><span id="home-chara-level" class="stars"></span></span>
+      <span class="chara-badge-arrow" aria-hidden="true">→</span>
+    </button>
+
     <div class="home-workspace">
     <div class="dream-column">
     <div id="chat" class="chat" aria-live="polite"></div>
 
     <div id="transcript-wrap" class="transcript-wrap dream-editor">
-      <div class="editor-heading"><label for="transcript">今日の夢ノート</label><span>MY DREAM</span></div>
-      <p class="editor-hint" id="dream-hint">ひとことでも、思い出せる場面だけでも。</p>
-      <textarea id="transcript" class="paper" rows="4" aria-describedby="dream-hint status" placeholder="どんな夢を見ましたか？
+      <div class="editor-heading"><label for="transcript" data-i18n="home.editorLabel">今日の夢ノート</label><span>MY DREAM</span></div>
+      <p class="editor-hint" id="dream-hint" data-i18n="home.editorHint">ひとことでも、思い出せる場面だけでも。</p>
+      <textarea id="transcript" class="paper" rows="4" aria-describedby="dream-hint status" data-i18n-ph="home.placeholder" placeholder="どんな夢を見ましたか？
 たとえば、月明かりの海を歩いていた…"></textarea>
-      <div class="writing-prompts" aria-label="書き出しのヒント"><span>思い出すヒント</span><button type="button" data-prompt="夢の中にいた場所は、">場所</button><button type="button" data-prompt="夢に出てきたのは、">登場人物</button><button type="button" data-prompt="夢の中で感じたのは、">気持ち</button></div>
+      <div class="writing-prompts" aria-label="書き出しのヒント"><span data-i18n="home.hints">思い出すヒント</span><button type="button" data-prompt="home.hintPlaceText" data-i18n="home.hintPlace">場所</button><button type="button" data-prompt="home.hintPeopleText" data-i18n="home.hintPeople">登場人物</button><button type="button" data-prompt="home.hintFeelText" data-i18n="home.hintFeel">気持ち</button></div>
+      <!-- 手書きノートの写真 -->
+      <div class="photo-row">
+        <label class="btn ghost small-link photo-btn"><input type="file" id="photo-input" accept="image/*" capture="environment" hidden><span aria-hidden="true">📷</span> <span data-i18n="home.photo">手書きノートを撮る</span></label>
+      </div>
+      <div id="photo-wrap" class="photo-wrap" hidden>
+        <img id="photo-preview" alt="">
+        <p class="muted" data-i18n="home.photoAttached">ノートの写真を添付しました。</p>
+        <div class="row left">
+          <button type="button" id="photo-ocr" class="btn" data-i18n="home.ocr">文字を読み取る（AI）</button>
+          <button type="button" id="photo-remove" class="btn ghost" data-i18n="home.photoRemove">写真を外す</button>
+        </div>
+      </div>
       <p id="status" class="status" role="status"></p>
       <div class="journal-actions">
-        <button id="mic" class="btn outline" aria-label="話す"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span>声で話す</span></button>
-        <button id="send" class="btn primary">夢を読み解く <span aria-hidden="true">✧</span></button>
+        <button id="mic" class="btn outline" data-i18n-aria="home.mic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span data-i18n="home.mic">声で話す</span></button>
+        <button id="send" class="btn primary"><span data-i18n="home.send">夢を読み解く</span> <span aria-hidden="true">✧</span></button>
       </div>
-      <div class="editor-foot"><span>読み解いたあとに、記録として保存できます</span><button id="clear" class="btn ghost small-link" hidden>入力をクリア</button></div>
+      <div class="editor-foot"><span data-i18n="home.editorFoot">読み解いたあとに、記録として保存できます</span><button id="clear" class="btn ghost small-link" hidden data-i18n="home.clear">入力をクリア</button></div>
     </div>
 
     <div id="after" class="after" hidden>
-      <button id="save-dream" class="btn primary big save">この夢を記憶する</button>
-      <p class="muted center small-note" id="ask-note">気になることがあれば、ユメタンに聞けます</p>
+      <!-- この夢の特徴（16タイプのチップ） -->
+      <div class="type-tags card-soft">
+        <div class="section-title" data-i18n="home.tagsTitle">この夢の特徴</div>
+        <p class="muted" data-i18n="home.tagsHint">あてはまるものを選んでね（複数可）</p>
+        <div id="type-tags"></div>
+      </div>
+      <!-- 朝のチェック（睡眠の質） -->
+      <div class="sleep-check card-soft">
+        <div class="section-title" data-i18n="sleep.title">朝のチェック（任意）</div>
+        <p class="muted" data-i18n="sleep.desc">昨夜の眠りを3つだけ。</p>
+        <div class="check-q"><span data-i18n="sleep.onset">寝つきは？</span><div class="seg" data-check="onset"><button type="button" data-v="good" data-i18n="sleep.onset.good">すぐ眠れた</button><button type="button" data-v="normal" data-i18n="sleep.onset.normal">ふつう</button><button type="button" data-v="bad" data-i18n="sleep.onset.bad">なかなか眠れなかった</button></div></div>
+        <div class="check-q"><span data-i18n="sleep.wakeups">途中で目が覚めた？</span><div class="seg" data-check="wakeups"><button type="button" data-v="none" data-i18n="sleep.wakeups.none">起きなかった</button><button type="button" data-v="once" data-i18n="sleep.wakeups.once">1回</button><button type="button" data-v="many" data-i18n="sleep.wakeups.many">何度も</button></div></div>
+        <div class="check-q"><span data-i18n="sleep.feel">目覚めの気分は？</span><div class="seg" data-check="feel"><button type="button" data-v="refreshed" data-i18n="sleep.feel.refreshed">すっきり</button><button type="button" data-v="normal" data-i18n="sleep.feel.normal">ふつう</button><button type="button" data-v="tired" data-i18n="sleep.feel.tired">だるい</button></div></div>
+        <div class="check-q"><span data-i18n="sleep.hours">眠った時間（時間）</span><input type="number" id="sleep-hours" class="input small-input" min="0" max="16" step="0.5" inputmode="decimal" placeholder="7"></div>
+        <p id="sleep-preview" class="muted"></p>
+      </div>
+      <button id="save-dream" class="btn primary big save" data-i18n="home.saveDream">この夢を記憶する</button>
+      <div id="tonight-tip" class="note suggest" hidden><b data-i18n="home.sleepAdviceTitle">今夜のひとこと</b><span id="tonight-tip-text"></span></div>
+      <p class="muted center small-note" id="ask-note" data-i18n="home.askNote">気になることがあれば、ユメタンに聞けます</p>
       <div class="ask-row" id="ask-text">
-        <input id="ask-input" class="input" aria-label="夢についての質問" placeholder="例: どうすればいい？ / なんでこの夢？" autocomplete="off" enterkeyhint="send">
+        <input id="ask-input" class="input" aria-label="夢についての質問" data-i18n-ph="home.askPlaceholder" placeholder="例: どうすればいい？ / なんでこの夢？" autocomplete="off" enterkeyhint="send">
         <button id="ask-mic" class="btn outline icon-only" aria-label="声で質問"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
-        <button id="ask-send" class="btn">聞く</button>
+        <button id="ask-send" class="btn" data-i18n="home.ask">聞く</button>
       </div>
       <p class="muted center small-note" id="ask-status" hidden></p>
-      <button id="new-dream" class="btn ghost small-link">新しい夢を書く</button>
+      <button id="new-dream" class="btn ghost small-link" data-i18n="home.newDream">新しい夢を書く</button>
     </div>
 
     <div class="home-chara"></div>
     </div>
     <aside class="night-sidebar" aria-label="夢を記録するヒント">
       <button class="guided-card" data-mode="interview">
-        <span class="card-icon" aria-hidden="true">✧</span><span class="eyebrow">LET’S FIND YOUR DREAM</span>
-        <strong>うまく言葉に<br>できなくても大丈夫。</strong>
-        <span class="muted">やさしい質問に答えながら、<br>夢のかけらを集めましょう。</span>
-        <span class="guided-link">質問に答えて記録する <span aria-hidden="true">↗</span></span>
+        <span class="card-icon" aria-hidden="true">✧</span><span class="eyebrow" data-i18n="home.guidedEyebrow">LET’S FIND YOUR DREAM</span>
+        <strong data-i18n-html="home.guidedTitle">うまく言葉に<br>できなくても大丈夫。</strong>
+        <span class="muted" data-i18n-html="home.guidedDesc">やさしい質問に答えながら、<br>夢のかけらを集めましょう。</span>
+        <span class="guided-link"><span data-i18n="home.guidedLink">質問に答えて記録する</span> <span aria-hidden="true">↗</span></span>
       </button>
-      <div class="night-note"><span aria-hidden="true">☾</span><div><h3>夢を残す、小さな習慣。</h3><p>目覚めたときの気持ちも一緒に。<br>少しずつ、心の変化が見えてきます。</p></div></div>
-      <button class="collection-link" data-go="history"><span>あなたの夢の記録</span><span><b id="home-count">0</b> <span aria-hidden="true">→</span></span></button>
+      <button class="diary-card" data-go="diary">
+        <span class="card-icon" aria-hidden="true">✎</span>
+        <strong id="home-diary-state" data-i18n="home.diaryPrompt">今日の日記を書く</strong>
+        <span class="muted" data-i18n="diary.desc">今日あったことと気分を、数行だけ。</span>
+      </button>
+      <div class="night-note"><span aria-hidden="true">☾</span><div><h3 data-i18n="home.noteTitle">夢を残す、小さな習慣。</h3><p data-i18n-html="home.noteDesc">目覚めたときの気持ちも一緒に。<br>少しずつ、心の変化が見えてきます。</p></div></div>
+      <button class="collection-link" data-go="history"><span data-i18n="home.collection">あなたの夢の記録</span><span><b id="home-count">0</b> <span aria-hidden="true">→</span></span></button>
     </aside>
     </div>
-    <p class="home-footer">✧ &nbsp; あなたのペースで、あなたの言葉で。</p>
+    <p class="home-footer" data-i18n-html="home.footer">✧ &nbsp; あなたのペースで、あなたの言葉で。</p>
   </section>
 
   <!-- 初回のみ: オンボーディング（登録の前） -->
   <section id="view-intro" class="view">
     <div class="intro">
+      <div class="lang-switch" id="intro-lang" role="group" aria-label="Language"></div>
       <div class="intro-slides" id="intro-slides">
         <div class="slide active">
           <div class="chara-slot"></div>
-          <div class="date">ユメタンへようこそ</div>
-          <h2 class="headline">起きてすぐ、<br>夢をひとこと。</h2>
-          <p class="lead">寝ぼけたままで大丈夫。書いても、話しても、質問に「はい・いいえ」で答えるだけでも記録できます。</p>
+          <div class="date" data-i18n="intro.welcome">ユメタンへようこそ</div>
+          <h2 class="headline" data-i18n-html="intro.h1">起きてすぐ、<br>夢をひとこと。</h2>
+          <p class="lead" data-i18n="intro.p1">寝ぼけたままで大丈夫。書いても、話しても、質問に「はい・いいえ」で答えるだけでも記録できます。</p>
           <div class="demo">
-            <div class="demo-paper">知らない駅で、階段を上っても改札に着けなかった…</div>
-            <div class="demo-actions"><span class="btn outline">話す</span><span class="btn primary">読み取る</span></div>
+            <div class="demo-paper" data-i18n="intro.demoText">知らない駅で、階段を上っても改札に着けなかった…</div>
+            <div class="demo-actions"><span class="btn outline" data-i18n="intro.demoSpeak">話す</span><span class="btn primary" data-i18n="intro.demoRead">読み取る</span></div>
           </div>
         </div>
         <div class="slide">
-          <div class="date">その場でわかる</div>
-          <h2 class="headline">今の心の状態を、<br>すぐに読み取る。</h2>
-          <p class="lead">夢のテーマや感情から、いまの心の状態を一言で。理由も短く添えます。気になることは、その場でユメタンに聞けます。</p>
+          <div class="date" data-i18n="intro.k2">その場でわかる</div>
+          <h2 class="headline" data-i18n-html="intro.h2">今の心の状態を、<br>すぐに読み取る。</h2>
+          <p class="lead" data-i18n="intro.p2">夢のテーマや感情から、いまの心の状態を一言で。</p>
           <div class="demo">
             <div class="result">
-              <div class="label">今の心の状態</div>
-              <div class="state">心の負荷が高め（焦り）</div>
-              <div class="tags"><span class="tag">ふつうの夢</span><span class="tag emo">焦り</span><span class="tag">遅刻・間に合わない</span></div>
+              <div class="label" data-i18n="home.resultLabel">今の心の状態</div>
+              <div class="state" data-i18n="intro.demoState">心の負荷が高め（焦り）</div>
+              <div class="tags"><span class="tag" data-i18n="intro.demoTag1">ふつうの夢</span><span class="tag emo" data-i18n="intro.demoTag2">焦り</span><span class="tag" data-i18n="intro.demoTag3">遅刻・間に合わない</span></div>
             </div>
           </div>
         </div>
         <div class="slide">
-          <div class="date">記憶がたまると</div>
-          <h2 class="headline">最近の傾向が、<br>見えてくる。</h2>
-          <p class="lead">記憶した夢が2件以上たまると、ストレス度・目立つ感情・繰り返しのテーマ・上向きか下向きかを、数日単位で読み取ります。</p>
-          <div class="demo">
-            <div class="insight">
-              <div class="card">
-                <p class="headline" style="font-size:20px">持ち直してきています</p>
-                <div class="meter medium"><div class="lbl"><span>ストレス</span><b>中くらい</b></div><div class="bar"><i class="on"></i><i class="on"></i><i></i></div></div>
-              </div>
-            </div>
-          </div>
+          <div class="date" data-i18n="intro.k3">16タイプのキャラクター</div>
+          <h2 class="headline" data-i18n-html="intro.h3">あなたの夢は、<br>どのタイプ？</h2>
+          <p class="lead" data-i18n="intro.p3">16問のアンケートで、あなたのキャラクターが決まります。</p>
+          <div class="demo type-grid-demo" id="intro-type-grid"></div>
         </div>
         <div class="slide">
           <div class="chara-slot"></div>
-          <div class="date">ひとつだけ、お約束</div>
-          <h2 class="headline">夢は診断ではなく、<br>心の天気。</h2>
-          <p class="lead">当たる・当たらないではなく、気持ちに気づくための目安です。記録はあなただけが見られます。つらいときは、専門家への相談もそっとお伝えします。</p>
+          <div class="date" data-i18n="intro.k4">ひとつだけ、お約束</div>
+          <h2 class="headline" data-i18n-html="intro.h4">夢は診断ではなく、<br>心の天気。</h2>
+          <p class="lead" data-i18n="intro.p4">当たる・当たらないではなく、気持ちに気づくための目安です。</p>
         </div>
       </div>
       <div class="intro-foot">
         <div class="progress" id="intro-dots"><i class="on"></i><i></i><i></i><i></i></div>
         <div class="intro-btns">
-          <button class="btn ghost" id="intro-skip">スキップ</button>
-          <button class="btn primary big" id="intro-next">次へ</button>
+          <button class="btn ghost" id="intro-skip" data-i18n="common.skip">スキップ</button>
+          <button class="btn primary big" id="intro-next" data-i18n="common.next">次へ</button>
         </div>
       </div>
     </div>
@@ -172,177 +207,252 @@
   <!-- 初回登録（プロフィール + アカウント） -->
   <section id="view-onboard" class="view">
     <div class="journal-head">
-      <div class="date" id="ob-kicker">はじめまして</div>
-      <h2 class="headline" id="ob-title">あなたのことを、<br>すこし教えてください。</h2>
+      <div class="date" id="ob-kicker" data-i18n="ob.kicker">はじめまして</div>
+      <h2 class="headline" id="ob-title" data-i18n-html="ob.title">あなたのことを、<br>すこし教えてください。</h2>
     </div>
-    <p class="muted">夢の読み取りを、あなたの生活に合わせるために使います。あとから設定で変えられます。</p>
+    <p class="muted" data-i18n="ob.desc">夢の読み取りを、あなたの生活に合わせるために使います。あとから設定で変えられます。</p>
     <form id="ob-form" class="form" autocomplete="on">
-      <label class="field"><span>呼び名（ユメタンがこう呼びます）</span><input type="text" id="ob-nickname" class="input" placeholder="例: ゆう" maxlength="20" required autocomplete="nickname"></label>
+      <div class="field"><span data-i18n="ob.lang">言語 / Language</span><div class="lang-switch" id="ob-lang" role="group"></div></div>
+      <label class="field"><span data-i18n="ob.nickname">呼び名（ユメタンがこう呼びます）</span><input type="text" id="ob-nickname" class="input" data-i18n-ph="ob.nicknamePh" placeholder="例: ゆう" maxlength="20" required autocomplete="nickname"></label>
       <div class="grid2">
-        <label class="field"><span>年代</span><select id="ob-age" class="input"><option value="10代">10代</option><option value="20代">20代</option><option value="30代">30代</option><option value="40代">40代</option><option value="50代">50代</option><option value="60代以上">60代以上</option></select></label>
-        <label class="field"><span>性別（任意）</span><select id="ob-gender" class="input"><option value="答えない">答えない</option><option value="女性">女性</option><option value="男性">男性</option><option value="その他">その他</option></select></label>
+        <label class="field"><span data-i18n="ob.age">年代</span><select id="ob-age" class="input"><option value="10代" data-i18n="ob.age.10">10代</option><option value="20代" data-i18n="ob.age.20">20代</option><option value="30代" data-i18n="ob.age.30">30代</option><option value="40代" data-i18n="ob.age.40">40代</option><option value="50代" data-i18n="ob.age.50">50代</option><option value="60代以上" data-i18n="ob.age.60">60代以上</option></select></label>
+        <label class="field"><span data-i18n="ob.gender">性別（任意）</span><select id="ob-gender" class="input"><option value="答えない" data-i18n="ob.gender.na">答えない</option><option value="女性" data-i18n="ob.gender.f">女性</option><option value="男性" data-i18n="ob.gender.m">男性</option><option value="その他" data-i18n="ob.gender.o">その他</option></select></label>
       </div>
-      <label class="field"><span>ふだんの立場</span><select id="ob-role" class="input"><option value="会社員・公務員">会社員・公務員</option><option value="学生">学生</option><option value="自営業・フリーランス">自営業・フリーランス</option><option value="主婦・主夫">主婦・主夫</option><option value="休職中・無職">休職中・無職</option><option value="その他">その他</option></select></label>
+      <label class="field"><span data-i18n="ob.role">ふだんの立場</span><select id="ob-role" class="input"><option value="会社員・公務員" data-i18n="ob.role.emp">会社員・公務員</option><option value="学生" data-i18n="ob.role.stu">学生</option><option value="自営業・フリーランス" data-i18n="ob.role.self">自営業・フリーランス</option><option value="主婦・主夫" data-i18n="ob.role.home">主婦・主夫</option><option value="休職中・無職" data-i18n="ob.role.none">休職中・無職</option><option value="その他" data-i18n="ob.role.other">その他</option></select></label>
       <div class="grid2">
-        <label class="field"><span>平均の睡眠時間</span><select id="ob-sleep" class="input"><option value="5時間未満">5時間未満</option><option value="5〜6時間">5〜6時間</option><option value="6〜7時間">6〜7時間</option><option value="7〜8時間">7〜8時間</option><option value="8時間以上">8時間以上</option></select></label>
-        <label class="field"><span>起きる時間</span><select id="ob-wake" class="input"><option value="6時より前">6時より前</option><option value="6〜7時">6〜7時</option><option value="7〜8時">7〜8時</option><option value="8〜9時">8〜9時</option><option value="9時より後">9時より後</option></select></label>
+        <label class="field"><span data-i18n="ob.sleep">平均の睡眠時間</span><select id="ob-sleep" class="input"><option value="5時間未満" data-i18n="ob.sleep.lt5">5時間未満</option><option value="5〜6時間" data-i18n="ob.sleep.5">5〜6時間</option><option value="6〜7時間" data-i18n="ob.sleep.6">6〜7時間</option><option value="7〜8時間" data-i18n="ob.sleep.7">7〜8時間</option><option value="8時間以上" data-i18n="ob.sleep.8">8時間以上</option></select></label>
+        <label class="field"><span data-i18n="ob.wake">起きる時間</span><select id="ob-wake" class="input"><option value="6時より前" data-i18n="ob.wake.lt6">6時より前</option><option value="6〜7時" data-i18n="ob.wake.6">6〜7時</option><option value="7〜8時" data-i18n="ob.wake.7">7〜8時</option><option value="8〜9時" data-i18n="ob.wake.8">8〜9時</option><option value="9時より後" data-i18n="ob.wake.gt9">9時より後</option></select></label>
       </div>
-      <div class="field"><span>いま気がかりなこと（複数可）</span>
+      <div class="field"><span data-i18n="ob.stress">いま気がかりなこと（複数可）</span>
         <div class="chips" id="ob-stress">
-          <label class="chip"><input type="checkbox" value="仕事・学業"><span>仕事・学業</span></label>
-          <label class="chip"><input type="checkbox" value="人間関係"><span>人間関係</span></label>
-          <label class="chip"><input type="checkbox" value="お金"><span>お金</span></label>
-          <label class="chip"><input type="checkbox" value="健康"><span>健康</span></label>
-          <label class="chip"><input type="checkbox" value="家族"><span>家族</span></label>
-          <label class="chip"><input type="checkbox" value="将来"><span>将来</span></label>
-          <label class="chip"><input type="checkbox" value="特にない"><span>特にない</span></label>
+          <label class="chip"><input type="checkbox" value="仕事・学業"><span data-i18n="ob.stress.work">仕事・学業</span></label>
+          <label class="chip"><input type="checkbox" value="人間関係"><span data-i18n="ob.stress.people">人間関係</span></label>
+          <label class="chip"><input type="checkbox" value="お金"><span data-i18n="ob.stress.money">お金</span></label>
+          <label class="chip"><input type="checkbox" value="健康"><span data-i18n="ob.stress.health">健康</span></label>
+          <label class="chip"><input type="checkbox" value="家族"><span data-i18n="ob.stress.family">家族</span></label>
+          <label class="chip"><input type="checkbox" value="将来"><span data-i18n="ob.stress.future">将来</span></label>
+          <label class="chip"><input type="checkbox" value="特にない"><span data-i18n="ob.stress.none">特にない</span></label>
         </div>
       </div>
 
       <div id="ob-account">
-        <h3>ログイン情報</h3>
-        <p class="muted">機種変更や別の端末でも同じ記録を使うために登録します。</p>
-        <label class="field"><span>メールアドレス</span><input type="email" id="ob-email" class="input" placeholder="you@example.com" autocomplete="email"></label>
-        <label class="field"><span>パスワード（6文字以上）</span><input type="password" id="ob-pass" class="input" placeholder="••••••••" autocomplete="new-password" minlength="6"></label>
+        <h3 data-i18n="ob.account">ログイン情報</h3>
+        <p class="muted" data-i18n="ob.accountDesc">機種変更や別の端末でも同じ記録を使うために登録します。</p>
+        <label class="field"><span data-i18n="ob.email">メールアドレス</span><input type="email" id="ob-email" class="input" placeholder="you@example.com" autocomplete="email"></label>
+        <label class="field"><span data-i18n="ob.pass">パスワード（6文字以上）</span><input type="password" id="ob-pass" class="input" placeholder="••••••••" autocomplete="new-password" minlength="6"></label>
       </div>
       <p class="muted" id="ob-msg" hidden></p>
       <div class="row">
-        <button type="submit" class="btn primary big" id="ob-submit">登録してはじめる</button>
+        <button type="submit" class="btn primary big" id="ob-submit" data-i18n="ob.submit">登録してはじめる</button>
       </div>
       <div class="row small">
-        <button type="button" class="btn ghost" id="ob-skip">登録せずに、この端末だけで使う</button>
+        <button type="button" class="btn ghost" id="ob-skip" data-i18n="ob.skip">登録せずに、この端末だけで使う</button>
       </div>
     </form>
   </section>
 
+  <!-- 16タイプ診断（アンケート） -->
+  <section id="view-quiz" class="view">
+    <div class="quiz-head">
+      <div class="date" data-i18n="quiz.kicker">夢の診断</div>
+      <h2 class="headline center" data-i18n="quiz.title">あなたの夢の傾向を診断します</h2>
+      <p class="muted center" id="quiz-progress"></p>
+    </div>
+    <div class="quiz-card card">
+      <p class="quiz-q" id="quiz-q"></p>
+      <div class="quiz-options" id="quiz-options"></div>
+    </div>
+    <div class="row small">
+      <button class="btn ghost" id="quiz-prev" data-i18n="quiz.prev">前の質問</button>
+    </div>
+  </section>
+
+  <!-- 診断結果 -->
+  <section id="view-typeresult" class="view">
+    <div class="quiz-head"><div class="date" data-i18n="quiz.resultKicker">診断結果</div></div>
+    <div id="type-result-card"></div>
+    <p class="muted center" data-i18n-html="quiz.resultNote">これから夢を記録すると、<br>このキャラクターに個性が積み重なっていきます。</p>
+    <div class="row"><button class="btn primary big" id="type-result-start" data-i18n="common.start">はじめる</button></div>
+  </section>
+
+  <!-- マイキャラ -->
+  <section id="view-chara" class="view">
+    <p class="eyebrow" data-i18n="chara.eyebrow">YOUR DREAM CHARACTER</p><h2 data-i18n="chara.title">マイキャラ</h2>
+    <p class="page-description" data-i18n="chara.desc">夢を重ねるほど育つ、あなたの分身。</p>
+    <div id="chara-page"></div>
+  </section>
+
+  <!-- 今日の日記 -->
+  <section id="view-diary" class="view">
+    <p class="eyebrow" data-i18n="diary.eyebrow">TODAY, IN A FEW LINES</p><h2 data-i18n="diary.title">今日の日記</h2>
+    <p class="page-description" data-i18n="diary.desc">今日あったことと気分を、数行だけ。明日の夢の読み取りに使います。</p>
+    <div class="card-soft">
+      <div class="date" id="diary-date"></div>
+      <div class="field"><span data-i18n="diary.mood">今日の気分</span>
+        <div class="seg mood-seg" id="diary-mood"><button type="button" data-v="1">😞<small data-i18n="diary.mood.1">つらい</small></button><button type="button" data-v="2">😕<small data-i18n="diary.mood.2">いまいち</small></button><button type="button" data-v="3">😐<small data-i18n="diary.mood.3">ふつう</small></button><button type="button" data-v="4">🙂<small data-i18n="diary.mood.4">いい</small></button><button type="button" data-v="5">😄<small data-i18n="diary.mood.5">最高</small></button></div>
+      </div>
+      <div class="field"><span data-i18n="diary.tags">今日したこと</span><div class="chips" id="diary-tags"></div></div>
+      <label class="field"><span data-i18n="diary.text">今日あったこと</span><textarea id="diary-text" class="paper" rows="5" data-i18n-ph="diary.placeholder"></textarea></label>
+      <div class="row"><button class="btn primary big" id="diary-save" data-i18n="common.save">保存する</button></div>
+    </div>
+    <div id="diary-tip" class="note suggest" hidden><b data-i18n="diary.tipTitle">今夜のアドバイス</b><span id="diary-tip-text"></span></div>
+    <h3 data-i18n="diary.past">これまでの日記</h3>
+    <div id="diary-list" class="history"></div>
+  </section>
+
   <!-- 質問形式 -->
   <section id="view-interview" class="view">
-    <p class="eyebrow">PIECE BY PIECE</p><h2>夢のかけらを、ひとつずつ。</h2>
-    <p class="page-description">思い出せないことは、スキップして大丈夫。</p>
+    <p class="eyebrow" data-i18n="iv.eyebrow">PIECE BY PIECE</p><h2 data-i18n="iv.title">夢のかけらを、ひとつずつ。</h2>
+    <p class="page-description" data-i18n="iv.desc">思い出せないことは、スキップして大丈夫。</p>
+    <p class="muted" id="iv-local-note" hidden data-i18n="iv.localNote"></p>
     <div class="chara-slot"></div>
     <div id="iv-progress" class="progress" aria-label="進み具合"></div>
     <div id="iv-answers" class="answers">
-      <button class="btn answer yes" data-answer="はい">はい</button>
-      <button class="btn answer no" data-answer="いいえ">いいえ</button>
-      <button class="btn answer skip" data-answer="スキップ">スキップ</button>
-      <button class="btn answer other" data-answer="__other">その他…</button>
+      <button class="btn answer yes" data-answer="はい" data-i18n="common.yes">はい</button>
+      <button class="btn answer no" data-answer="いいえ" data-i18n="common.no">いいえ</button>
+      <button class="btn answer skip" data-answer="スキップ" data-i18n="common.skip">スキップ</button>
+      <button class="btn answer other" data-answer="__other" data-i18n="common.other">その他…</button>
     </div>
     <div id="iv-other" class="transcript-wrap" hidden>
-      <textarea id="iv-other-text" rows="2" aria-label="質問への回答" placeholder="例: 追いかけてきたのは学校の先生だった"></textarea>
+      <textarea id="iv-other-text" rows="2" aria-label="質問への回答" data-i18n-ph="iv.otherPh" placeholder="例: 追いかけてきたのは学校の先生だった"></textarea>
       <div class="row">
-        <button id="iv-other-send" class="btn primary">これで答える</button>
-        <button id="iv-other-cancel" class="btn ghost">やめる</button>
+        <button id="iv-other-send" class="btn primary" data-i18n="iv.otherSend">これで答える</button>
+        <button id="iv-other-cancel" class="btn ghost" data-i18n="common.cancel">やめる</button>
       </div>
     </div>
     <div id="iv-confirm" class="transcript-wrap" hidden>
-      <p class="muted">まとめるとこんな夢でしたか？ 直してもOK。読み取ったあとで記憶できます</p>
+      <p class="muted" data-i18n="iv.confirm">まとめるとこんな夢でしたか？ 直してもOK。読み取ったあとで記憶できます</p>
       <textarea id="iv-dream-text" rows="5" aria-label="夢のまとめを編集"></textarea>
       <div class="row">
-        <button id="iv-save" class="btn primary big">この夢を読み取る</button>
-        <button id="iv-more" class="btn ghost">もう少し質問して</button>
+        <button id="iv-save" class="btn primary big" data-i18n="iv.read">この夢を読み取る</button>
+        <button id="iv-more" class="btn ghost" data-i18n="iv.more">もう少し質問して</button>
       </div>
     </div>
     <div class="row small">
-      <button id="iv-finish" class="btn ghost">もう十分、まとめて</button>
-      <button id="iv-restart" class="btn ghost">最初から</button>
+      <button id="iv-finish" class="btn ghost" data-i18n="iv.finish">もう十分、まとめて</button>
+      <button id="iv-restart" class="btn ghost" data-i18n="iv.restart">最初から</button>
     </div>
     <div id="iv-log" class="iv-log"></div>
   </section>
 
   <!-- 記録一覧 -->
   <section id="view-history" class="view">
-    <p class="eyebrow">YOUR DREAM COLLECTION</p><h2>夢の記録</h2>
-    <p class="page-description">あの日の夢をひらいて、心の足あとをたどる。</p>
-    <label class="search-field"><span aria-hidden="true">⌕</span><input id="history-search" type="search" placeholder="言葉・気持ち・夢のタイトルで検索" aria-label="夢の記録を検索"></label>
+    <p class="eyebrow" data-i18n="hist.eyebrow">YOUR DREAM COLLECTION</p><h2 data-i18n="hist.title">夢の記録</h2>
+    <p class="page-description" data-i18n="hist.desc">あの日の夢をひらいて、心の足あとをたどる。</p>
+    <label class="search-field"><span aria-hidden="true">⌕</span><input id="history-search" type="search" data-i18n-ph="hist.searchPh" placeholder="言葉・気持ち・夢のタイトルで検索" aria-label="夢の記録を検索"></label>
     <p id="history-count" class="muted" role="status"></p>
     <div id="history" class="history"></div>
+    <div class="row"><button class="btn" data-go="insight" data-i18n="ins.title">最近の心の状態</button></div>
   </section>
 
   <!-- 心の状態 -->
   <section id="view-insight" class="view">
-    <p class="eyebrow">WITHIN YOUR DREAMS</p><h2>最近の心の状態</h2>
-    <p class="page-description">夢を重ねて見えてくる、今のあなたの心模様。</p>
+    <p class="eyebrow" data-i18n="ins.eyebrow">WITHIN YOUR DREAMS</p><h2 data-i18n="ins.title">最近の心の状態</h2>
+    <p class="page-description" data-i18n="ins.desc">夢を重ねて見えてくる、今のあなたの心模様。</p>
+    <p class="muted" id="ins-local-note" hidden data-i18n="ins.localNote"></p>
     <div id="insight" class="insight"></div>
     <div class="row small">
-      <button id="insight-refresh" class="btn ghost">もう一度分析する</button>
+      <button id="insight-refresh" class="btn ghost" data-i18n="ins.refresh">もう一度分析する</button>
     </div>
   </section>
 
   <!-- ログイン / 新規登録 -->
   <section id="view-login" class="view">
-    <h2>ログイン / 新規登録</h2>
-    <p class="muted">メールアドレスで登録すると、機種変更や別の端末でも同じ記録が使えます。今この端末にある記録はそのまま引き継がれます。</p>
+    <h2 data-i18n="login.title">ログイン / 新規登録</h2>
+    <p class="muted" data-i18n="login.desc">メールアドレスで登録すると、機種変更や別の端末でも同じ記録が使えます。</p>
     <form id="login-form" class="form" autocomplete="on">
-      <label class="field"><span>メールアドレス</span><input type="email" id="login-email" class="input" placeholder="you@example.com" autocomplete="email" required></label>
-      <label class="field"><span>パスワード（6文字以上）</span><input type="password" id="login-pass" class="input" placeholder="••••••••" autocomplete="current-password" minlength="6" required></label>
+      <label class="field"><span data-i18n="ob.email">メールアドレス</span><input type="email" id="login-email" class="input" placeholder="you@example.com" autocomplete="email" required></label>
+      <label class="field"><span data-i18n="ob.pass">パスワード（6文字以上）</span><input type="password" id="login-pass" class="input" placeholder="••••••••" autocomplete="current-password" minlength="6" required></label>
       <p class="muted" id="login-msg" hidden></p>
       <div class="row">
-        <button type="submit" class="btn primary big" id="login-submit" data-action="signin">ログイン</button>
+        <button type="submit" class="btn primary big" id="login-submit" data-action="signin" data-i18n="login.submit">ログイン</button>
       </div>
       <div class="row small">
-        <button type="button" class="btn ghost" id="login-signup">新規登録はこちら</button>
-        <button type="button" class="btn ghost" id="login-reset">パスワードを忘れた</button>
+        <button type="button" class="btn ghost" id="login-signup" data-i18n="login.toSignup">新規登録はこちら</button>
+        <button type="button" class="btn ghost" id="login-reset" data-i18n="login.reset">パスワードを忘れた</button>
       </div>
     </form>
   </section>
 
   <!-- 設定 -->
   <section id="view-settings" class="view">
-    <p class="eyebrow">MAKE YOURSELF AT HOME</p><h2>設定</h2>
-    <p class="page-description">心地よく使える、あなたらしいユメタンに。</p>
+    <p class="eyebrow" data-i18n="set.eyebrow">MAKE YOURSELF AT HOME</p><h2 data-i18n="set.title">設定</h2>
+    <p class="page-description" data-i18n="set.desc">心地よく使える、あなたらしいユメタンに。</p>
+
+    <h3 data-i18n="set.lang">言語</h3>
+    <div class="lang-switch" id="set-lang" role="group"></div>
+
+    <h3 data-i18n="alarm.title">アラーム</h3>
+    <p class="muted" data-i18n="alarm.desc">起きてすぐ夢を書けるように、端末のアラームと連携します。</p>
+    <label class="setting"><input type="checkbox" id="alarm-enable"> <span data-i18n="alarm.enable">起床アラームを使う</span></label>
+    <div id="alarm-box" hidden>
+      <div class="setting col"><span data-i18n="alarm.time">起きる時刻</span><input type="time" id="alarm-time" class="input" value="07:00"></div>
+      <div class="row left">
+        <button class="btn" id="alarm-set-device" data-i18n="alarm.setDevice">端末のアラームに登録</button>
+        <button class="btn" id="alarm-open-clock" data-i18n="alarm.openClock" hidden>時計アプリを開く</button>
+        <button class="btn" id="alarm-notify" data-i18n="alarm.notify">アプリの通知で知らせる</button>
+      </div>
+      <p class="muted" id="alarm-note"></p>
+    </div>
+
     <fieldset class="character-picker">
-      <legend>あなたの夢の案内人</legend>
-      <p class="muted">心地よく話せる相手を選んでください。いつでも変更できます。</p>
+      <legend data-i18n="set.guide">あなたの夢の案内人</legend>
+      <p class="muted" data-i18n="set.guideDesc">心地よく話せる相手を選んでください。いつでも変更できます。</p>
       <div class="character-options">
         <button type="button" class="seg-btn character-option" data-chara="woman" aria-pressed="false">
           <span class="character-preview" data-character-preview="woman" aria-hidden="true"></span>
-          <span class="character-choice-name">女性 <span class="character-check" aria-hidden="true">✓</span></span>
-          <span class="character-choice-note">月明かりのような、やさしさ。</span>
+          <span class="character-choice-name"><span data-i18n="set.woman">女性</span> <span class="character-check" aria-hidden="true">✓</span></span>
+          <span class="character-choice-note" data-i18n="set.womanNote">月明かりのような、やさしさ。</span>
         </button>
         <button type="button" class="seg-btn character-option" data-chara="man" aria-pressed="false">
           <span class="character-preview" data-character-preview="man" aria-hidden="true"></span>
-          <span class="character-choice-name">男性 <span class="character-check" aria-hidden="true">✓</span></span>
-          <span class="character-choice-note">静かな夜に寄り添う、穏やかさ。</span>
+          <span class="character-choice-name"><span data-i18n="set.man">男性</span> <span class="character-check" aria-hidden="true">✓</span></span>
+          <span class="character-choice-note" data-i18n="set.manNote">静かな夜に寄り添う、穏やかさ。</span>
         </button>
       </div>
     </fieldset>
-    <label class="setting"><input type="checkbox" id="opt-speak"> 質問形式の質問文を声で読み上げる</label>
-    <label class="setting"><input type="checkbox" id="opt-autosend"> 話し終わったら自動で読み取る</label>
+    <label class="setting"><input type="checkbox" id="opt-speak"> <span data-i18n="set.speak">質問形式の質問文を声で読み上げる</span></label>
+    <label class="setting"><input type="checkbox" id="opt-autosend"> <span data-i18n="set.autosend">話し終わったら自動で読み取る</span></label>
     <div class="setting col" id="code-setting" hidden>
-      <span>合言葉（配布元から受け取ったもの）</span>
-      <input type="text" id="opt-code" class="input" placeholder="合言葉" autocomplete="off">
+      <span data-i18n="set.code">合言葉（配布元から受け取ったもの）</span>
+      <input type="text" id="opt-code" class="input" data-i18n-ph="set.codePh" placeholder="合言葉" autocomplete="off">
     </div>
 
-    <h3>プロフィール</h3>
+    <h3 data-i18n="set.profile">プロフィール</h3>
     <p class="muted" id="profile-info"></p>
-    <div class="row left"><button class="btn" id="profile-edit">プロフィールを編集</button></div>
+    <div class="row left"><button class="btn" id="profile-edit" data-i18n="set.profileEdit">プロフィールを編集</button><button class="btn" id="quiz-retake" data-i18n="quiz.retake">もう一度診断する</button></div>
 
-    <h3>アカウント</h3>
+    <h3 data-i18n="set.account">アカウント</h3>
     <div id="account-box" class="account">
-      <p class="muted" id="account-info">読み込み中…</p>
+      <p class="muted" id="account-info" data-i18n="common.loading">読み込み中…</p>
       <div class="row left" id="account-actions"></div>
     </div>
 
-    <h3>データ</h3>
-    <p class="muted" id="sync-info">夢の記録はこの端末（アプリ）の中だけに保存されます。機種変更や別のブラウザに移すときは書き出してください。</p>
+    <h3 data-i18n="set.data">データ</h3>
+    <p class="muted" id="sync-info"></p>
     <div class="row left">
-      <button id="export" class="btn">書き出す</button>
-      <button id="import-toggle" class="btn">読み込む</button>
-      <button id="wipe" class="btn danger">全部消す</button>
+      <button id="export" class="btn" data-i18n="set.export">書き出す</button>
+      <button id="import-toggle" class="btn" data-i18n="set.import">読み込む</button>
+      <button id="wipe" class="btn danger" data-i18n="set.wipe">全部消す</button>
     </div>
     <div id="io-wrap" class="transcript-wrap" hidden>
-      <textarea id="io-text" rows="5" placeholder="ここに書き出したデータを貼り付けて「読み込み実行」"></textarea>
+      <textarea id="io-text" rows="5" data-i18n-ph="set.ioPh" placeholder="ここに書き出したデータを貼り付けて「読み込み実行」"></textarea>
       <div class="row">
-        <button id="io-copy" class="btn">コピー</button>
-        <button id="io-import" class="btn primary">読み込み実行</button>
+        <button id="io-copy" class="btn" data-i18n="common.copy">コピー</button>
+        <button id="io-import" class="btn primary" data-i18n="set.ioImport">読み込み実行</button>
       </div>
     </div>
 
     <details class="adv">
-      <summary>詳細設定</summary>
-      <label class="setting"><input type="checkbox" id="opt-ai"> AI（Claude）で分析する（サーバーにAPIキーと残高が必要）</label>
+      <summary data-i18n="set.adv">詳細設定</summary>
+      <label class="setting"><input type="checkbox" id="opt-ai"> <span data-i18n="set.ai">AI（Claude）で分析する</span></label>
+      <p class="muted" data-i18n="set.aiDesc">夢の読み取り・手書きの認識・睡眠の質・タイプ診断をAIで行います。</p>
       <div class="setting col">
-        <span>サーバーURL（空なら標準）</span>
+        <span data-i18n="set.apiKey">自分の Claude APIキー（任意）</span>
+        <input type="password" id="opt-apikey" class="input" placeholder="sk-ant-…" autocomplete="off">
+      </div>
+      <div class="setting col">
+        <span data-i18n="set.apiUrl">サーバーURL（空なら標準）</span>
         <input type="url" id="opt-api" class="input" placeholder="https://example.onrender.com" autocomplete="off">
       </div>
       <p class="muted" id="sr-support"></p>
@@ -352,10 +462,11 @@
 </main>
 
 <nav class="journal-nav" aria-label="メインナビゲーション">
-  <button data-go="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 3 6 16l-1 4 4-1L22 6zM14 5l5 5M4 4h5M4 8h2"/></svg><span>夢を書く</span></button>
-  <button data-go="history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c-4-2-7-2-10-1v15c3-1 6-1 10 1 4-2 7-2 10-1V4c-3-1-6-1-10 1Zm0 0v15"/></svg><span>夢の記録</span></button>
-  <button data-go="insight"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z"/></svg><span>心の状態</span></button>
-  <button data-go="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-1 3-3 1-2 4 2 2v4l4 3 3-1 3 1 4-3v-4l2-2-2-4-3-1-1-3Z"/><circle cx="12" cy="12" r="3"/></svg><span>設定</span></button>
+  <button data-go="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 3 6 16l-1 4 4-1L22 6zM14 5l5 5M4 4h5M4 8h2"/></svg><span data-i18n="nav.home">夢を書く</span></button>
+  <button data-go="history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c-4-2-7-2-10-1v15c3-1 6-1 10 1 4-2 7-2 10-1V4c-3-1-6-1-10 1Zm0 0v15"/></svg><span data-i18n="nav.history">夢の記録</span></button>
+  <button data-go="chara"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z"/></svg><span data-i18n="nav.chara">マイキャラ</span></button>
+  <button data-go="diary"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l3 3v15H5zM8 8h8M8 12h8M8 16h5"/></svg><span data-i18n="nav.diary">日記</span></button>
+  <button data-go="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-1 3-3 1-2 4 2 2v4l4 3 3-1 3 1 4-3v-4l2-2-2-4-3-1-1-3Z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="nav.settings">設定</span></button>
 </nav>
 
 
@@ -488,14 +599,17 @@
 </template>
 
 <div id="toast" class="toast" role="status" hidden></div>
-<script src="config.js?v=3.5.0"></script>
-<script src="firebase-config.js?v=3.5.0"></script>
-<script type="module" src="cloud.js?v=3.5.0"></script>
-<script src="engine/lexicon.js?v=3.5.0"></script>
-<script src="engine/analyze.js?v=3.5.0"></script>
-<script src="engine/insight.js?v=3.5.0"></script>
-<script src="engine/interview.js?v=3.5.0"></script>
-<script src="app.js?v=3.5.0"></script>
+<script src="config.js?v=4.0.0"></script>
+<script src="firebase-config.js?v=4.0.0"></script>
+<script type="module" src="cloud.js?v=4.0.0"></script>
+<script src="i18n.js?v=4.0.0"></script>
+<script src="engine/lexicon.js?v=4.0.0"></script>
+<script src="engine/analyze.js?v=4.0.0"></script>
+<script src="engine/insight.js?v=4.0.0"></script>
+<script src="engine/interview.js?v=4.0.0"></script>
+<script src="engine/types.js?v=4.0.0"></script>
+<script src="engine/sleep.js?v=4.0.0"></script>
+<script src="app.js?v=4.0.0"></script>
 <script>
   if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
     navigator.serviceWorker.register("sw.js").then((reg) => reg.update().catch(() => {})).catch(() => {});
