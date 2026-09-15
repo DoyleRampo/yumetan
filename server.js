@@ -1,6 +1,7 @@
 // ユメタン API サーバー（ステートレス）
 // 夢の記録は各ユーザーの端末に保存。サーバーは Claude API の呼び出し・知識・利用制限のみを担当。
 import express from "express";
+import { registerFeatures } from "./server-features.js";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod/v4";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
@@ -25,6 +26,7 @@ const ACCESS_CODE = process.env.ACCESS_CODE || "";                          // �
 
 const client = new Anthropic();
 const knowledge = await fs.readFile(KNOWLEDGE_FILE, "utf8");
+const sleepKnowledge = await fs.readFile(path.join(here, "knowledge", "sleep_quality.json"), "utf8");
 
 // ---------- 構造化出力スキーマ ----------
 const DREAM_TYPES = ["ordinary", "nightmare", "recurring", "lucid", "pleasant", "fragment"];
@@ -165,7 +167,7 @@ function checkQuota(userId) {
 // ---------- HTTP ----------
 const app = express();
 app.set("trust proxy", 1);
-app.use(express.json({ limit: "512kb" }));
+app.use(express.json({ limit: "768kb" }));
 app.use((req, res, next) => {
   // ネイティブアプリ（capacitor://localhost 等）や別ドメインからの呼び出しを許可
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -181,13 +183,17 @@ app.use(express.static(path.join(here, "public"), { etag: true, setHeaders: (res
 
 const asyncRoute = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 function aiGate(req) {
+  if (!process.env.ANTHROPIC_API_KEY) throw httpError(503, "AI is not configured on this server");
   if (ACCESS_CODE && req.get("X-Yumetan-Code") !== ACCESS_CODE) throw httpError(403, "合言葉が違います。設定画面で確認してください。");
   const userId = str(req.get("X-Yumetan-User"), 64) || req.ip;
   checkQuota(userId);
 }
 
-app.get("/api/health", (req, res) => res.json({ ok: true, model: MODEL, needsCode: Boolean(ACCESS_CODE), limits: { perUserDay: LIMIT_PER_USER_DAY } }));
+app.get("/api/health", (req, res) => res.json({ ok: true, aiConfigured: Boolean(process.env.ANTHROPIC_API_KEY), model: MODEL, needsCode: Boolean(ACCESS_CODE), limits: { perUserDay: LIMIT_PER_USER_DAY } }));
 app.get("/api/knowledge", (req, res) => res.type("text/markdown").send(knowledge));
+
+registerFeatures(app, { gate: aiGate, callClaude, knowledge: sleepKnowledge, asyncRoute });
+app.get("/api/sleep-knowledge", (req, res) => res.type("application/json").send(sleepKnowledge));
 
 // 夢を聞く（会話全体と最近の記録を受け取り、返事と分析を返す）
 app.post("/api/listen", asyncRoute(async (req, res) => {
@@ -254,7 +260,7 @@ app.use((err, req, res, next) => {
   else if (err instanceof Anthropic.RateLimitError) message = "少し混み合っています。しばらくしてからもう一度話してください。";
   else if (err instanceof Anthropic.APIConnectionError) message = "Claude APIに接続できません。";
   else if (err.type === "entity.too.large") message = "送信データが大きすぎます。";
-  if (status >= 500 || noAuth) console.error(`[${new Date().toISOString()}]`, err);
+  if (status >= 500 || noAuth) console.error(`[${new Date().toISOString()}]`, { status, type: err.name });
   res.status(status).json({ error: message });
 });
 

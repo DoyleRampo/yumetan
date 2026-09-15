@@ -1,142 +1,124 @@
-# 🌙 ユメタン — 夢を聞いてくれるAI
+# ユメタン / Yumetan
 
-起きてすぐ、寝ぼけたまま口で夢を話すだけ。眼鏡・スーツの担当キャラクターが聞いて、覚えて、最近の心の状態を簡潔に教えてくれます。
+夢の傾向を16タイプ・4グループで楽しみ、夢と睡眠の記録でキャラクターが変化するアプリです。日本語・韓国語・中国語（簡体字）・英語に対応します。Web / PWA / Capacitor Android・iOS 共通の画面です。
 
-- **聞く**: 「話しかける」「質問に答える（はい/いいえ/スキップ/その他）」「自分で全文を書く」の3つの方法。返事は声で読み上げ。
-- **覚える**: 夢の記録は **使っている人の端末の中** に保存（サーバーには残りません）。タイトル・要約・感情・象徴・テーマを自動で付与。
-- **読み取る**: 複数日の夢のパターンから「最近の心の状態」を2〜3文で。ストレス度、目立つ感情、傾向、小さな提案。
-- **知識を持つ**: 夢と精神状態の対応知識（`knowledge/dream_psychology.md`）を睡眠研究・心理学から調査してまとめ、AIの「記憶」として使用。
+## v4 の体験
 
-**分析は端末内のルールエンジンで行います（AI・API不要、通信不要、無料）。** `public/engine/` に判断材料（夢のテーマ約60種、感情語彙、結末、身体要因、分類できない夢への汎用回答、最近の傾向の文章テンプレート）を持ち、キーワード照合と集計で「その夢が示す心の状態」と「最近の心の状態」を出します。Claude API を使う分析は「設定 → 詳細設定 → AIで分析する」で切り替えられます（サーバーに API キーと残高が必要）。
+1. 呼び名・年代・言語を入力し、16問に回答。中断したアンケートは端末内で再開できます。
+2. 悪夢・予知・明晰・反復の4グループ、各4タイプからキャラクターを表示。
+3. 夢の文章・音声入力・テーマ選択・ノート写真・睡眠チェックインを保存。
+4. 直近の夢からタイプを再計算。睡眠の改善は別軸のレベル1〜5に反映。
+5. 日記にはカレンダー日付を保存し、夢の目覚めた日の**前日**の日記だけを参照。
+6. 記録の検索・編集・削除・JSONの書き出し/読み込み。従来の `dreams` バックアップも読み込めます。
 
-3つの使い方があります。
+16タイプは独自の娯楽的な分類です。MBTIや医学的・心理学的な診断ではありません。「予知」は夢の印象を表す分類名であり、未来の予測を意味しません。現段階のキャラクターは16種類のモチーフと4色を持つオリジナルの仮SVGです。
 
-| 形 | 向いている人 | 必要なもの |
-|---|---|---|
-| **Web / PWA** | リンクを配るだけで誰でも使える | 公開サーバー（下記）だけ |
-| **iOSアプリ** | ネイティブ音声認識、ホーム画面のアイコン | 公開サーバー + Xcode |
-| **Androidアプリ** | 同上 | 公開サーバー + Android Studio |
+## 実行
 
----
+Node.js 20.12以上。
 
-## 1. サーバーを公開する（全員に必要）
-
-Claude API のキーはサーバーだけが持ちます。利用者にはキーを配りません。
-
-### Render.com（無料枠あり、いちばん簡単）
-
-1. このフォルダを GitHub にプッシュ
-2. https://dashboard.render.com → **New → Blueprint** → リポジトリを選ぶ（`render.yaml` が読み込まれる）
-3. 環境変数 `ANTHROPIC_API_KEY` に Claude API キーを入力（任意で `ACCESS_CODE` に合言葉）
-4. デプロイ完了後の URL（例 `https://yumetan.onrender.com`）が **配布用リンク** です
-
-無料枠はアクセスが無いとスリープし、最初の1回だけ起動に数十秒かかります。気になる場合は有料プランへ。
-
-### Fly.io
-
-```bash
-fly launch --no-deploy --copy-config
-fly secrets set ANTHROPIC_API_KEY=sk-ant-...
-fly deploy
+```sh
+npm ci
+npm start
+# http://localhost:3000
 ```
 
-### Docker が動くサーバーなら何でも
+**APIキーなしで起動し、端末内のルールで利用できます。** 画面・結果・助言はすべて4言語の静的カタログにあります。本人が書いた夢・日記や過去のAI出力の原文を自動翻訳することはありません。言語を切り替えた場合、異なる言語で生成済みのAI出力に代えて、選択言語のローカル振り返りを表示します。
 
-```bash
-docker build -t yumetan .
-docker run -p 3000:3000 -e ANTHROPIC_API_KEY=sk-ant-... yumetan
-```
+## 任意のAI機能
 
-### 環境変数
+1. `.env.example` を `.env` にコピーし、サーバー側の `ANTHROPIC_API_KEY` を入力。
+2. `npm start` でサーバーを再起動。
+3. アプリの設定で「AIで分析する」をオンにし、別サーバーの場合はHTTPSのURLを設定。
+4. 「AIの設定を確認」でキー設定の有無を確認。
 
-| 変数 | 意味 | 既定 |
+| 変数 | 内容 | 既定 |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Claude API キー（必須） | – |
-| `CLAUDE_MODEL` | 使うモデル | `claude-opus-5`（`render.yaml` / `fly.toml` は安い `claude-sonnet-5`） |
-| `LIMIT_PER_USER_DAY` | 1端末あたり 1日の AI 呼び出し上限 | 60 |
-| `LIMIT_GLOBAL_DAY` | 全体で 1日の AI 呼び出し上限 | 3000 |
-| `ACCESS_CODE` | 合言葉。設定すると知っている人だけ使える | 空（誰でも） |
+| `ANTHROPIC_API_KEY` | AI・ノート文字認識のためのサーバー専用キー | 未設定（ローカル動作） |
+| `CLAUDE_MODEL` | 画像入力・構造化出力に対応するモデル | `claude-opus-5` |
+| `ACCESS_CODE` | 公開AIサーバーの合言葉 | 空 |
+| `LIMIT_PER_USER_DAY` | 利用ID単位の日次リクエスト上限 | 60 |
+| `LIMIT_GLOBAL_DAY` | サーバー全体の日次リクエスト上限 | 3000 |
 | `PORT` | ポート | 3000 |
 
----
+キーは画面やバックアップに含めません。AIオン時は夢・前日の日記を設定先サーバーとAnthropicに送信します。ノート画像は「AIで文字を読み取る」を押したときだけ送信します。AI失敗時には入力を残し、設定から端末内処理へ戻せます。ローカル動作で画像を選んでもOCRは行わず、手入力で補います。
 
-## 2. リンクで配る（Web / PWA）
+### API
 
-公開した URL をそのまま送るだけ。スマホで開いて **「ホーム画面に追加」** するとアプリのように使えます（アイコン・全画面・オフラインでも画面は開く）。
+- `GET /api/health`: キー設定有無・モデル・合言葉の必要性
+- `POST /api/reflect`: `{ language, text, date, typeTags, diary: { date, text } | null }`
+- `POST /api/handwriting`: `{ language, image: "data:image/jpeg;base64,…" }`
+- `GET /api/sleep-knowledge`: 参照文献と暫定評価ルールのJSON
+- 従来の `/api/listen`・`/api/interview`・`/api/insight` は互換性のため保持
 
-- iPhone: Safari で開く → 共有ボタン → ホーム画面に追加
-- Android: Chrome で開く → メニュー → ホーム画面に追加（またはインストール）
+AIは結果の振り返りとOCRを補います。タイプ分類と睡眠点数は常に同じローカルルールを使うため、AIの回答で恣意的にレベルが変わることはありません。
 
-合言葉を設定した場合は、利用者に「設定 → 合言葉」に入れてもらってください。
+## 判定ルール
 
----
+### タイプ
 
-## 3. iOS / Android ネイティブアプリ
+各設問は特定の1タイプに対応し、「よくある」2点、「たまにある」1点、「ほとんどない」0点。直近12件の夢に付いたテーマは、1件・1テーマにつき1点加算します。日記はタイプへの投票に使いません。最多得点のタイプを採用し、同点は図鑑順で決定して仮のタイプと表示。各夢のテーマは手動選択が優先、未選択なら4言語のキーワードで推定します。キーワード処理は否定や文脈を完全には理解しないため、ユーザーがテーマを修正できます。
 
-Capacitor で `public/` をそのままアプリ化しています。音声認識・読み上げ・保存は端末のネイティブ機能を使います。
+### 睡眠・育成
 
-必要なもの:
-- iOS: Mac + Xcode + CocoaPods（`brew install cocoapods`。音声認識プラグインが CocoaPods 専用のため）
-- Android: Android Studio（JDK 同梱）
+`public/core/sleep.js` と `knowledge/sleep_quality.json` にルールを分離。
 
-```bash
-# 1) 接続先（公開サーバーのURL）を埋め込んで dist/ を作り、ネイティブプロジェクトへ同期
-API_URL=https://yumetan.onrender.com npm run mobile:sync
+- 休息感50%、睡眠時間30%、途中の覚醒回数20%を合計して0〜100点。
+- 0〜19点: Lv1 / 20〜39: Lv2 / 40〜59: Lv3 / 60〜79: Lv4 / 80〜100: Lv5。
+- 直近7カレンダー日について、1日につき最後に更新した有効な睡眠記録を1件集計し平均。
+- 未記録は「未測定」。悪夢・夢の鮮明さ・夢を覚えていないことによる加点/減点はありません。
+- 下がることもある「最近の睡眠レベル」です。累積経験値や永久レベルではありません。
+- 睡眠スコアは**未検証の製品上の暫定指標**であり、引用文献の医学的尺度ではありません。
 
-# 2-a) iOS: Xcode が開く → 左上でチーム（Signing）を選ぶ → 実機/シミュレータで ▶
-npx cap open ios
+資料: [NHLBIの睡眠習慣](https://www.nhlbi.nih.gov/health/sleep-deprivation/healthy-sleep-habits)、[年代別睡眠時間](https://www.nhlbi.nih.gov/health/sleep/how-much-sleep)、[NINDSの睡眠解説](https://www.ninds.nih.gov/sites/default/files/2025-05/understanding-sleep.pdf)。夢だけから睡眠の質・病気・睡眠段階を判定しないという限界をデータとAI指示にも記載しています。
 
-# 2-b) Android: Android Studio が開く → ▶
+## アラーム
+
+- **Androidネイティブ**: 独自Capacitorプラグインから `AlarmClock.ACTION_SET_ALARM` を呼び出し、標準時計アプリの設定画面に時刻を渡します。時計側で設定を確認してください。変更・削除も時計アプリで行います。
+- **iOS / Web / PWA**: 起床予定時刻の保存と「時計→アラーム」への手動設定案内。このアプリから鳴るとは表示しません。
+- iOS 26+でのアプリ独自アラームは今後 `AlarmKit` によるネイティブ実装・権限・実機検証が必要です。標準Clockの既存アラームとの同期は本実装に含みません。
+
+参考: [Android AlarmClock](https://developer.android.com/reference/android/provider/AlarmClock)、[Apple AlarmKit](https://developer.apple.com/documentation/alarmkit)。
+
+## 保存と互換性
+
+- ブラウザではlocalStorage、ネイティブではCapacitor Preferences。
+- `yumetan.v4.*` の新しい保存領域へ従来の記録・プロフィールを移行。元データは変更しません。
+- Firebase設定がある場合は既存のAuth/Firestoreを利用。アカウント別の端末保存領域を使い、日記と夢を同期します。
+- 画像は最大1000px・JPEGへ縮小し**端末内のみ**保存。クラウドに画像を送らず、写真を含むJSONバックアップで移行できます。
+- 保存容量不足はエラーを表示し、保存成功として扱いません。
+- 初回同期・保存後・「再同期」で同期。同期の再試行を明示し、ローカルの記録は保持します。別端末の編集は「再同期」で取り込みます。
+- ログイン先を変えると別の保存領域へ切り替えます。従来データの初回引き継ぎは起動時のアカウントに一度だけ行います。
+
+## モバイル
+
+```sh
+API_URL=https://your-server.example.com npm run mobile:sync
 npx cap open android
+# または npx cap open ios
 ```
 
-- アイコン・スプラッシュは `assets/icon.png` `assets/splash.png` から `npm run mobile:assets` で生成済み。差し替えたら再実行。
-- App Store / Google Play に出すときは、それぞれの開発者アカウント（Apple: 年 ¥15,800 前後、Google: 一回 $25）が必要です。
-- 配布前テストは iOS は TestFlight、Android は「内部テスト」か APK 直配布が手軽です。
-- `public/` を変更したら `npm run mobile:sync` をもう一度。
-- ターミナルで `pod install` 関連のエラーが出たら `export LANG=en_US.UTF-8` を実行してから再試行。
-- シミュレータでローカルのサーバーに繋いで試すときは `API_URL=http://localhost:3000 npm run mobile:sync`。
+Xcode・Android Studio・署名環境は別途必要です。Webファイル変更後は再同期してください。
 
----
+## テスト
 
-## 4. 手元で動かす（開発）
-
-```bash
-npm install
-cp .env.example .env     # ANTHROPIC_API_KEY を書く
-npm start                # http://localhost:3000
+```sh
+npm test                   # 分類・睡眠・日付・移行・AI契約の自動テスト
+npm run check              # JavaScript構文
+PORT=3187 npm start         # 別ターミナルで起動
+npm run test:browser        # Chromeがインストールされた環境
+API_URL=https://example.com npm run mobile:build
+cd android
+./gradlew :app:assembleDebug
 ```
 
----
+ブラウザテストではFirebase通信を無効化し、利用者の記録に触れずに、4言語登録・16問診断・リロード・日記参照・睡眠レベル・画像添付・削除・バックアップ・AIエラー・オフライン動作を検証します。AIへの有料実リクエストはテストしません。画像OCRと生成結果はモックのAPI契約テストで検証します。
 
-## 仕組み
+## 次に必要な素材・仕様
 
-```
-利用者の端末（ブラウザ / PWA / iOS / Android）
-  ├─ 夢の記録・設定を端末内に保存（localStorage / Capacitor Preferences）
-  ├─ 音声認識・読み上げ（Web Speech API / ネイティブ）
-  ├─ 分析（既定）: public/engine/ のルールエンジン
-  │     lexicon.js   判断材料（テーマ・感情・結末・汎用回答・テンプレート）
-  │     analyze.js   1つの夢 → タイトル / 感情 / テーマ / 気分 / 悪夢判定 / 心の状態の一文 / 返事
-  │     insight.js   複数の夢 → ストレス度 / 傾向 / 反復テーマ / 良い面 / 提案 / 注意
-  │     interview.js はい・いいえの分岐シナリオ → 夢の文章
-  │
-  │  （AIをオンにしたときだけ）
-  │  POST /api/listen     { messages, history }   → 返事 + 分析
-  │  POST /api/interview  { answers, finish, more } → 次の質問 or まとめ
-  │  POST /api/insight    { dreams }              → 最近の心の状態
-  │  GET  /api/knowledge                          → 知識ファイル
-  ▼
-server.js（ステートレス。データを保存しない）
-  ├─ knowledge/dream_psychology.md を system prompt に注入（prompt caching）
-  ├─ Claude API（structured outputs）
-  └─ 1端末/日・全体/日 の回数制限、合言葉、CORS
-```
-
-利用者は `X-Yumetan-User`（端末ごとのランダムID）で識別され、回数制限にだけ使われます。
-
----
-
-## 注意
-
-ユメタンは医療機器でも診断ツールでもありません。悪夢が2週間以上続く、眠るのが怖い、日中の落ち込みが強い、といったときは睡眠外来や心療内科に相談してください。
+- 16キャラクターの正式名称、透過画像（推奨1024px以上）、使用権の確認。必要なら各5段階の差分/表情/アニメーション。
+- チーム作成の `yumenote_v3.html` 元データ、16問全文、判定の重みと同点処理。本実装は添付画像の分類を参考にした暫定設問です。
+- 専門家レビューを経た睡眠の評価基準、対象年齢、アドバイス文章。現在の「10代」は年齢を細分できないため研究上の年齢区分とは一致しません。
+- 4言語のネイティブチェック。現在は簡体字のみで、繁体字は未対応。
+- iOS対応バージョン・AlarmKitの製品方針と実機、Android標準時計の機種別動作確認。
+- 利用するAIモデルと予算、プライバシーポリシー、画像や日記の同期方針。APIキーはGitHubに入れずデプロイ先の環境変数に設定。
