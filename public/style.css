@@ -331,24 +331,86 @@ input[type="checkbox"] {
 }
 .avatar {
   width: 100%;
-  max-width: 260px;
+  max-width: 300px;
   display: block;
   margin: auto;
-  overflow: visible;
+  position: relative;
+  flex-shrink: 0;
 }
-.avatar .halo {
-  transform-origin: center;
-  animation: breathe 5s ease-in-out infinite;
+.character-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: 24px;
+  background: #17142b;
 }
-.avatar .star {
-  transform-origin: center;
+.character-art[hidden],
+.character-fallback[hidden] {
+  display: none;
 }
-.avatar.level-5 .star {
+.character-fallback {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: 24px;
+  background: #17142b;
+  color: var(--accent);
+  font-size: 64px;
+}
+.character-stars {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin-top: -6px;
+  position: relative;
+  color: #51465c;
+  letter-spacing: 1px;
+  font-size: 19px;
+}
+.character-stars .lit {
+  color: var(--accent);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.level-5 .character-stars .lit {
   animation: breathe 3s ease-in-out infinite;
+}
+.character-name {
+  color: var(--ink);
+  margin: 12px 0 6px;
+}
+.character-title {
+  font-size: 13px;
+  color: var(--accent, var(--gold));
+  line-height: 1.6;
+}
+.character-story {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.9;
+}
+.character-quote {
+  color: var(--gold);
+  font-size: 14px;
+  line-height: 1.8;
+  margin: 16px 0;
+  font-family: ui-serif, serif;
+}
+.character-details {
+  text-align: left;
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.character-details summary {
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--muted);
 }
 @keyframes breathe {
   50% {
-    opacity: 0.5;
+    opacity: 0.55;
   }
 }
 .mini-avatar {
@@ -400,7 +462,7 @@ input[type="checkbox"] {
   color: var(--accent);
 }
 .type-card .avatar {
-  max-width: 120px;
+  max-width: 220px;
 }
 .type-card b {
   font-size: 13px;
@@ -584,6 +646,12 @@ summary {
   }
   .character-row {
     gap: 14px;
+    flex-direction: column;
+    text-align: center;
+  }
+  .character-row .mini-avatar {
+    width: 190px;
+    flex-basis: auto;
   }
   .mini-avatar {
     width: 95px;

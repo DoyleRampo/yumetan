@@ -1,4 +1,8 @@
 import {
+  COLLECTION,
+  characterById,
+} from "./assets/characters/moonkeepers-v1/catalog.js";
+import {
   TYPES,
   GROUPS,
   LANGUAGES,
@@ -90,25 +94,31 @@ const currentType = () =>
   state.profile?.typeAnswers
     ? classify(state.profile.typeAnswers, state.records)
     : null;
-function avatar(type, level = 1, mini = false) {
-  const index = Math.max(
-      0,
-      TYPES.findIndex((x) => x.id === type?.id),
-    ),
-    item = TYPES[index],
-    color = group(item).color;
-  // Original SVG placeholder family. Stable motifs distinguish all 16 types; no third-party art is embedded.
-  return `<svg class="avatar level-${level || 1} ${mini ? "mini-avatar" : ""}" viewBox="0 0 240 220" role="img" aria-label="${esc(name(item))}" style="--accent:${color}">
-  <circle class="halo" cx="120" cy="110" r="98" fill="${color}" opacity=".07"/><circle cx="120" cy="110" r="90" fill="none" stroke="${color}" opacity=".18" stroke-dasharray="2 8"/>
-  <ellipse cx="120" cy="193" rx="60" ry="9" fill="#0d0c1c" opacity=".6"/>
-  <path d="M68 180 Q60 145 68 96 Q65 56 87 45 L104 64 Q122 58 139 65 L158 45 Q176 65 172 100 Q181 153 170 180 Q146 205 120 188 Q94 204 68 180Z" fill="${color}"/>
-  <path d="M83 105 Q120 82 157 105 L154 163 Q119 182 86 163Z" fill="#fff7e8" opacity=".86"/>
-  <ellipse cx="100" cy="118" rx="4" ry="6" fill="#393044"/><ellipse cx="141" cy="118" rx="4" ry="6" fill="#393044"/>
-  <path d="M115 132 Q121 ${level >= 4 ? 143 : 138} 127 132" fill="none" stroke="#393044" stroke-width="3" stroke-linecap="round"/>
-  <ellipse cx="91" cy="132" rx="8" ry="4" fill="#d78f9d" opacity=".35"/><ellipse cx="150" cy="132" rx="8" ry="4" fill="#d78f9d" opacity=".35"/>
-  <path d="M80 162 Q120 179 160 162 L157 180 Q120 197 83 181Z" fill="#343047"/><text x="120" y="180" text-anchor="middle" fill="${color}" font-size="25">${item.symbol}</text>
-  ${Array.from({ length: level || 1 }, (_, i) => `<text class="star" x="${35 + i * 40}" y="${32 - Math.sin(i) * 10}" fill="${color}" font-size="${i === 2 ? 21 : 15}">✦</text>`).join("")}</svg>`;
+function avatar(type, level = null, mini = false) {
+  const item = typeById(type?.id) || TYPES[0],
+    character = characterById(item.id);
+  const measured = Number.isInteger(level) && level >= 1 && level <= 5;
+  return `<figure class="avatar level-${measured ? level : 0} ${mini ? "mini-avatar" : ""}" style="--accent:${group(item).color}" data-character="${item.id}">
+    <img class="character-art" src="${character.image}" width="768" height="768" alt="${esc(name(character))} · ${esc(name(item))}" decoding="async">
+    <span class="character-fallback" hidden role="img" aria-label="${esc(name(character))}">${item.symbol}</span>
+    ${measured ? `<figcaption class="character-stars" aria-label="${esc(t("level"))} ${level} / 5">${Array.from({ length: 5 }, (_, i) => `<span aria-hidden="true" class="${i < level ? "lit" : ""}">✦</span>`).join("")}</figcaption>` : ""}
+  </figure>`;
 }
+function characterStory(type) {
+  const character = characterById(type.id);
+  return `<p class="character-title">${esc(localized(character.titles, language()))}</p><p class="character-story">${esc(localized(character.stories, language()))}</p><blockquote class="character-quote">${esc(localized(character.quotes, language()))}</blockquote>`;
+}
+// A failed asset must not leave a broken-image icon or hide the character's identity.
+$("#app").addEventListener(
+  "error",
+  (event) => {
+    if (!event.target.matches?.(".character-art")) return;
+    event.target.hidden = true;
+    event.target.nextElementSibling.hidden = false;
+  },
+  true,
+);
+
 function header() {
   document.documentElement.lang = language();
   document.title = `${t("brand")} / Yumetan`;
@@ -203,7 +213,7 @@ function quizView() {
 function resultView() {
   const result = pendingResult || currentType(),
     type = typeById(result.id);
-  return `<div class="narrow center"><p class="eyebrow">YOUR DREAM, YOUR CHARACTER</p><h1>${t("yourType")}</h1><div class="card accent" style="--accent:${group(type).color}">${avatar(type)}<span class="tag-label">${name(group(type))}</span><h2>${name(type)}</h2><p>${localized(type.questions, language())}</p>${result.tied ? `<p class="help">${t("tie")}</p>` : ""}</div><p>${t("characterHint")}</p>${button("begin", "begin", "primary full")}<p class="help">${t("typeNote")}</p></div>`;
+  return `<div class="narrow center"><p class="eyebrow">YOUR DREAM, YOUR CHARACTER</p><h1>${t("yourType")}</h1><div class="card accent" style="--accent:${group(type).color}">${avatar(type)}<span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)}</p>${characterStory(type)}${result.tied ? `<p class="help">${t("tie")}</p>` : ""}</div><p>${t("characterHint")}</p>${button("begin", "begin", "primary full")}<p class="help">${t("typeNote")}</p></div>`;
 }
 function levelCard() {
   const value = growth(state.records, state.profile?.ageGroup);
@@ -225,18 +235,18 @@ function homeView() {
     type = typeById(result?.id) || TYPES[0],
     value = growth(state.records, state.profile?.ageGroup);
   return `<section class="hero"><div><p class="eyebrow">${esc(dateText(localDate()))} · ${esc(state.profile?.nickname)}</p><h1>${t("hero")}</h1><p class="muted">${t("heroText")}</p><div class="row">${button("record", "record", "primary")}${button("diary", "diary", "ghost")}</div></div>${avatar(type, value.level)}</section>
- <div class="card accent character-row" style="--accent:${group(type).color}">${avatar(type, value.level, true)}<div><span class="tag-label">${name(group(type))}</span><h2>${name(type)}</h2><p class="help">${t("characterHint")}</p>${button("catalog", "catalog", "small ghost")}</div></div><div class="grid">${levelCard()}${adviceCard()}</div><div class="card" style="margin-top:22px"><div class="row between"><div><h3>${t("alarm")}</h3><span class="muted">${esc(options.alarmTime || "07:00")}</span></div>${button("alarm", "alarm", "ghost")}</div></div><p class="help">${t("typeNote")}</p>`;
+ <div class="card accent character-row" style="--accent:${group(type).color}">${avatar(type, value.level, true)}<div><span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)} · ${localized(characterById(type.id).titles, language())}</p><p class="character-quote">${localized(characterById(type.id).quotes, language())}</p>${button("catalog", "catalog", "small ghost")}</div></div><div class="grid">${levelCard()}${adviceCard()}</div><div class="card" style="margin-top:22px"><div class="row between"><div><h3>${t("alarm")}</h3><span class="muted">${esc(options.alarmTime || "07:00")}</span></div>${button("alarm", "alarm", "ghost")}</div></div><p class="help">${t("typeNote")}</p>`;
 }
 function catalogView() {
   const active = currentType()?.id;
-  return `<h1>${t("catalog")}</h1><p class="muted">${t("typeNote")}</p>${GROUPS.map(
+  return `<p class="eyebrow">MOONKEEPERS / 16 COMPANIONS</p><h1>${localized(COLLECTION, language())}</h1><p>${t("catalog")}</p><p class="muted">${t("typeNote")}</p>${GROUPS.map(
     (g) =>
       `<h2 class="group-heading" style="--accent:${g.color}">${name(g)}</h2><div class="catalog">${TYPES.filter(
         (x) => x.group === g.id,
       )
         .map(
           (type) =>
-            `<div class="type-card ${type.id === active ? "active" : ""}" style="--accent:${g.color}">${avatar(type)}<b>${name(type)}</b><p class="help">${localized(type.questions, language())}</p></div>`,
+            `<div class="type-card ${type.id === active ? "active" : ""}" style="--accent:${g.color}">${avatar(type)}<h3 class="character-name">${name(characterById(type.id))}</h3><b>${name(type)}</b><p class="character-title">${localized(characterById(type.id).titles, language())}</p><details class="character-details"><summary>${localized(["物語を読む", "이야기 읽기", "阅读故事", "Read their story"], language())}</summary><p class="character-story">${localized(characterById(type.id).stories, language())}</p><blockquote class="character-quote">${localized(characterById(type.id).quotes, language())}</blockquote></details></div>`,
         )
         .join("")}</div>`,
   ).join(
