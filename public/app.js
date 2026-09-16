@@ -1,7 +1,10 @@
 import {
-  COLLECTION,
-  characterById,
-} from "./assets/characters/moonkeepers-v1/catalog.js";
+  DEFAULT_CHARACTER_SET,
+  CHARACTER_SETS,
+  normalizeCharacterSet,
+  characterSetById,
+  characterById as getCharacter,
+} from "./core/characters.js";
 import {
   TYPES,
   GROUPS,
@@ -45,7 +48,13 @@ const cap = window.Capacitor,
   native = cap?.isNativePlatform?.(),
   plugins = cap?.Plugins || {};
 let state = { version: 4, profile: null, records: [], deleted: [] },
-  options = { language: "ja", engine: "local", apiBase: "", code: "" };
+  options = {
+    language: "ja",
+    engine: "local",
+    apiBase: "",
+    code: "",
+    characterSet: DEFAULT_CHARACTER_SET,
+  };
 let sessionApiKey = "";
 let storageKey = "yumetan.v4.local",
   page = "home",
@@ -61,6 +70,7 @@ let t = translator("ja"),
   syncTask = null,
   voice = null;
 const language = () => options.language;
+const characterById = (id) => getCharacter(id, options.characterSet);
 const name = (type) => localized(type.names, language());
 const group = (type) => GROUPS.find((g) => g.id === type.group);
 const dateText = (date) =>
@@ -94,11 +104,16 @@ const currentType = () =>
   state.profile?.typeAnswers
     ? classify(state.profile.typeAnswers, state.records)
     : null;
-function avatar(type, level = null, mini = false) {
+function avatar(
+  type,
+  level = null,
+  mini = false,
+  setId = options.characterSet,
+) {
   const item = typeById(type?.id) || TYPES[0],
-    character = characterById(item.id);
+    character = getCharacter(item.id, setId);
   const measured = Number.isInteger(level) && level >= 1 && level <= 5;
-  return `<figure class="avatar level-${measured ? level : 0} ${mini ? "mini-avatar" : ""}" style="--accent:${group(item).color}" data-character="${item.id}">
+  return `<figure class="avatar level-${measured ? level : 0} ${mini ? "mini-avatar" : ""}" style="--accent:${group(item).color}" data-character="${item.id}" data-character-set="${normalizeCharacterSet(setId)}">
     <img class="character-art" src="${character.image}" width="768" height="768" alt="${esc(name(character))} · ${esc(name(item))}" decoding="async">
     <span class="character-fallback" hidden role="img" aria-label="${esc(name(character))}">${item.symbol}</span>
     ${measured ? `<figcaption class="character-stars" aria-label="${esc(t("level"))} ${level} / 5">${Array.from({ length: 5 }, (_, i) => `<span aria-hidden="true" class="${i < level ? "lit" : ""}">✦</span>`).join("")}</figcaption>` : ""}
@@ -239,7 +254,7 @@ function homeView() {
 }
 function catalogView() {
   const active = currentType()?.id;
-  return `<p class="eyebrow">MOONKEEPERS / 16 COMPANIONS</p><h1>${localized(COLLECTION, language())}</h1><p>${t("catalog")}</p><p class="muted">${t("typeNote")}</p>${GROUPS.map(
+  return `<p class="eyebrow">${characterSetById(options.characterSet).eyebrow}</p><h1>${localized(characterSetById(options.characterSet).names, language())}</h1><p>${t("catalog")}</p><p class="muted">${t("typeNote")}</p>${GROUPS.map(
     (g) =>
       `<h2 class="group-heading" style="--accent:${g.color}">${name(g)}</h2><div class="catalog">${TYPES.filter(
         (x) => x.group === g.id,
@@ -353,6 +368,7 @@ function settingsView() {
   const cloudOn = cloud?.state.enabled,
     signed = cloudOn && !cloud.isAnonymous();
   return `<div class="narrow"><h1>${t("settings")}</h1><div class="card"><h2>${t("profile")}</h2><p>${esc(state.profile?.nickname)} · ${languageNames[language()]}</p><div class="row">${button("edit", "profile", "ghost")}${button("retake", "retake", "ghost")}</div><p class="help">${t("privacy")}</p></div>
+ <form id="character-form" class="card"><fieldset class="character-set-field"><legend>${t("characterSet")}</legend><p class="help">${t("characterSetHint")}</p><div class="character-set-options">${CHARACTER_SETS.map((set) => `<label class="character-set-option"><input type="radio" name="character-set" value="${set.id}" ${options.characterSet === set.id ? "checked" : ""}><span class="character-set-label">${localized(set.label, language())}</span>${avatar(typeById(currentType()?.id), null, false, set.id)}<span>${localized(set.names, language())}</span></label>`).join("")}</div></fieldset><button type="submit" class="btn primary">${t("save")}</button></form>
  <form id="settings-form" class="card"><h2>AI</h2><label class="check"><input type="checkbox" id="engine" ${options.engine === "ai" ? "checked" : ""}><span>${t("ai")}</span></label><p class="help">${t("aiHint")}</p>${input("apiUrl", "api-url", options.apiBase, "url", 'placeholder="https://…"')}${input("code", "access-code", options.code, "password", 'autocomplete="off"')}${input("ownKey", "own-key", sessionApiKey, "password", 'autocomplete="off"')}<p class="help">${t("ownKeyHint")}</p><div class="row"><button type="submit" class="btn primary">${t("save")}</button>${button("testConnection", "health", "ghost")}</div></form>
  <form id="alarm-form" class="card"><h2>${t("alarm")}</h2>${input("alarmTime", "alarm-time", options.alarmTime || "07:00", "time", "required")}<p class="help">${t(native && cap.getPlatform() === "android" ? "alarmHint" : "alarmManual")}</p><button type="submit" class="btn primary">${t(native && cap.getPlatform() === "android" ? "alarmOpen" : "save")}</button><p id="alarm-status" class="status" role="status"></p>${native && cap.getPlatform() === "ios" ? `<p class="help">${t("notifyHint")}</p><div class="row">${button("notifyWake", "notify-wake", "ghost")}${button("cancelWake", "cancel-wake", "ghost")}</div>` : ""}</form>
  <div class="card"><h2>${t("backup")}</h2><p class="help">${t("localOnly")}</p>${button("export", "export", "ghost")}<label class="field" style="margin-top:20px"><span>${t("import")}</span><input type="file" id="import-file" accept="application/json,.json"></label><p class="help">${t("importHint")}</p></div>
@@ -396,6 +412,8 @@ function bindForms() {
       el.addEventListener("input", () => {
         if (["record", "diary", "onboard", "settings"].includes(page))
           dirty = true;
+        if (page === "settings" && el.closest("form"))
+          el.closest("form").dataset.dirty = "true";
         if (page === "record" && draft) draft.analysis = null;
       }),
     );
@@ -473,6 +491,22 @@ function bindForms() {
       };
       dirty = false;
       render();
+    };
+  if ($("#character-form"))
+    $("#character-form").onsubmit = (e) => {
+      e.preventDefault();
+      run(async () => {
+        const next = {
+          ...options,
+          characterSet: normalizeCharacterSet(
+            $("#character-form input:checked").value,
+          ),
+        };
+        await write("yumetan.v4.options", next);
+        options = next;
+        settingsFormSaved("#character-form");
+        toast(t("saved"));
+      });
     };
   if ($("#settings-form"))
     $("#settings-form").onsubmit = (e) => {
@@ -639,6 +673,11 @@ async function finishQuiz() {
   navigate("result", true);
   await syncCloud();
 }
+function settingsFormSaved(selector) {
+  const form = $(selector);
+  if (form) form.dataset.dirty = "false";
+  dirty = Boolean($('#app form[data-dirty="true"]'));
+}
 async function saveOptions() {
   const url = $("#api-url").value.trim().replace(/\/$/, "");
   if (url) {
@@ -660,7 +699,7 @@ async function saveOptions() {
     code: $("#access-code").value.trim(),
   };
   await write("yumetan.v4.options", options);
-  dirty = false;
+  settingsFormSaved("#settings-form");
   toast(t("saved"));
 }
 async function api(path, body) {
@@ -746,7 +785,7 @@ async function setAlarm() {
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Error(t("required"));
   options.alarmTime = time;
   await write("yumetan.v4.options", options);
-  dirty = false;
+  settingsFormSaved("#alarm-form");
   if (native && cap.getPlatform() === "android") {
     try {
       const alarm = plugins.SystemAlarm || cap.registerPlugin("SystemAlarm");
@@ -1189,6 +1228,7 @@ async function boot() {
         alarmTime: old.alarm?.time || "07:00",
       }),
     };
+    options.characterSet = normalizeCharacterSet(options.characterSet);
     if (!LANGUAGES.includes(options.language)) options.language = "ja";
     t = translator(language());
     storageKey = await read("yumetan.v4.active", "yumetan.v4.local");

@@ -684,3 +684,48 @@ select {
 .character-row .avatar {
   margin: 0;
 }
+
+.character-set-field {
+  border: 0;
+  padding: 0;
+  margin: 0 0 20px;
+  min-width: 0;
+}
+.character-set-field legend {
+  font-size: 22px;
+  font-weight: 600;
+}
+.character-set-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.character-set-option {
+  display: block;
+  padding: 12px;
+  border: 2px solid var(--line);
+  border-radius: 18px;
+  background: var(--bg);
+  cursor: pointer;
+  font-size: 12px;
+  text-align: center;
+}
+.character-set-option:has(input:checked) {
+  border-color: var(--gold);
+}
+.character-set-option:has(input:focus-visible) {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+.character-set-option input {
+  width: auto;
+  margin: 0 5px 12px 0;
+  accent-color: var(--gold);
+}
+.character-set-label {
+  display: block;
+  font-size: 13px;
+}
+.character-set-option .avatar {
+  margin-bottom: 10px;
+}
