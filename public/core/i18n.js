@@ -12,6 +12,18 @@ export const messages = {
   record: ["夢を記録", "꿈 기록", "记录梦境", "Dream"],
   diary: ["今日の日記", "오늘의 일기", "今日日记", "Diary"],
   history: ["記録", "기록", "记录", "History"],
+  characterSet: [
+    "表示キャラクター",
+    "캐릭터 표시",
+    "显示角色",
+    "Character appearance",
+  ],
+  characterSetHint: [
+    "人間版と動物版をいつでも選べます。選択はこの端末に保存され、夢の記録・診断タイプ・睡眠レベルは変わりません。",
+    "사람과 동물 캐릭터를 언제든 바꿀 수 있어요. 선택은 이 기기에 저장되며 꿈 기록, 유형, 수면 레벨은 그대로예요.",
+    "可随时切换人类或动物角色。选择保存在本设备上，不影响梦境记录、类型或睡眠等级。",
+    "Switch between human and animal characters anytime. Your choice stays on this device; dreams, type, and sleep level stay the same.",
+  ],
   settings: ["設定", "설정", "设置", "Settings"],
   hero: [
     "夢を知って、\n自分を育てる。",

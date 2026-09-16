@@ -28,11 +28,11 @@ async function start(page, lang = "ja") {
   }
   await expect(page.locator("[data-action=begin]")).toBeVisible();
   await expect(page.locator(".character-name")).toHaveText(
-    { ja: "キロ", ko: "키로", zh: "奇洛", en: "Kiro" }[lang],
+    { ja: "カケル", ko: "카케루", zh: "翔", en: "Kakeru" }[lang],
   );
   await expect(page.locator(".character-art")).toHaveAttribute(
     "src",
-    /challenge\.webp$/,
+    /dreamwalkers-v1\/challenge\.webp$/,
   );
   await page.locator("[data-action=begin]").click();
   await expect(page.locator("[data-action=record]")).toBeVisible();
@@ -51,7 +51,7 @@ for (const [lang, label] of [
     await start(page, lang);
     await expect(page.locator(".character-row")).toContainText(label);
     await expect(page.locator(".character-row .character-name")).toHaveText(
-      { ja: "キロ", ko: "키로", zh: "奇洛", en: "Kiro" }[lang],
+      { ja: "カケル", ko: "카케루", zh: "翔", en: "Kakeru" }[lang],
     );
     await expect(page.locator("html")).toHaveAttribute("lang", lang);
     await expect(page.locator("main")).not.toContainText("undefined");
@@ -68,7 +68,7 @@ for (const [lang, label] of [
     await page.reload();
     await expect(page.locator(".character-row")).toContainText(label);
     await expect(page.locator(".character-row .character-name")).toHaveText(
-      { ja: "キロ", ko: "키로", zh: "奇洛", en: "Kiro" }[lang],
+      { ja: "カケル", ko: "카케루", zh: "翔", en: "Kakeru" }[lang],
     );
     expect(errors).toEqual([]);
   });
@@ -206,6 +206,23 @@ test.describe("offline cache", () => {
     await page.locator("nav [data-go=home]").click();
     await page.locator("[data-action=catalog]").click();
     await expect(page.locator(".character-art")).toHaveCount(16);
+    await expect
+      .poll(() =>
+        page
+          .locator(".character-art")
+          .evaluateAll((images) =>
+            images.every((img) => img.complete && img.naturalWidth > 0),
+          ),
+      )
+      .toBe(true);
+    await page.locator("nav [data-go=settings]").click();
+    await page.locator("#character-form input[value=animal]").check();
+    await page.locator("#character-form button[type=submit]").click();
+    await page.reload();
+    await page.locator("[data-action=catalog]").click();
+    await expect(page.locator(".type-card .character-name").first()).toHaveText(
+      "Luno",
+    );
     await expect
       .poll(() =>
         page
@@ -430,7 +447,7 @@ test("legacy main v4 profile, diary, and dream migrate without repeating onboard
   );
   await page.goto("/");
   await expect(page.locator(".character-row .character-name")).toHaveText(
-    "Kiro",
+    "Kakeru",
   );
   await expect(page.locator(".character-row")).toContainText("The Challenger");
   await page.locator("nav [data-go=history]").click();
@@ -499,10 +516,10 @@ test("all sixteen illustrations and localized stories render without overflow", 
     ).size,
   ).toBe(16);
   for (const [lang, first, last] of [
-    ["ja", "ルノ", "ココ"],
-    ["ko", "루노", "코코"],
-    ["zh", "露诺", "可可"],
-    ["en", "Luno", "Coco"],
+    ["ja", "レン", "カナタ"],
+    ["ko", "렌", "카나타"],
+    ["zh", "莲", "彼方"],
+    ["en", "Ren", "Kanata"],
   ]) {
     await page.locator("#language").selectOption(lang);
     await expect(page.locator(".type-card .character-name").first()).toHaveText(
@@ -540,7 +557,93 @@ test("missing artwork preserves identity and unmeasured sleep shows no level sta
     page.locator(".character-row .character-fallback"),
   ).toBeVisible();
   await expect(page.locator(".character-row .character-name")).toHaveText(
-    "Kiro",
+    "Kakeru",
   );
   await expect(page.locator(".character-stars")).toHaveCount(0);
+});
+
+test("character collections switch both ways without changing journals, type or sleep", async ({
+  page,
+}) => {
+  await start(page, "en");
+  await page.locator("nav [data-go=record]").click();
+  await page.locator("#dream-text").fill("A challenge in the mountains");
+  await page.locator("#include-sleep").check();
+  await page.locator("#hours").fill("8");
+  await page.locator("#awakenings").fill("0");
+  await page.locator("#rested").selectOption("5");
+  await page.locator("#dream-form button[type=submit]").click();
+  const saved = await page.evaluate(() =>
+    localStorage.getItem("yumetan.v4.local"),
+  );
+  for (const [set, hero, first, last] of [
+    ["animal", "Kiro", "Luno", "Coco"],
+    ["human", "Kakeru", "Ren", "Kanata"],
+  ]) {
+    await page.locator("nav [data-go=settings]").click();
+    await page.locator("#character-form input[value=" + set + "]").check();
+    await page.locator("#character-form button[type=submit]").click();
+    await expect(page.locator("#toast")).toContainText("Saved");
+    await page.reload();
+    await expect(page.locator(".character-row .character-name")).toHaveText(
+      hero,
+    );
+    await expect(page.locator(".character-row")).toContainText(
+      "The Challenger",
+    );
+    await expect(page.locator(".score")).toContainText("5");
+    await expect(
+      page.locator(".character-row .character-stars .lit"),
+    ).toHaveCount(5);
+    expect(
+      await page.evaluate(() => localStorage.getItem("yumetan.v4.local")),
+    ).toBe(saved);
+    await page.locator("[data-action=catalog]").click();
+    await expect(page.locator(".type-card .character-name").first()).toHaveText(
+      first,
+    );
+    await expect(page.locator(".type-card .character-name").last()).toHaveText(
+      last,
+    );
+    await expect(page.locator(".type-card")).toHaveCount(16);
+    await expect
+      .poll(() =>
+        page
+          .locator(".character-art")
+          .evaluateAll((imgs) =>
+            imgs.every((img) => img.complete && img.naturalWidth > 0),
+          ),
+      )
+      .toBe(true);
+  }
+});
+
+test("appearance save preserves other settings drafts and failed saves do not switch the active collection", async ({
+  page,
+}) => {
+  await start(page, "en");
+  await page.locator("nav [data-go=settings]").click();
+  await page.locator("#own-key").fill("unsaved-test-key");
+  await page.locator("#character-form input[value=animal]").check();
+  await page.locator("#character-form button[type=submit]").click();
+  await expect(page.locator("#own-key")).toHaveValue("unsaved-test-key");
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.locator("nav [data-go=home]").click();
+  await expect(page.locator("#own-key")).toBeVisible();
+  await page.locator("#settings-form button[type=submit]").click();
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "yumetan.v4.options") throw new Error("disk full");
+      return original.call(this, key, value);
+    };
+  });
+  await page.locator("#character-form input[value=human]").check();
+  await page.locator("#character-form button[type=submit]").click();
+  await expect(page.locator("#toast")).not.toHaveText("Saved");
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.locator("nav [data-go=home]").click();
+  await expect(page.locator(".character-row .character-name")).toHaveText(
+    "Kiro",
+  );
 });

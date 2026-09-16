@@ -306,3 +306,37 @@ test("main v4 migration retains separate diary, questionnaire, aliases, and old 
   assert.equal(backup.records.length, 2);
   assert.deepEqual(backup.typeAnswers, legacyAnswers({ quiz }));
 });
+
+test("character collection defaults and fallbacks retain all stable type IDs and translations", async () => {
+  const {
+    CHARACTER_SETS,
+    DEFAULT_CHARACTER_SET,
+    normalizeCharacterSet,
+    characterById,
+  } = await import("../public/core/characters.js");
+  assert.equal(DEFAULT_CHARACTER_SET, "human");
+  assert.equal(normalizeCharacterSet(undefined), "human");
+  assert.equal(normalizeCharacterSet("unknown"), "human");
+  assert.equal(normalizeCharacterSet("animal"), "animal");
+  for (const set of CHARACTER_SETS) {
+    assert.deepEqual(
+      Object.keys(set.characters),
+      TYPES.map((t) => t.id),
+    );
+    for (const type of TYPES) {
+      const character = characterById(type.id, set.id);
+      assert.equal(character.id, type.id);
+      for (const field of ["names", "titles", "stories", "quotes"]) {
+        assert.equal(character[field].length, 4);
+        assert.ok(
+          character[field].every(
+            (text) => typeof text === "string" && text.trim(),
+          ),
+        );
+      }
+    }
+  }
+  assert.equal(characterById("challenge").names[3], "Kakeru");
+  assert.equal(characterById("challenge", "animal").names[3], "Kiro");
+  assert.equal(characterById("missing").id, "chase");
+});

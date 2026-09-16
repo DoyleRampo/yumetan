@@ -1,13 +1,15 @@
-const CACHE = "yumetan-4.1.0";
+const CACHE = "yumetan-4.2.0";
 const SHELL = [
   "./",
   "index.html",
-  "style.css?v=4.1.0",
-  "app.js?v=4.1.0",
-  "config.js?v=4.1.0",
-  "firebase-config.js?v=4.1.0",
-  "cloud.js?v=4.1.0",
+  "style.css?v=4.2.0",
+  "app.js?v=4.2.0",
+  "config.js?v=4.2.0",
+  "firebase-config.js?v=4.2.0",
+  "cloud.js?v=4.2.0",
   "core/types.js",
+  "core/characters.js",
+  "assets/characters/dreamwalkers-v1/catalog.js",
   "assets/characters/moonkeepers-v1/catalog.js",
   ...[
     "chase",
@@ -26,7 +28,11 @@ const SHELL = [
     "person",
     "story",
     "emotion",
-  ].map((id) => `assets/characters/moonkeepers-v1/${id}.webp`),
+  ].flatMap((id) =>
+    ["moonkeepers-v1", "dreamwalkers-v1"].map(
+      (set) => `assets/characters/${set}/${id}.webp`,
+    ),
+  ),
   "core/i18n.js",
   "core/sleep.js",
   "core/storage.js",
