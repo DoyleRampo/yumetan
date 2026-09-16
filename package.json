@@ -11,7 +11,10 @@
     "mobile:sync": "npm run mobile:build && npx cap sync",
     "mobile:ios": "npm run mobile:sync && npx cap open ios",
     "mobile:android": "npm run mobile:sync && npx cap open android",
-    "mobile:assets": "npx capacitor-assets generate --iconBackgroundColor \"#0f1222\" --iconBackgroundColorDark \"#0f1222\" --splashBackgroundColor \"#0f1222\" --splashBackgroundColorDark \"#0f1222\""
+    "mobile:assets": "npx capacitor-assets generate --iconBackgroundColor \"#0f1222\" --iconBackgroundColorDark \"#0f1222\" --splashBackgroundColor \"#0f1222\" --splashBackgroundColorDark \"#0f1222\"",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check public/app.js && node --check server.js && node --check server-features.js",
+    "test:browser": "playwright test"
   },
   "engines": {
     "node": ">=20.12"
@@ -31,6 +34,8 @@
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
-    "@capacitor/cli": "^8.5.1"
+    "@capacitor/cli": "^8.5.1",
+    "@playwright/test": "^1.63.0",
+    "prettier": "^3.9.6"
   }
 }

@@ -2,7 +2,7 @@ FROM node:22-alpine
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
-COPY server.js ./
+COPY server.js server-features.js ./
 COPY public ./public
 COPY knowledge ./knowledge
 ENV NODE_ENV=production PORT=3000

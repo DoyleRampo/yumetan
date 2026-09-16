@@ -1,6 +1,7 @@
 // ユメタン API サーバー（ステートレス）
 // 夢の記録は各ユーザーの端末に保存。サーバーは Claude API の呼び出し・知識・利用制限のみを担当。
 import express from "express";
+import { registerFeatures } from "./server-features.js";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod/v4";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
@@ -39,6 +40,7 @@ function clientFor(req) {
 const knowledge = await fs.readFile(KNOWLEDGE_FILE, "utf8");
 const sleepKnowledge = await fs.readFile(SLEEP_KNOWLEDGE_FILE, "utf8").catch(() => "");
 const typesKnowledge = await fs.readFile(TYPES_KNOWLEDGE_FILE, "utf8").catch(() => "");
+const sleepRules = await fs.readFile(path.join(here,"knowledge","sleep_quality.json"),"utf8");
 
 // ---------- 言語 ----------
 const LANGS = { ja: "日本語", en: "English", ko: "한국어", zh: "中文（简体）" };
@@ -257,10 +259,13 @@ function aiGate(req) {
   return clientFor(req);
 }
 
-app.get("/api/health", (req, res) => res.json({ ok: true, model: MODEL, needsCode: Boolean(ACCESS_CODE), hasServerKey: Boolean(SERVER_KEY), acceptsUserKey: true, limits: { perUserDay: LIMIT_PER_USER_DAY }, langs: Object.keys(LANGS) }));
+app.get("/api/health", (req, res) => res.json({ ok: true, aiConfigured: Boolean(SERVER_KEY || req.get("X-Yumetan-Key")), model: MODEL, needsCode: Boolean(ACCESS_CODE), hasServerKey: Boolean(SERVER_KEY), acceptsUserKey: true, limits: { perUserDay: LIMIT_PER_USER_DAY }, langs: Object.keys(LANGS) }));
 app.get("/api/knowledge/sleep", (req, res) => res.type("text/markdown").send(sleepKnowledge));
 app.get("/api/knowledge/types", (req, res) => res.type("text/markdown").send(typesKnowledge));
 app.get("/api/knowledge", (req, res) => res.type("text/markdown").send(knowledge));
+
+registerFeatures(app, { gate: aiGate, callClaude, knowledge: sleepRules, asyncRoute });
+app.get("/api/sleep-knowledge", (req,res)=>res.type("application/json").send(sleepRules));
 
 // 夢を聞く（会話全体と最近の記録を受け取り、返事と分析を返す）
 app.post("/api/listen", asyncRoute(async (req, res) => {
@@ -381,7 +386,7 @@ app.use((err, req, res, next) => {
   else if (err instanceof Anthropic.RateLimitError) message = "少し混み合っています。しばらくしてからもう一度話してください。";
   else if (err instanceof Anthropic.APIConnectionError) message = "Claude APIに接続できません。";
   else if (err.type === "entity.too.large") message = "送信データが大きすぎます。";
-  if (status >= 500 || noAuth) console.error(`[${new Date().toISOString()}]`, err);
+  if (status >= 500 || noAuth) console.error(`[${new Date().toISOString()}]`, {status, type:err.name});
   res.status(status).json({ error: message });
 });
 

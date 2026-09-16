@@ -11,3 +11,6 @@ android/app/build/
 android/local.properties
 .DS_Store
 build/
+
+test-results/
+playwright-report/

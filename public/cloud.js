@@ -62,6 +62,7 @@ window.YumetanCloud = {
     const { onSnapshot, query, orderBy } = state.fns;
     return onSnapshot(query(this.diaryCol(), orderBy("date", "desc")), (snap) => cb(snap.docs.map((d) => d.data())), (e) => console.warn("diary sync error", e));
   },
+  async loadDiaryOnce() { const { getDocs, query, orderBy } = state.fns; const snap = await getDocs(query(this.diaryCol(), orderBy("date", "desc"))); return snap.docs.map((d) => d.data()); },
   async saveDiary(entry) { const { doc, setDoc } = state.fns; await setDoc(doc(this.diaryCol(), entry.id), entry); },
   async deleteDiary(id) { const { doc, deleteDoc } = state.fns; await deleteDoc(doc(this.diaryCol(), id)); },
 

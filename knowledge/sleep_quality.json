@@ -1,0 +1,109 @@
+{
+  "version": "2026-09-15",
+  "purpose": "Reference data for future AI sleep guidance. Evidence and product heuristics are separate.",
+  "sources": [
+    {
+      "id": "nhlbi-habits",
+      "publisher": "NIH / NHLBI",
+      "title": "Healthy Sleep Habits",
+      "url": "https://www.nhlbi.nih.gov/health/sleep-deprivation/healthy-sleep-habits",
+      "accessed": "2026-09-15"
+    },
+    {
+      "id": "nhlbi-duration",
+      "publisher": "NIH / NHLBI",
+      "title": "How Much Sleep Is Enough?",
+      "url": "https://www.nhlbi.nih.gov/health/sleep/how-much-sleep",
+      "accessed": "2026-09-15"
+    },
+    {
+      "id": "ninds-sleep",
+      "publisher": "NIH / NINDS",
+      "title": "Brain Basics: Understanding Sleep",
+      "url": "https://www.ninds.nih.gov/sites/default/files/2025-05/understanding-sleep.pdf",
+      "accessed": "2026-09-15"
+    }
+  ],
+  "knowledge": [
+    {
+      "id": "routine",
+      "claim": "Consistent sleep and wake times can support sleep habits.",
+      "sources": ["nhlbi-habits"],
+      "evidence": "public health guidance",
+      "use": "advice",
+      "not_supported": "Guaranteed improvement for an individual"
+    },
+    {
+      "id": "quiet",
+      "claim": "Quiet time before bed and reducing bright screen light are suggested sleep habits.",
+      "sources": ["nhlbi-habits"],
+      "evidence": "public health guidance",
+      "use": "advice"
+    },
+    {
+      "id": "room",
+      "claim": "A quiet, cool, dark bedroom can support sleep.",
+      "sources": ["nhlbi-habits"],
+      "evidence": "public health guidance",
+      "use": "advice"
+    },
+    {
+      "id": "duration",
+      "claim": "Sleep needs depend on age; guidance lists 8–10 hours for teens aged 13–18 and at least 7 hours for adults.",
+      "sources": ["nhlbi-duration"],
+      "evidence": "age-specific population guidance",
+      "use": "context only",
+      "not_supported": "An exact optimal duration for every individual"
+    },
+    {
+      "id": "dreams",
+      "claim": "Dreaming occurs in sleep and its precise purpose remains uncertain.",
+      "sources": ["ninds-sleep"],
+      "evidence": "research summary",
+      "use": "uncertainty boundary",
+      "not_supported": "Inferring sleep stages, sleep quality, disease, or future events from dream content alone"
+    }
+  ],
+  "product_heuristic": {
+    "version": "sleep-v1",
+    "clinical_validation": false,
+    "inputs": {
+      "hours": "self-reported 0–24, not time in bed",
+      "awakenings": "self-reported integer 0–30",
+      "rested": "self-reported integer 1–5",
+      "nightmare": "optional distressing dream awakening; advice only"
+    },
+    "formula": {
+      "rest": "(rested - 1) * 25",
+      "duration": "clamp(100 - max(0, minimumHours - hours) * 25, 0, 100)",
+      "continuity": "max(0, 100 - awakenings * 20)",
+      "total": "round(rest * 0.5 + duration * 0.3 + continuity * 0.2)",
+      "level": "min(5, floor(total / 20) + 1)"
+    },
+    "minimumHours": { "10代": 8, "other": 7 },
+    "age_limitation": "Legacy age bands do not distinguish 10–12 from 13–19. Age-band approximation requires replacement with an approved age-specific rule before clinical use.",
+    "aggregation": "Most recently updated valid report for each local calendar date in the last 7 calendar days; average available scores; no report means unmeasured, never level 1.",
+    "excluded_from_score": [
+      "dream recall",
+      "vividness",
+      "dream type",
+      "nightmare",
+      "diary content"
+    ],
+    "warnings": [
+      "Not a validated medical instrument",
+      "High score does not rule out a sleep disorder",
+      "Long sleep is not automatically evidence of good sleep",
+      "Weights and levels are product choices, not findings from the cited sources"
+    ],
+    "future_data": [
+      "sleep latency",
+      "daytime sleepiness",
+      "sleep schedule variability",
+      "caffeine timing",
+      "illness or medications if consented",
+      "precise age band",
+      "validated self-report instrument and licensing"
+    ]
+  }
+}
