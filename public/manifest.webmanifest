@@ -1,7 +1,7 @@
 {
   "name": "ユメタン — 夢を聞いてくれるAI",
   "short_name": "ユメタン",
-  "description": "起きてすぐ、夢を話すだけ。聞いて、覚えて、心の状態を教えてくれるAI",
+  "description": "起きてすぐ、夢を話すだけ。16タイプの夢キャラクターを育てる、夢と睡眠の日記AI",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

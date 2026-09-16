@@ -554,6 +554,42 @@ export const messages = {
     "梦境与日记的共同主题",
     "Themes shared by your dream and diary",
   ],
+  ownKey: [
+    "自分のClaude APIキー（任意）",
+    "내 Claude API 키 (선택)",
+    "个人Claude API密钥（选填）",
+    "Your Claude API key (optional)",
+  ],
+  ownKeyHint: [
+    "キーはこの起動中だけ保持し、保存・書き出しません。入力したキーは設定したAPIサーバーに送信されるため、信頼するサーバーだけを指定してください。",
+    "키는 앱을 연 동안만 유지하며 저장하거나 내보내지 않아요. 설정한 API 서버로 전송되므로 신뢰하는 서버만 지정해 주세요.",
+    "密钥仅保留于当前会话，不保存或导出。密钥会发送到所配置的API服务器，请仅使用可信服务器。",
+    "The key stays in memory for this session and is never saved or exported. It is sent to your configured API server; use a server you trust.",
+  ],
+  notifyWake: [
+    "起床通知を設定",
+    "기상 알림 설정",
+    "设置起床提醒",
+    "Set a wake-up notification",
+  ],
+  cancelWake: [
+    "起床通知を解除",
+    "기상 알림 취소",
+    "取消起床提醒",
+    "Cancel wake-up notification",
+  ],
+  notifyHint: [
+    "iOSの通常通知です。時計アラームとは異なり、消音・集中モード・通知設定により音が鳴らないことがあります。",
+    "iOS 일반 알림이에요. 시계 알람과 달리 무음, 집중 모드, 알림 설정에 따라 소리가 나지 않을 수 있어요.",
+    "这是iOS普通通知，不是时钟闹钟。静音、专注模式或通知设置可能导致无声。",
+    "This is a normal iOS notification, not a Clock alarm. Silent mode, Focus, and notification settings may prevent sound.",
+  ],
+  notifyDenied: [
+    "端末の設定で通知を許可してください。",
+    "기기 설정에서 알림을 허용해 주세요.",
+    "请在设备设置中允许通知。",
+    "Allow notifications in device settings.",
+  ],
   privacy: [
     "記録した文章は元の言語で保存します。画面と分析メッセージは選択した言語で表示します。",
     "기록한 글은 원래 언어로 저장돼요. 화면과 분석 메시지는 선택한 언어로 표시돼요.",

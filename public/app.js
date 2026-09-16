@@ -18,6 +18,8 @@ import {
 } from "./core/sleep.js";
 import {
   read,
+  migrateLegacy,
+  legacyAnswers,
   write,
   normalizeRecord,
   normalizeProfile,
@@ -40,6 +42,7 @@ const cap = window.Capacitor,
   plugins = cap?.Plugins || {};
 let state = { version: 4, profile: null, records: [], deleted: [] },
   options = { language: "ja", engine: "local", apiBase: "", code: "" };
+let sessionApiKey = "";
 let storageKey = "yumetan.v4.local",
   page = "home",
   selectedId = null,
@@ -340,8 +343,8 @@ function settingsView() {
   const cloudOn = cloud?.state.enabled,
     signed = cloudOn && !cloud.isAnonymous();
   return `<div class="narrow"><h1>${t("settings")}</h1><div class="card"><h2>${t("profile")}</h2><p>${esc(state.profile?.nickname)} · ${languageNames[language()]}</p><div class="row">${button("edit", "profile", "ghost")}${button("retake", "retake", "ghost")}</div><p class="help">${t("privacy")}</p></div>
- <form id="settings-form" class="card"><h2>AI</h2><label class="check"><input type="checkbox" id="engine" ${options.engine === "ai" ? "checked" : ""}><span>${t("ai")}</span></label><p class="help">${t("aiHint")}</p>${input("apiUrl", "api-url", options.apiBase, "url", 'placeholder="https://…"')}${input("code", "access-code", options.code, "password", 'autocomplete="off"')}<div class="row"><button type="submit" class="btn primary">${t("save")}</button>${button("testConnection", "health", "ghost")}</div></form>
- <form id="alarm-form" class="card"><h2>${t("alarm")}</h2>${input("alarmTime", "alarm-time", options.alarmTime || "07:00", "time", "required")}<p class="help">${t(native && cap.getPlatform() === "android" ? "alarmHint" : "alarmManual")}</p><button type="submit" class="btn primary">${t(native && cap.getPlatform() === "android" ? "alarmOpen" : "save")}</button><p id="alarm-status" class="status" role="status"></p></form>
+ <form id="settings-form" class="card"><h2>AI</h2><label class="check"><input type="checkbox" id="engine" ${options.engine === "ai" ? "checked" : ""}><span>${t("ai")}</span></label><p class="help">${t("aiHint")}</p>${input("apiUrl", "api-url", options.apiBase, "url", 'placeholder="https://…"')}${input("code", "access-code", options.code, "password", 'autocomplete="off"')}${input("ownKey", "own-key", sessionApiKey, "password", 'autocomplete="off"')}<p class="help">${t("ownKeyHint")}</p><div class="row"><button type="submit" class="btn primary">${t("save")}</button>${button("testConnection", "health", "ghost")}</div></form>
+ <form id="alarm-form" class="card"><h2>${t("alarm")}</h2>${input("alarmTime", "alarm-time", options.alarmTime || "07:00", "time", "required")}<p class="help">${t(native && cap.getPlatform() === "android" ? "alarmHint" : "alarmManual")}</p><button type="submit" class="btn primary">${t(native && cap.getPlatform() === "android" ? "alarmOpen" : "save")}</button><p id="alarm-status" class="status" role="status"></p>${native && cap.getPlatform() === "ios" ? `<p class="help">${t("notifyHint")}</p><div class="row">${button("notifyWake", "notify-wake", "ghost")}${button("cancelWake", "cancel-wake", "ghost")}</div>` : ""}</form>
  <div class="card"><h2>${t("backup")}</h2><p class="help">${t("localOnly")}</p>${button("export", "export", "ghost")}<label class="field" style="margin-top:20px"><span>${t("import")}</span><input type="file" id="import-file" accept="application/json,.json"></label><p class="help">${t("importHint")}</p></div>
  <div class="card"><h2>${t("account")}</h2><p class="help">${t(cloudOn ? "cloudReady" : "localOnly")}</p>${cloudOn ? (signed ? `<p>${esc(cloud.email())}</p><div class="row">${button("signOut", "signout", "ghost")}${button("sync", "sync", "ghost")}</div>` : `<form id="account-form">${input("email", "email", "", "email", 'required autocomplete="email"')}${input("password", "password", "", "password", 'minlength="6" autocomplete="current-password"')}<div class="row"><button type="submit" class="btn primary">${t("signIn")}</button>${button("signUp", "signup", "ghost")}${button("resetPassword", "reset-password", "small ghost")}</div></form>`) : ""}</div></div>`;
 }
@@ -639,6 +642,7 @@ async function saveOptions() {
     )
       throw new Error(t("networkError"));
   }
+  sessionApiKey = $("#own-key").value.trim();
   options = {
     ...options,
     engine: $("#engine").checked ? "ai" : "local",
@@ -664,6 +668,7 @@ async function api(path, body) {
         "Content-Type": "application/json",
         "X-Yumetan-User": await userId(),
         "X-Yumetan-Code": options.code,
+        ...(sessionApiKey ? { "X-Yumetan-Key": sessionApiKey } : {}),
       },
       body: body
         ? JSON.stringify({ ...body, language: language() })
@@ -746,6 +751,32 @@ async function setAlarm() {
     }
   } else $("#alarm-status").textContent = `${t("alarmManual")} ${time}`;
 }
+async function wakeNotification(cancel = false) {
+  const notification =
+    plugins.LocalNotifications || cap?.registerPlugin?.("LocalNotifications");
+  if (!native || !notification) throw new Error(t("notifyDenied"));
+  if (cancel) {
+    await notification.cancel({ notifications: [{ id: 1 }] });
+    toast(t("saved"));
+    return;
+  }
+  await setAlarm();
+  const permission = await notification.requestPermissions();
+  if (permission.display !== "granted") throw new Error(t("notifyDenied"));
+  const [hour, minute] = options.alarmTime.split(":").map(Number);
+  await notification.schedule({
+    notifications: [
+      {
+        id: 1,
+        title: t("brand"),
+        body: t("recordTitle"),
+        schedule: { on: { hour, minute }, repeats: true },
+        sound: "default",
+      },
+    ],
+  });
+  toast(t("notifyHint"));
+}
 async function exportData() {
   const blob = new Blob(
     [
@@ -783,7 +814,16 @@ async function importFile(file) {
       ...state.records,
       ...parsed.records.filter((r) => !existing.has(r.id)),
     ];
-  await commit({ ...state, records, profile: state.profile || parsed.profile });
+  await commit({
+    ...state,
+    records,
+    profile: state.profile
+      ? {
+          ...state.profile,
+          typeAnswers: state.profile.typeAnswers || parsed.typeAnswers,
+        }
+      : parsed.profile,
+  });
   toast(t("saved"));
   render();
   await syncCloud();
@@ -801,21 +841,39 @@ async function performSync() {
   const syncKey = storageKey,
     uid = cloud.uid();
   try {
-    const [remote, remoteProfile] = await Promise.all([
-      cloud.loadOnce(),
-      cloud.loadProfile(),
-    ]);
+    const [remoteDreams, remoteProfile, remoteDiary, remoteType] =
+      await Promise.all([
+        cloud.loadOnce(),
+        cloud.loadProfile(),
+        cloud.loadDiaryOnce?.() || [],
+        cloud.loadTypeState?.() || null,
+      ]);
+    const remote = [
+      ...remoteDreams,
+      ...remoteDiary.map((d) => ({ ...d, kind: "diary" })),
+    ];
     if (syncKey !== storageKey || uid !== cloud.uid()) return;
     const merged = mergeRecords(state.records, remote, state.deleted);
     await commit({
       ...state,
       records: merged,
-      profile: state.profile || normalizeProfile(remoteProfile),
+      profile: state.profile?.typeAnswers
+        ? state.profile
+        : normalizeProfile({
+            ...remoteProfile,
+            ...state.profile,
+            typeAnswers: legacyAnswers(remoteType),
+          }),
     });
-    for (const deleted of state.deleted) await cloud.deleteDream(deleted);
+    for (const deleted of state.deleted) {
+      await cloud.deleteDream(deleted);
+      if (cloud.deleteDiary) await cloud.deleteDiary(deleted);
+    }
     for (const record of merged) {
       const { photo, ...payload } = record;
-      await cloud.saveDream(payload);
+      if (record.kind === "diary" && cloud.saveDiary)
+        await cloud.saveDiary(payload);
+      else await cloud.saveDream(payload);
     }
     if (state.profile) await cloud.saveProfile(state.profile);
     await commit({ ...state, deleted: [] });
@@ -1022,6 +1080,8 @@ const actions = {
     const data = await api("/api/health");
     toast(t(data.aiConfigured ? "aiReady" : "aiMissing"));
   },
+  "notify-wake": () => wakeNotification(),
+  "cancel-wake": () => wakeNotification(true),
   export: exportData,
   sync: syncCloud,
   signup: () => account("signup"),
@@ -1115,7 +1175,8 @@ async function boot() {
       ...(savedOptions || {
         apiBase: old.apiBase || "",
         code: old.code || "",
-        language: old.profile?.language || "ja",
+        language: old.lang || old.profile?.language || "ja",
+        alarmTime: old.alarm?.time || "07:00",
       }),
     };
     if (!LANGUAGES.includes(options.language)) options.language = "ja";
@@ -1124,12 +1185,7 @@ async function boot() {
     state = await read(storageKey);
     if (!state) {
       const legacy = await read("yumetan.dreams", []);
-      state = {
-        version: 4,
-        profile: normalizeProfile(old.profile),
-        records: legacy.map(normalizeRecord),
-        deleted: [],
-      };
+      state = migrateLegacy(old, legacy, await read("yumetan.diary", []));
       await commit(state);
     }
     // Resolve account scope before exposing editable UI. If offline, keep the last

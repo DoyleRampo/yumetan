@@ -264,3 +264,45 @@ test("AI routes propagate requested language, context, and multimodal content us
   assert.equal(payload.text, "Notebook text");
   assert.equal(gates, 2);
 });
+
+test("main v4 migration retains separate diary, questionnaire, aliases, and old sleep evidence", async () => {
+  const { migrateLegacy, legacyAnswers } =
+    await import("../public/core/storage.js");
+  const quiz = TYPES.map((type) => ({
+    type:
+      type.id === "deja" ? "dejavu" : type.id === "aware" ? "partial" : type.id,
+    value: type.id === "challenge" ? 2 : 0,
+  }));
+  const oldSleep = { score: 82, level: 5, hours: 7, check: { feel: "good" } };
+  const oldDream = record({
+    tags: ["dejavu", "partial"],
+    typeTags: undefined,
+    sleep: oldSleep,
+  });
+  const oldDiary = record({
+    id: "diary-1",
+    date: "2026-09-14",
+    mood: 4,
+    tags: ["exercise"],
+    text: "Previous day",
+  });
+  const state = migrateLegacy(
+    { profile: { nickname: "Existing" }, lang: "ko", typeState: { quiz } },
+    [oldDream],
+    [oldDiary],
+  );
+  assert.equal(state.profile.language, "ko");
+  assert.equal(classify(state.profile.typeAnswers).id, "challenge");
+  assert.deepEqual(state.records[0].typeTags, ["deja", "aware"]);
+  assert.equal(state.records[0].sleep, null);
+  assert.equal(state.records[0].legacySleep.score, 82);
+  assert.equal(state.records[1].kind, "diary");
+  assert.equal(state.records[1].diaryMood, 4);
+  const backup = parseBackup({
+    dreams: [oldDream],
+    diary: [oldDiary],
+    typeState: { quiz },
+  });
+  assert.equal(backup.records.length, 2);
+  assert.deepEqual(backup.typeAnswers, legacyAnswers({ quiz }));
+});

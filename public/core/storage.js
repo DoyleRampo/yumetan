@@ -13,6 +13,38 @@ export async function write(key, value) {
   if (preferences) await preferences.set({ key, value: raw });
   else localStorage.setItem(key, raw);
 }
+export const typeAlias = (id) =>
+  ({ dejavu: "deja", partial: "aware" })[id] || id;
+export function legacyAnswers(typeState) {
+  const quiz = typeState?.quiz;
+  if (!Array.isArray(quiz) || quiz.length !== 16) return null;
+  const values = TYPES.map((type, i) =>
+    typeof quiz[i] === "number"
+      ? quiz[i]
+      : quiz.find((q) => typeAlias(q?.type) === type.id)?.value,
+  );
+  return values.every((v) => [0, 1, 2].includes(v)) ? values : null;
+}
+export function migrateLegacy(settings, dreams = [], diary = []) {
+  return {
+    version: 4,
+    profile: normalizeProfile(
+      settings?.profile
+        ? {
+            ...settings.profile,
+            language: settings.lang || settings.profile.language,
+            typeAnswers:
+              settings.profile.typeAnswers || legacyAnswers(settings.typeState),
+            legacyTypeState: settings.typeState || null,
+          }
+        : null,
+    ),
+    records: [...dreams, ...diary.map((d) => ({ ...d, kind: "diary" }))].map(
+      normalizeRecord,
+    ),
+    deleted: [],
+  };
+}
 export function normalizeRecord(raw) {
   if (
     !raw ||
@@ -51,16 +83,28 @@ export function normalizeRecord(raw) {
     kind,
     date,
     text,
-    messages,
+    messages: messages.length ? messages : text ? [{ role: "user", text }] : [],
+    tags: Array.isArray(raw.tags)
+      ? raw.tags.filter((x) => typeof x === "string").slice(0, 20)
+      : [],
+    diaryMood: raw.diaryMood ?? raw.mood ?? null,
+    legacySleep:
+      raw.legacySleep ||
+      (raw.sleep && !validateSleep(raw.sleep) ? raw.sleep : null),
     createdAt: raw.createdAt,
     updatedAt: Number.isFinite(Date.parse(raw.updatedAt))
       ? raw.updatedAt
       : raw.createdAt,
     typeTags: [
       ...new Set(
-        (Array.isArray(raw.typeTags) ? raw.typeTags : []).filter((id) =>
-          TYPES.some((t) => t.id === id),
-        ),
+        (Array.isArray(raw.typeTags)
+          ? raw.typeTags
+          : kind !== "diary" && Array.isArray(raw.tags)
+            ? raw.tags
+            : []
+        )
+          .map(typeAlias)
+          .filter((id) => TYPES.some((t) => t.id === id)),
       ),
     ],
     sleep: validateSleep(raw.sleep)
@@ -114,10 +158,18 @@ export function parseBackup(value) {
     : value?.records || value?.dreams;
   if (!Array.isArray(records) || records.length > 5000)
     throw new Error("Invalid backup");
-  const normalized = records.map(normalizeRecord);
+  const diaries = Array.isArray(value?.diary) ? value.diary : [];
+  const normalized = [
+    ...records,
+    ...diaries.map((d) => ({ ...d, kind: "diary" })),
+  ].map(normalizeRecord);
   if (new Set(normalized.map((r) => r.id)).size !== normalized.length)
     throw new Error("Duplicate IDs");
-  return { records: normalized, profile: normalizeProfile(value?.profile) };
+  return {
+    records: normalized,
+    profile: normalizeProfile(value?.profile),
+    typeAnswers: legacyAnswers(value?.typeState),
+  };
 }
 export function mergeRecords(local, remote, deleted = []) {
   const result = new Map(local.map((r) => [r.id, r]));

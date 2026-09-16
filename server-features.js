@@ -85,8 +85,9 @@ export function registerFeatures(
     "/api/reflect",
     asyncRoute(async (req, res) => {
       const data = reflectionInput(req.body);
-      gate(req);
+      const client = gate(req);
       const analysis = await callClaude({
+        client,
         system: [
           {
             type: "text",
@@ -104,8 +105,9 @@ export function registerFeatures(
     "/api/handwriting",
     asyncRoute(async (req, res) => {
       const data = handwritingInput(req.body);
-      gate(req);
+      const client = gate(req);
       const output = await callClaude({
+        client,
         system: [
           {
             type: "text",

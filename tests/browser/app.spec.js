@@ -220,10 +220,12 @@ test("AI reflection and OCR preserve language and require review before saving",
   await start(page, "en");
   await page.locator("nav [data-go=settings]").click();
   await page.locator("#engine").check();
+  await page.locator("#own-key").fill("sk-test-fixture");
   await page.locator("#settings-form button[type=submit]").click();
   let reflectionRequest;
   await page.route("**/api/reflect", async (route) => {
     reflectionRequest = route.request().postDataJSON();
+    expect(route.request().headers()["x-yumetan-key"]).toBe("sk-test-fixture");
     await route.fulfill({
       json: {
         analysis: {
@@ -257,6 +259,9 @@ test("AI reflection and OCR preserve language and require review before saving",
   await page.locator("[data-action=analyze]").click();
   await expect(page.locator("main")).toContainText("A gentle reflection.");
   expect(reflectionRequest.language).toBe("en");
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(
+    "sk-test-fixture",
+  );
   expect(reflectionRequest.typeTags).toContain("challenge");
   await page.locator("#language").selectOption("ko");
   await expect(page.locator("html")).toHaveAttribute("lang", "ko");
@@ -331,4 +336,111 @@ test("HTTP rejects malformed AI requests and exposes only configuration status",
     data: { language: "en", image: "data:text/html;base64,AAAA" },
   });
   expect(image.status()).toBe(400);
+});
+
+test("legacy main v4 profile, diary, and dream migrate without repeating onboarding", async ({
+  page,
+}) => {
+  await localOnly(page);
+  await page.addInitScript(
+    ({ today, yesterday }) => {
+      const types = [
+        "chase",
+        "loss",
+        "bound",
+        "collapse",
+        "future",
+        "intuition",
+        "symbol",
+        "dejavu",
+        "lucid",
+        "partial",
+        "observer",
+        "challenge",
+        "place",
+        "person",
+        "story",
+        "emotion",
+      ];
+      localStorage.setItem(
+        "yumetan.settings",
+        JSON.stringify({
+          lang: "en",
+          profile: { nickname: "Existing", ageGroup: "20代" },
+          typeState: {
+            quiz: types.map((type) => ({
+              type,
+              value: type === "challenge" ? 2 : 0,
+            })),
+          },
+        }),
+      );
+      localStorage.setItem(
+        "yumetan.diary",
+        JSON.stringify([
+          {
+            id: "legacy-diary",
+            date: yesterday,
+            text: "Previous diary from main",
+            createdAt: yesterday + "T12:00:00Z",
+          },
+        ]),
+      );
+      localStorage.setItem(
+        "yumetan.dreams",
+        JSON.stringify([
+          {
+            id: "legacy-dream",
+            createdAt: today + "T06:00:00Z",
+            messages: [{ role: "user", text: "A dream from main" }],
+            tags: ["challenge"],
+          },
+        ]),
+      );
+    },
+    { today: today(), yesterday: yesterday() },
+  );
+  await page.goto("/");
+  await expect(page.locator("main h2").first()).toHaveText("The Challenger");
+  await page.locator("nav [data-go=history]").click();
+  await expect(page.locator(".entry")).toHaveCount(2);
+  await page.locator(".entry").filter({ hasText: "A dream from main" }).click();
+  await page.locator("[data-action=edit]").click();
+  await expect(page.locator("main")).toContainText("Previous diary from main");
+});
+
+test("iOS notification schedules and cancels without claiming to be a Clock alarm", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.notificationCalls = [];
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      getPlatform: () => "ios",
+      Plugins: {
+        LocalNotifications: {
+          requestPermissions: async () => ({ display: "granted" }),
+          schedule: async (input) => window.notificationCalls.push(input),
+          cancel: async (input) =>
+            window.notificationCalls.push({ cancel: input }),
+        },
+      },
+    };
+  });
+  await start(page, "en");
+  await page.locator("nav [data-go=settings]").click();
+  await page.locator("#alarm-time").fill("06:45");
+  await page.locator("[data-action=notify-wake]").click();
+  expect(
+    await page.evaluate(
+      () => window.notificationCalls[0].notifications[0].schedule.on,
+    ),
+  ).toEqual({ hour: 6, minute: 45 });
+  await expect(page.locator("#toast")).toContainText("not a Clock alarm");
+  await page.locator("[data-action=cancel-wake]").click();
+  expect(
+    await page.evaluate(
+      () => window.notificationCalls[1].cancel.notifications[0].id,
+    ),
+  ).toBe(1);
 });
