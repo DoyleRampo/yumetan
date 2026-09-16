@@ -27,6 +27,13 @@ async function start(page, lang = "ja") {
     await page.locator('[data-action="quiz-next"]').click();
   }
   await expect(page.locator("[data-action=begin]")).toBeVisible();
+  await expect(page.locator(".character-name")).toHaveText(
+    { ja: "キロ", ko: "키로", zh: "奇洛", en: "Kiro" }[lang],
+  );
+  await expect(page.locator(".character-art")).toHaveAttribute(
+    "src",
+    /challenge\.webp$/,
+  );
   await page.locator("[data-action=begin]").click();
   await expect(page.locator("[data-action=record]")).toBeVisible();
 }
@@ -42,7 +49,10 @@ for (const [lang, label] of [
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await start(page, lang);
-    await expect(page.locator("main h2").first()).toHaveText(label);
+    await expect(page.locator(".character-row")).toContainText(label);
+    await expect(page.locator(".character-row .character-name")).toHaveText(
+      { ja: "キロ", ko: "키로", zh: "奇洛", en: "Kiro" }[lang],
+    );
     await expect(page.locator("html")).toHaveAttribute("lang", lang);
     await expect(page.locator("main")).not.toContainText("undefined");
     expect(
@@ -56,7 +66,10 @@ for (const [lang, label] of [
         fullPage: true,
       });
     await page.reload();
-    await expect(page.locator("main h2").first()).toHaveText(label);
+    await expect(page.locator(".character-row")).toContainText(label);
+    await expect(page.locator(".character-row .character-name")).toHaveText(
+      { ja: "キロ", ko: "키로", zh: "奇洛", en: "Kiro" }[lang],
+    );
     expect(errors).toEqual([]);
   });
 }
@@ -85,6 +98,9 @@ test("diary context, sleep growth, persisted history, image, delete, and backup"
   await expect(page.locator("main")).toContainText("Sleep level: 5 / 5");
   await page.locator("nav [data-go=home]").click();
   await expect(page.locator(".score")).toContainText("5");
+  await expect(
+    page.locator(".character-row .character-stars .lit"),
+  ).toHaveCount(5);
   await page.reload();
   await expect(page.locator(".score")).toContainText("5");
   await page.locator("nav [data-go=history]").click();
@@ -187,6 +203,18 @@ test.describe("offline cache", () => {
     await page.locator("#dream-text").fill("An offline dream");
     await page.locator("#dream-form button[type=submit]").click();
     await expect(page.locator("main")).toContainText("An offline dream");
+    await page.locator("nav [data-go=home]").click();
+    await page.locator("[data-action=catalog]").click();
+    await expect(page.locator(".character-art")).toHaveCount(16);
+    await expect
+      .poll(() =>
+        page
+          .locator(".character-art")
+          .evaluateAll((images) =>
+            images.every((img) => img.complete && img.naturalWidth > 0),
+          ),
+      )
+      .toBe(true);
     await context.setOffline(false);
   });
 });
@@ -401,7 +429,10 @@ test("legacy main v4 profile, diary, and dream migrate without repeating onboard
     { today: today(), yesterday: yesterday() },
   );
   await page.goto("/");
-  await expect(page.locator("main h2").first()).toHaveText("The Challenger");
+  await expect(page.locator(".character-row .character-name")).toHaveText(
+    "Kiro",
+  );
+  await expect(page.locator(".character-row")).toContainText("The Challenger");
   await page.locator("nav [data-go=history]").click();
   await expect(page.locator(".entry")).toHaveCount(2);
   await page.locator(".entry").filter({ hasText: "A dream from main" }).click();
@@ -443,4 +474,73 @@ test("iOS notification schedules and cancels without claiming to be a Clock alar
       () => window.notificationCalls[1].cancel.notifications[0].id,
     ),
   ).toBe(1);
+});
+
+test("all sixteen illustrations and localized stories render without overflow", async ({
+  page,
+}) => {
+  await start(page, "ja");
+  await page.locator("[data-action=catalog]").click();
+  await expect(page.locator(".type-card")).toHaveCount(16);
+  await expect
+    .poll(() =>
+      page
+        .locator(".character-art")
+        .evaluateAll((images) =>
+          images.every((img) => img.complete && img.naturalWidth > 0),
+        ),
+    )
+    .toBe(true);
+  expect(
+    new Set(
+      await page
+        .locator(".character-art")
+        .evaluateAll((images) => images.map((img) => img.src)),
+    ).size,
+  ).toBe(16);
+  for (const [lang, first, last] of [
+    ["ja", "ルノ", "ココ"],
+    ["ko", "루노", "코코"],
+    ["zh", "露诺", "可可"],
+    ["en", "Luno", "Coco"],
+  ]) {
+    await page.locator("#language").selectOption(lang);
+    await expect(page.locator(".type-card .character-name").first()).toHaveText(
+      first,
+    );
+    await expect(page.locator(".type-card .character-name").last()).toHaveText(
+      last,
+    );
+    await page.locator(".character-details summary").first().click();
+    await expect(page.locator(".character-story").first()).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
+  await page.locator("#language").selectOption("ja");
+  await page.screenshot({
+    path: "test-results/characters-mobile.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({
+    path: "test-results/characters-desktop.png",
+    fullPage: true,
+  });
+});
+
+test("missing artwork preserves identity and unmeasured sleep shows no level stars", async ({
+  page,
+}) => {
+  await page.route("**/challenge.webp", (route) => route.abort());
+  await start(page, "en");
+  await expect(
+    page.locator(".character-row .character-fallback"),
+  ).toBeVisible();
+  await expect(page.locator(".character-row .character-name")).toHaveText(
+    "Kiro",
+  );
+  await expect(page.locator(".character-stars")).toHaveCount(0);
 });
