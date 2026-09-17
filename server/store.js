@@ -22,6 +22,8 @@ export function firebaseServices(env = process.env) {
       getFirestore(app, env.FIRESTORE_DATABASE_ID || "(default)"),
     ),
     verify: (token) => getAuth(app).verifyIdToken(token, true),
+    mint: (uid) => getAuth(app).createCustomToken(uid),
+    getUser: (uid) => getAuth(app).getUser(uid),
   };
 }
 export class FirestoreStore {

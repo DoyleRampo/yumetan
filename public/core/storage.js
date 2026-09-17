@@ -179,7 +179,7 @@ export function mergeRecords(local, remote, deleted = []) {
     if (!prev || Date.parse(next.updatedAt) > Date.parse(prev.updatedAt))
       result.set(next.id, {
         ...next,
-        photo: next.photo || prev?.photo || null,
+        photo: Object.hasOwn(raw, "photo") ? next.photo : prev?.photo || null,
       });
   }
   for (const id of deleted) result.delete(id);

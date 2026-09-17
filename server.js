@@ -1,6 +1,7 @@
 // Private journals stay on the device / in owner-only Firestore documents.
 // Paid community, billing and GPT requests pass through this authenticated server.
 import express from "express";
+import { registerAuthBridge } from "./server/auth-bridge.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,6 +47,7 @@ app.post(
   }),
 );
 app.use(express.json({ limit: "750kb" }));
+registerAuthBridge(app, { ...services, asyncRoute });
 const bursts = new Map();
 app.use(
   "/api",
@@ -127,27 +129,33 @@ app.use("/api", (req, res) =>
 );
 app.use(
   express.static(path.join(here, "public"), {
-    setHeaders: (res, file) =>
+    setHeaders: (res, file) => {
+      if (/[/\\]auth\.(html|js)$/.test(file)) {
+        res.setHeader("Cache-Control", "no-store");
+        res.setHeader("Referrer-Policy", "no-referrer");
+        res.setHeader(
+          "Content-Security-Policy",
+          "frame-ancestors 'none'; base-uri 'none'",
+        );
+        return;
+      }
       res.setHeader(
         "Cache-Control",
         /\.(png|webp|svg|ico)$/.test(file)
           ? "public, max-age=604800"
           : "no-cache",
-      ),
+      );
+    },
   }),
 );
 app.use((err, req, res, next) => {
   const status = err.status || 500;
   if (status >= 500)
     console.error("Request failed", { status, name: err.name });
-  res
-    .status(status)
-    .json({
-      error:
-        err.code || (status === 400 ? "invalidInput" : "serviceUnavailable"),
-      code:
-        err.code || (status === 400 ? "invalidInput" : "serviceUnavailable"),
-    });
+  res.status(status).json({
+    error: err.code || (status === 400 ? "invalidInput" : "serviceUnavailable"),
+    code: err.code || (status === 400 ? "invalidInput" : "serviceUnavailable"),
+  });
 });
 app.listen(Number(process.env.PORT || 3000), "0.0.0.0", () =>
   console.log("Yumetan API ready"),

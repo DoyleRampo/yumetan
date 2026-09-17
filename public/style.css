@@ -798,3 +798,11 @@ select {
 .character-set-option .avatar {
   margin-bottom: 10px;
 }
+
+.auth-buttons { display: grid; gap: 12px; margin: 20px 0; }
+.auth-buttons .btn { width: 100%; min-height: 48px; font-weight: 600; }
+.auth-google { background: #fff; color: #1f1f1f; border: 1px solid #747775; }
+.auth-apple { background: #000; color: #fff; border: 1px solid #777; }
+.auth-line { background: #06c755; color: #fff; border: 1px solid #06c755; }
+.account-card summary { cursor: pointer; padding: 12px 0; }
+.account-card .status { margin-bottom: 12px; }

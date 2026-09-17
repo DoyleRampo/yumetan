@@ -1,6 +1,6 @@
 {
   "name": "yumetan",
-  "version": "4.3.0",
+  "version": "4.4.0",
   "description": "ユメタン — 16タイプの夢キャラクターを育てる、夢と睡眠の日記AI（日本語・English・한국어・中文）",
   "type": "module",
   "private": true,
