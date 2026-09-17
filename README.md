@@ -15,7 +15,7 @@
 
 ## 実行
 
-Node.js 20.12以上。
+Node.js 22以上。
 
 ```sh
 npm ci
@@ -25,33 +25,37 @@ npm start
 
 **APIキーなしで起動し、端末内のルールで利用できます。** 画面・結果・助言はすべて4言語の静的カタログにあります。本人が書いた夢・日記や過去のAI出力の原文を自動翻訳することはありません。言語を切り替えた場合、異なる言語で生成済みのAI出力に代えて、選択言語のローカル振り返りを表示します。
 
-## 任意のAI機能
+## v4.3: プランと「みんなの夢」
 
-1. `.env.example` を `.env` にコピーし、サーバー側の `ANTHROPIC_API_KEY` を入力。
-2. `npm start` でサーバーを再起動。
-3. アプリの設定で「AIで分析する」をオンにし、別サーバーの場合はHTTPSのURLを設定。
-4. 「AIの設定を確認」でキー設定の有無を確認。
+無料・スターター（月490円 / 年4,800円）・スタンダード（月980円 / 年9,800円）を追加しました。[全利用制限・費用試算・運用手順](docs/billing/PLANS_AND_SETUP.md)を参照してください。
 
-| 変数 | 内容 | 既定 |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | AI・ノート文字認識のためのサーバー専用キー | 未設定（ローカル動作） |
-| `CLAUDE_MODEL` | 画像入力・構造化出力に対応するモデル | `claude-opus-5` |
-| `ACCESS_CODE` | 公開AIサーバーの合言葉 | 空 |
-| `LIMIT_PER_USER_DAY` | 利用ID単位の日次リクエスト上限 | 60 |
-| `LIMIT_GLOBAL_DAY` | サーバー全体の日次リクエスト上限 | 3000 |
-| `PORT` | ポート | 3000 |
+- 無料でも日付ごとに夢1件・日記1ページ。過去の記録の閲覧・編集・端末内分析は継続できます。
+- 有料会員は「みんなの夢」で他ユーザーの公開投稿を閲覧し、スタンプとコメントで交流できます。
+- 夢は初期状態で非公開。保存後の詳細 → 公開設定で、公開用ニックネーム・タイトル・本文を確認し、同意して公開します。元の日記・写真・睡眠・AI分析は公開しません。
+- プランは端末の値で認可せず、Firebase IDトークンとサーバー専用会員情報で確認。Stripeの署名付きWebhookと支払済み期間により反映します。
+- GPT振り返り/OCRは有料プランの回数・費用上限内で使用。保存は常にローカル処理で、AI呼び出しは明示操作時だけです。
+- WebはStripe Checkout/契約管理へ接続。iOS・Androidでの新規購入はストア内課金の接続待ちで、購入ボタンを無効化しています。
 
-設定の「自分のClaude APIキー」にも入力できます。このキーは起動中のメモリだけに保持し、保存・バックアップには含めません。キーは設定したサーバーへ送るため、信頼するサーバーを指定してください。AIオン時は夢・前日の日記を設定先サーバーとAnthropicに送信します。ノート画像は「AIで文字を読み取る」を押したときだけ送信します。AI失敗時には入力を残し、設定から端末内処理へ戻せます。ローカル動作で画像を選んでもOCRは行わず、手入力で補います。
+## GPT・課金・投稿機能の接続
 
-### API
+`.env.example`を`.env`へコピーし、OpenAI、同じFirebaseプロジェクトのサーバー認証情報、Stripeの4価格IDとWebhook署名シークレットを設定してください。キーをGitHubへ保存しないでください。未設定時も無料の端末内記録は使えますが、未設定の有料サービスを購入可能とは表示しません。
 
-- `GET /api/health`: キー設定有無・モデル・合言葉の必要性
-- `POST /api/reflect`: `{ language, text, date, typeTags, diary: { date, text } | null }`
-- `POST /api/handwriting`: `{ language, image: "data:image/jpeg;base64,…" }`
-- `GET /api/sleep-knowledge`: 参照文献と暫定評価ルールのJSON
-- 従来の `/api/listen`・`/api/interview`・`/api/insight` は互換性のため保持
+AIをオンにすると、明示的に「分析」を押した際に夢と前日の日記が、OCR時に写真がOpenAIへ送られます。公開文章とコメントも安全性確認のためOpenAIへ送られます。個人APIキーによる制限回避は提供しません。旧Claude用エンドポイントは廃止しました。
 
-AIは結果の振り返りとOCRを補います。タイプ分類と睡眠点数は常に同じローカルルールを使うため、AIの回答で恣意的にレベルが変わることはありません。
+主なAPI（会員・投稿・AI・課金の操作には非匿名のFirebase Bearerトークンが必要）:
+
+- `GET /api/health`：接続設定の有無（秘密値は返しません）
+- `GET /api/account`：会員状態・使用数・次回AI枠更新
+- `POST /api/billing/checkout`、`POST /api/billing/portal`：Web決済/契約管理
+- `POST /api/billing/webhook`：Stripe署名のみで検証
+- `GET /api/community/feed`、`POST /api/community/publish`、`GET /api/community/mine`
+- `POST /api/community/posts/:id/private`、`GET /api/community/posts/:id`
+- `POST /api/community/posts/:id/reaction`、`POST /api/community/posts/:id/comments`
+- 通報・ブロック・コメント削除、運営者専用の通報確認/非表示API
+- `POST /api/reflect`、`POST /api/handwriting`：GPT-4.1 mini
+- `GET /api/sleep-knowledge`：参照文献と暫定評価ルール
+
+AIは振り返りとOCRを補います。タイプ分類と睡眠点数は引き続き端末内のルールで計算します。
 
 ## 判定ルール
 
@@ -126,4 +130,4 @@ cd android
 
 ## main v4との統合
 
-公開mainに追加されていたAPI（OCR・睡眠・タイプ・旧分析）、AndroidのYumetanAlarmプラグイン、iOS通知依存、知識資料と素材案を保持しています。現行画面は `public/core/` のルールと4言語カタログを使用します。旧 `public/engine/types.js`・`sleep.js` は互換資料として保持していますが、現行画面からは呼びません。旧配点を科学的に検証済みとは扱いません。
+AndroidのYumetanAlarmプラグイン、iOS通知依存、知識資料と素材案を保持しています。旧Claude APIはv4.3で有料GPT振り返り/OCRへ移行しました。現行画面は `public/core/` のルールと4言語カタログを使用します。旧 `public/engine/types.js`・`sleep.js` は互換資料として保持していますが、現行画面からは呼びません。旧配点を科学的に検証済みとは扱いません。

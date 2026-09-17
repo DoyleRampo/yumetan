@@ -265,12 +265,11 @@ test("AI reflection and OCR preserve language and require review before saving",
   await start(page, "en");
   await page.locator("nav [data-go=settings]").click();
   await page.locator("#engine").check();
-  await page.locator("#own-key").fill("sk-test-fixture");
   await page.locator("#settings-form button[type=submit]").click();
   let reflectionRequest;
   await page.route("**/api/reflect", async (route) => {
     reflectionRequest = route.request().postDataJSON();
-    expect(route.request().headers()["x-yumetan-key"]).toBe("sk-test-fixture");
+    expect(route.request().headers()["x-yumetan-key"]).toBeUndefined();
     await route.fulfill({
       json: {
         analysis: {
@@ -623,13 +622,13 @@ test("appearance save preserves other settings drafts and failed saves do not sw
 }) => {
   await start(page, "en");
   await page.locator("nav [data-go=settings]").click();
-  await page.locator("#own-key").fill("unsaved-test-key");
+  await page.locator("#api-url").fill("https://api.example.test");
   await page.locator("#character-form input[value=animal]").check();
   await page.locator("#character-form button[type=submit]").click();
-  await expect(page.locator("#own-key")).toHaveValue("unsaved-test-key");
+  await expect(page.locator("#api-url")).toHaveValue("https://api.example.test");
   page.once("dialog", (dialog) => dialog.dismiss());
   await page.locator("nav [data-go=home]").click();
-  await expect(page.locator("#own-key")).toBeVisible();
+  await expect(page.locator("#api-url")).toBeVisible();
   await page.locator("#settings-form button[type=submit]").click();
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;

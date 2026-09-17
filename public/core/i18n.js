@@ -7,6 +7,8 @@ export const languageNames = {
 };
 // Every UI message has an explicit translation. User-authored journal text is preserved.
 export const messages = {
+  community: ["みんなの夢", "모두의 꿈", "大家的梦", "Dream feed"],
+  plans: ["プラン", "요금제", "套餐", "Plans"],
   brand: ["ユメタン", "유메탄", "梦笺", "Yumetan"],
   home: ["ホーム", "홈", "首页", "Home"],
   record: ["夢を記録", "꿈 기록", "记录梦境", "Dream"],

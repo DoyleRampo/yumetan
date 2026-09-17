@@ -226,7 +226,7 @@ test("AI routes propagate requested language, context, and multimodal content us
       gate: () => gates++,
       asyncRoute: (fn) => fn,
       knowledge: "Evidence",
-      callClaude: async (args) => {
+      callAI: async (args) => {
         calls.push(args);
         return args.schema.parse(
           args.messages[0].content instanceof Array

@@ -77,16 +77,13 @@ export function handwritingInput(body) {
     source: { type: "base64", media_type: `image/${match[1]}`, data: match[2] },
   };
 }
-export function registerFeatures(
-  app,
-  { gate, callClaude, knowledge, asyncRoute },
-) {
+export function registerFeatures(app, { gate, callAI, knowledge, asyncRoute }) {
   app.post(
     "/api/reflect",
     asyncRoute(async (req, res) => {
       const data = reflectionInput(req.body);
-      const client = gate(req);
-      const analysis = await callClaude({
+      const client = await gate(req);
+      const analysis = await callAI({
         client,
         system: [
           {
@@ -96,7 +93,7 @@ export function registerFeatures(
         ],
         messages: [{ role: "user", content: JSON.stringify(data) }],
         schema: Reflection,
-        effort: "low",
+        kind: "reflections",
       });
       res.json({ analysis });
     }),
@@ -105,8 +102,8 @@ export function registerFeatures(
     "/api/handwriting",
     asyncRoute(async (req, res) => {
       const data = handwritingInput(req.body);
-      const client = gate(req);
-      const output = await callClaude({
+      const client = await gate(req);
+      const output = await callAI({
         client,
         system: [
           {
@@ -124,7 +121,7 @@ export function registerFeatures(
           },
         ],
         schema: Handwriting,
-        effort: "low",
+        kind: "handwriting",
       });
       res.json({ text: output.text.slice(0, 20000) });
     }),
