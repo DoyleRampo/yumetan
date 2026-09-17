@@ -1,13 +1,18 @@
-const CACHE = "yumetan-4.3.0";
+const CACHE = "yumetan-4.4.0";
 const SHELL = [
   "./",
   "index.html",
-  "style.css?v=4.3.0",
-  "app.js?v=4.3.0",
-  "config.js?v=4.3.0",
-  "firebase-config.js?v=4.3.0",
-  "cloud.js?v=4.3.0",
+  "style.css?v=4.4.0",
+  "app.js?v=4.4.0",
+  "config.js?v=4.4.0",
+  "firebase-config.js?v=4.4.0",
+  "cloud.js?v=4.4.0",
   "core/types.js",
+  "core/auth-providers.js",
+  "core/auth-i18n.js",
+  "core/account-sync.js",
+  "core/cloud-client.js",
+  "core/native-auth.js",
   "community.js",
   "core/plans.js",
   "core/community-i18n.js",
@@ -71,7 +76,8 @@ self.addEventListener("fetch", (event) => {
   if (
     event.request.method !== "GET" ||
     url.origin !== location.origin ||
-    url.pathname.includes("/api/")
+    url.pathname.includes("/api/") ||
+    /\/auth\.(html|js)$/.test(url.pathname)
   )
     return;
   event.respondWith(

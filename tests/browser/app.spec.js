@@ -594,9 +594,14 @@ test("character collections switch both ways without changing journals, type or 
     await expect(
       page.locator(".character-row .character-stars .lit"),
     ).toHaveCount(5);
-    expect(
-      await page.evaluate(() => localStorage.getItem("yumetan.v4.local")),
-    ).toBe(saved);
+    const current = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("yumetan.v4.local")),
+    );
+    const before = JSON.parse(saved);
+    expect(current.records).toEqual(before.records);
+    expect(current.deleted).toEqual(before.deleted);
+    expect(current.profile.typeAnswers).toEqual(before.profile.typeAnswers);
+    expect(current.profile.characterSet).toBe(set);
     await page.locator("[data-action=catalog]").click();
     await expect(page.locator(".type-card .character-name").first()).toHaveText(
       first,
@@ -625,7 +630,9 @@ test("appearance save preserves other settings drafts and failed saves do not sw
   await page.locator("#api-url").fill("https://api.example.test");
   await page.locator("#character-form input[value=animal]").check();
   await page.locator("#character-form button[type=submit]").click();
-  await expect(page.locator("#api-url")).toHaveValue("https://api.example.test");
+  await expect(page.locator("#api-url")).toHaveValue(
+    "https://api.example.test",
+  );
   page.once("dialog", (dialog) => dialog.dismiss());
   await page.locator("nav [data-go=home]").click();
   await expect(page.locator("#api-url")).toBeVisible();

@@ -1,3 +1,10 @@
+import { authText, authError } from "./core/auth-i18n.js";
+import { importGuest } from "./core/account-sync.js";
+import {
+  startNativeAuth,
+  finishNativeAuth,
+  cancelNativeAuth,
+} from "./core/native-auth.js";
 import { createCommunity, communityText } from "./community.js";
 import { canSaveRecord, PLANS } from "./core/plans.js";
 import {
@@ -70,6 +77,12 @@ let t = translator("ja"),
   cloud = null,
   syncTask = null,
   voice = null;
+let pendingGuestKey = null;
+let authChanging = false,
+  stopCloudWatch = null,
+  syncStatus = "pending",
+  syncAgain = false;
+const at = (key) => authText(key, language());
 const language = () => options.language;
 const characterById = (id) => getCharacter(id, options.characterSet);
 const ct = (key) => communityText(key, language());
@@ -119,7 +132,17 @@ function toast(message) {
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => $("#toast").classList.remove("visible"), 6500);
 }
-async function commit(next) {
+async function commit(next, fromCloud = false) {
+  if (
+    !fromCloud &&
+    next.profile &&
+    JSON.stringify(next.profile) !== JSON.stringify(state.profile)
+  )
+    next = {
+      ...next,
+      profile: { ...next.profile, updatedAt: new Date().toISOString() },
+    };
+  if (!fromCloud) syncStatus = "pending";
   try {
     await write(storageKey, next);
     state = next;
@@ -202,6 +225,7 @@ function header() {
           profile: { ...state.profile, language: language() },
         });
       render();
+      await syncCloud();
     } catch {
       toast(t("storageError"));
     }
@@ -257,7 +281,7 @@ function navigate(next, force = false) {
 }
 function profileView() {
   const p = draft || state.profile || {};
-  return `<div class="narrow"><p class="eyebrow">WELCOME TO YOUR DREAM WORLD</p><h1>${t("welcome")}</h1><p class="muted">${t("profileHint")}</p><form id="profile-form" class="card">
+  return `<div class="narrow"><p class="eyebrow">WELCOME TO YOUR DREAM WORLD</p><h1>${t("welcome")}</h1><p class="muted">${t("profileHint")}</p>${!state.profile ? accountView(true) : ""}<form id="profile-form" class="card">
  ${input("nickname", "nickname", p.nickname, "text", 'required maxlength="20" autocomplete="nickname"')}
  <label class="field"><span>${t("age")}</span><select id="ageGroup" class="input">${["10", "20", "30", "40", "50", "60"].map((a) => `<option value="${a === "60" ? "60代以上" : a + "代"}" ${p.ageGroup === (a === "60" ? "60代以上" : a + "代") ? "selected" : ""}>${t("age" + a)}</option>`).join("")}</select></label>
  <p class="help">${t("language")}: ${languageNames[language()]}</p><button class="btn primary full" type="submit">${t(state.profile?.typeAnswers ? "save" : "startQuiz")}</button></form><p class="help">${t("typeNote")}</p></div>`;
@@ -415,7 +439,57 @@ function settingsView() {
  <form id="settings-form" class="card"><h2>AI</h2><label class="check"><input type="checkbox" id="engine" ${options.engine === "ai" ? "checked" : ""}><span>${t("ai")}</span></label><p class="help">${ct("planAIHint")}</p>${input("apiUrl", "api-url", options.apiBase, "url", 'placeholder="https://…"')}<div class="row"><button type="submit" class="btn primary">${t("save")}</button>${button("testConnection", "health", "ghost")}</div></form>
  <form id="alarm-form" class="card"><h2>${t("alarm")}</h2>${input("alarmTime", "alarm-time", options.alarmTime || "07:00", "time", "required")}<p class="help">${t(native && cap.getPlatform() === "android" ? "alarmHint" : "alarmManual")}</p><button type="submit" class="btn primary">${t(native && cap.getPlatform() === "android" ? "alarmOpen" : "save")}</button><p id="alarm-status" class="status" role="status"></p>${native && cap.getPlatform() === "ios" ? `<p class="help">${t("notifyHint")}</p><div class="row">${button("notifyWake", "notify-wake", "ghost")}${button("cancelWake", "cancel-wake", "ghost")}</div>` : ""}</form>
  <div class="card"><h2>${t("backup")}</h2><p class="help">${t("localOnly")}</p>${button("export", "export", "ghost")}<label class="field" style="margin-top:20px"><span>${t("import")}</span><input type="file" id="import-file" accept="application/json,.json"></label><p class="help">${t("importHint")}</p></div>
- <div class="card"><h2>${t("account")}</h2><p class="help">${t(cloudOn ? "cloudReady" : "localOnly")}</p>${cloudOn ? (signed ? `<p>${esc(cloud.email())}</p><div class="row">${button("signOut", "signout", "ghost")}${button("sync", "sync", "ghost")}</div>` : `<form id="account-form">${input("email", "email", "", "email", 'required autocomplete="email"')}${input("password", "password", "", "password", 'minlength="6" autocomplete="current-password"')}<div class="row"><button type="submit" class="btn primary">${t("signIn")}</button>${button("signUp", "signup", "ghost")}${button("resetPassword", "reset-password", "small ghost")}</div></form>`) : ""}</div></div>`;
+ ${accountView()}</div>`;
+}
+function accountView(onboard = false) {
+  const enabled = cloud?.state.enabled,
+    signed = enabled && !cloud.isAnonymous();
+  const providers = cloud?.providers?.() || [];
+  return `<section class="card account-card"><h2>${t("account")}</h2><p class="help">${at(signed ? "loginHint" : "guestHint")}</p><p class="status" id="account-sync-status" role="status">${at(enabled ? syncStatus : "offline")}</p>
+  ${signed ? `<p>${esc(cloud.email() || cloud.displayName?.() || state.profile?.nickname || "Yumetan")}</p><div class="row">${button("signOut", "signout", "ghost")}${button("sync", "sync", "ghost")}</div><h3>${at("link")}</h3><p class="help">${at("linkHint")}</p>` : `<p class="help">${at("loginHint")}</p>`}
+  <div class="auth-buttons">${["google", "apple", "line"]
+    .map((provider) => {
+      const linked = providers.includes(
+        { google: "google.com", apple: "apple.com", line: "oidc.line" }[
+          provider
+        ],
+      );
+      return `<button type="button" class="btn auth-${provider}" data-auth-provider="${provider}" ${!enabled || linked ? "disabled" : ""}>${at(provider)}${linked ? ` · ${at("linked")}` : ""}</button>`;
+    })
+    .join("")}</div>
+  ${signed && pendingGuestKey ? `<button type="button" class="btn ghost" data-action="import-guest">${at("importLater")}</button>` : ""}
+  ${!enabled ? `<button type="button" class="btn ghost" data-action="auth-retry">${at("reconnect")}</button>` : ""}
+  ${!signed && enabled ? `<details><summary>${at("email")}</summary><form id="account-form">${input("email", "email", "", "email", 'required autocomplete="email"')}${input("password", "password", "", "password", 'minlength="6" autocomplete="current-password"')}<div class="row"><button type="submit" class="btn primary">${t("signIn")}</button>${button("signUp", "signup", "ghost")}${button("resetPassword", "reset-password", "small ghost")}</div></form></details>` : ""}
+  ${onboard && !signed ? `<button type="button" class="btn ghost full" data-action="guest">${at("guest")}</button>` : ""}</section>`;
+}
+function showSyncStatus(value) {
+  syncStatus = value;
+  const el = $("#account-sync-status");
+  if (el) el.textContent = at(value);
+}
+function applyAccountPreferences() {
+  if (state.profile?.language) {
+    options.language = state.profile.language;
+    t = translator(language());
+  }
+  options.characterSet = normalizeCharacterSet(
+    state.profile?.characterSet || DEFAULT_CHARACTER_SET,
+  );
+  options.engine = state.profile?.engine === "ai" ? "ai" : "local";
+}
+function watchAccount() {
+  stopCloudWatch?.();
+  stopCloudWatch = null;
+  if (cloud?.uid() && cloud.watch)
+    stopCloudWatch = cloud.watch(
+      () => {
+        if (authChanging) return;
+        syncCloud().then(() => {
+          if (!dirty && !processing) render();
+        });
+      },
+      () => showSyncStatus("pending"),
+    );
 }
 function capture() {
   social.capture();
@@ -485,6 +559,7 @@ function bindForms() {
           }),
         });
         await saveQuizDraft();
+        await syncCloud();
         navigate(state.profile.typeAnswers ? "home" : "quiz", true);
       });
   if ($("#dream-form"))
@@ -557,6 +632,12 @@ function bindForms() {
         };
         await write("yumetan.v4.options", next);
         options = next;
+        if (state.profile)
+          await commit({
+            ...state,
+            profile: { ...state.profile, characterSet: next.characterSet },
+          });
+        await syncCloud();
         settingsFormSaved("#character-form");
         toast(t("saved"));
       });
@@ -763,6 +844,12 @@ async function saveOptions() {
     apiBase: url,
   };
   await write("yumetan.v4.options", options);
+  if (state.profile)
+    await commit({
+      ...state,
+      profile: { ...state.profile, engine: options.engine },
+    });
+  await syncCloud();
   settingsFormSaved("#settings-form");
   toast(t("saved"));
 }
@@ -952,14 +1039,41 @@ async function importFile(file) {
   await syncCloud();
 }
 function syncCloud() {
-  if (syncTask) return syncTask;
+  if (syncTask) {
+    syncAgain = true;
+    return syncTask;
+  }
   syncTask = performSync().finally(() => {
     syncTask = null;
+    if (syncAgain && !authChanging) {
+      syncAgain = false;
+      syncCloud();
+    }
   });
   return syncTask;
 }
 async function performSync() {
-  if (!cloud?.state.enabled) return;
+  if (!cloud?.state.enabled || !cloud.uid()) return;
+  if (cloud.syncSnapshot) {
+    const key = storageKey,
+      uid = cloud.uid(),
+      snapshot = structuredClone(state);
+    showSyncStatus("syncing");
+    try {
+      const merged = await cloud.syncSnapshot(snapshot);
+      if (key !== storageKey || uid !== cloud.uid()) return;
+      if (JSON.stringify(state) !== JSON.stringify(snapshot)) {
+        syncAgain = true;
+        return;
+      }
+      await commit(merged, true);
+      applyAccountPreferences();
+      showSyncStatus("cloudSaved");
+    } catch {
+      showSyncStatus("pending");
+    }
+    return;
+  }
   // Anonymous account records are also scoped by uid, preventing account-to-account leakage.
   const syncKey = storageKey,
     uid = cloud.uid();
@@ -985,7 +1099,10 @@ async function performSync() {
         : normalizeProfile({
             ...remoteProfile,
             ...state.profile,
-            typeAnswers: legacyAnswers(remoteType),
+            typeAnswers:
+              state.profile?.typeAnswers ||
+              remoteProfile?.typeAnswers ||
+              legacyAnswers(remoteType),
           }),
     });
     for (const deleted of state.deleted) {
@@ -1006,17 +1123,49 @@ async function performSync() {
       else await cloud.saveDream(payload);
     }
     if (state.profile) await cloud.saveProfile(state.profile);
-    await commit({ ...state, deleted: [] });
+    await commit({ ...state, deleted: [] }, true);
+    showSyncStatus("cloudSaved");
   } catch {
     toast(t("syncError"));
   }
 }
-async function account(mode) {
+async function account(mode, provider = null) {
   const email = $("#email")?.value.trim(),
     password = $("#password")?.value;
+  if (
+    mode === "signout" &&
+    syncStatus === "pending" &&
+    !confirm(at("signoutConfirm"))
+  )
+    return;
+  // Start popup OAuth directly in the click event, before awaiting storage/network.
+  const sourceKey = storageKey,
+    guest = !cloud || cloud.isAnonymous() ? structuredClone(state) : null;
+  const link = mode === "provider" && !cloud.isAnonymous();
+  if (link && !confirm(at("linkHint"))) return;
+  authChanging = true;
+  stopCloudWatch?.();
   try {
     disableActionButtons();
-    if (syncTask) await syncTask;
+    let login;
+    if (mode === "provider" && !native)
+      login = cloud.signInProvider(provider, {
+        link,
+        upgrade: cloud.isAnonymous() && !!cloud.uid(),
+        language: language(),
+      });
+    if (mode === "provider" && native) {
+      await startNativeAuth({
+        cloud,
+        provider,
+        link,
+        language: language(),
+        base: window.YUMETAN_CONFIG?.apiBase || options.apiBase,
+        sourceKey,
+      });
+      toast(at("waiting"));
+      return;
+    }
     if (mode === "reset") {
       await cloud.resetPassword(email);
       toast(t("resetSent"));
@@ -1029,17 +1178,18 @@ async function account(mode) {
         password.length < 6
       )
         return;
-      await cloud.signUp(email, password);
-      await social.refreshAccount().catch(() => {});
-      await syncCloud();
+      login = cloud.signUp(email, password);
     } else if (mode === "signin") {
       if (!email || !password) return;
-      await cloud.signIn(email, password);
-      await switchAccount();
-    } else {
-      await cloud.signOut();
-      await switchAccount();
+      login = cloud.signIn(email, password);
+    } else if (mode === "signout") {
+      await cancelNativeAuth();
+      login = cloud.signOut();
     }
+    await login;
+    if (syncTask) await syncTask;
+    await switchAccount();
+    await offerGuestImport(sourceKey, guest);
     dirty = false;
     processing = false;
     navigate(
@@ -1050,34 +1200,81 @@ async function account(mode) {
           : "onboard",
       true,
     );
-  } catch {
-    throw new Error(t("accountError"));
+  } catch (error) {
+    // Auth may succeed before a persistence/sync error. Never keep the old account visible.
+    if (
+      cloud &&
+      storageKey !==
+        (cloud.uid() ? `yumetan.v4.${cloud.uid()}` : "yumetan.v4.local")
+    )
+      await switchAccount();
+    throw new Error(authError(error.code, language()));
+  } finally {
+    authChanging = false;
+    watchAccount();
   }
+}
+async function offerGuestImport(sourceKey, guest) {
+  if (
+    !guest ||
+    sourceKey === storageKey ||
+    !(guest.records.length || guest.profile)
+  )
+    return;
+  pendingGuestKey = sourceKey;
+  await write(`${storageKey}.guest-import`, sourceKey);
+  if (!confirm(at("importGuest"))) return;
+  await commit(importGuest(state, guest));
+  await write(`${storageKey}.guest-import`, null);
+  pendingGuestKey = null;
+  await syncCloud();
 }
 async function switchAccount() {
   social.reset();
-  storageKey = `yumetan.v4.${cloud.uid()}`;
+  stopCloudWatch?.();
+  storageKey = cloud.uid() ? `yumetan.v4.${cloud.uid()}` : "yumetan.v4.local";
+  state = { version: 4, profile: null, records: [], deleted: [] };
+  draft = null;
+  dirty = false;
   await write("yumetan.v4.active", storageKey);
-  const cached = await read(storageKey),
-    remoteProfile = await cloud.loadProfile();
-  state = cached || {
-    version: 4,
-    profile: normalizeProfile(remoteProfile),
-    records: [],
-    deleted: [],
-  };
-  if (remoteProfile) state.profile = normalizeProfile(remoteProfile);
-  if (state.profile?.language) {
-    options.language = state.profile.language;
-    t = translator(language());
-  }
+  state = (await read(storageKey)) || state;
+  pendingGuestKey = await read(`${storageKey}.guest-import`);
+  applyAccountPreferences();
   const progress = await read(`${storageKey}.quiz`);
   quizAnswers =
     progress?.answers?.length === 16 ? progress.answers : Array(16).fill(null);
   quizIndex = Math.max(0, Math.min(15, progress?.index || 0));
-  draft = null;
   await social.refreshAccount().catch(() => {});
   await syncCloud();
+}
+async function resumeNativeLogin() {
+  if (!native || !cloud || authChanging || processing) return;
+  authChanging = true;
+  try {
+    const pending = await finishNativeAuth(cloud);
+    if (!pending) return;
+    if (syncTask) await syncTask;
+    const guest = pending.guest ? await read(pending.sourceKey) : null;
+    await switchAccount();
+    await offerGuestImport(pending.sourceKey, guest);
+    navigate(
+      state.profile?.typeAnswers ? "home" : state.profile ? "quiz" : "onboard",
+      true,
+    );
+  } catch (error) {
+    if (
+      cloud &&
+      storageKey !==
+        (cloud.uid() ? `yumetan.v4.${cloud.uid()}` : "yumetan.v4.local")
+    ) {
+      await switchAccount();
+      navigate(state.profile?.typeAnswers ? "home" : "onboard", true);
+    }
+    toast(authError(error.code, language()));
+  } finally {
+    authChanging = false;
+    watchAccount();
+  }
 }
 async function startVoice() {
   if (voice) {
@@ -1217,6 +1414,18 @@ const actions = {
   "cancel-wake": () => wakeNotification(true),
   export: exportData,
   sync: syncCloud,
+  guest: () => {
+    $("#nickname")?.focus();
+    $("#profile-form")?.scrollIntoView({ behavior: "smooth" });
+  },
+  "auth-retry": () => {
+    if (!dirty || confirm(t("unsaved"))) location.reload();
+  },
+  "import-guest": async () => {
+    if (pendingGuestKey)
+      await offerGuestImport(pendingGuestKey, await read(pendingGuestKey));
+    render();
+  },
   signup: () => account("signup"),
   signout: () => account("signout"),
   "reset-password": () => account("reset"),
@@ -1243,6 +1452,10 @@ const actions = {
 };
 document.addEventListener("click", (event) => {
   const el = event.target.closest("button");
+  if (el?.dataset.authProvider) {
+    run(() => account("provider", el.dataset.authProvider));
+    return;
+  }
   if (!el || el.disabled) return;
   if (el.dataset.go) {
     navigate(el.dataset.go);
@@ -1338,7 +1551,9 @@ async function boot() {
       clearTimeout(timer);
       if (!ready?.enabled) cloud = null;
       else {
-        const key = `yumetan.v4.${cloud.uid()}`;
+        const key = cloud.uid()
+          ? `yumetan.v4.${cloud.uid()}`
+          : "yumetan.v4.local";
         const existing = await read(key);
         const adopted = await read("yumetan.v4.cloud-adopted", false);
         state =
@@ -1354,6 +1569,9 @@ async function boot() {
         await write("yumetan.v4.cloud-adopted", true);
       }
     }
+    if (state.profile?.characterSet)
+      options.characterSet = normalizeCharacterSet(state.profile.characterSet);
+    pendingGuestKey = await read(`${storageKey}.guest-import`);
     const progress = await read(`${storageKey}.quiz`);
     if (
       progress?.answers?.length === 16 &&
@@ -1367,6 +1585,13 @@ async function boot() {
         ? "home"
         : "quiz"
       : "onboard";
+    if (cloud) {
+      cloud.onUser?.(() => {
+        // Cross-tab auth changes must invalidate every old draft and in-flight view.
+        if (!authChanging) location.reload();
+      });
+      watchAccount();
+    }
     if (cloud && !cloud.isAnonymous())
       await social.refreshAccount().catch(() => {});
     if (
@@ -1396,6 +1621,23 @@ async function boot() {
     $("#app").textContent = t("storageError");
   }
 }
+window.addEventListener("online", () => syncCloud());
+window.addEventListener("focus", () => {
+  resumeNativeLogin();
+  if (!authChanging) syncCloud();
+});
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    resumeNativeLogin();
+    if (!authChanging) syncCloud();
+  }
+});
 await boot();
+if (native) {
+  plugins.App?.addListener("appStateChange", ({ isActive }) => {
+    if (isActive) resumeNativeLogin();
+  });
+  await resumeNativeLogin();
+}
 if ("serviceWorker" in navigator && !native)
   navigator.serviceWorker.register("sw.js").catch(() => {});

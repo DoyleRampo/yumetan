@@ -21,10 +21,10 @@ export const messages = {
     "Character appearance",
   ],
   characterSetHint: [
-    "人間版と動物版をいつでも選べます。選択はこの端末に保存され、夢の記録・診断タイプ・睡眠レベルは変わりません。",
-    "사람과 동물 캐릭터를 언제든 바꿀 수 있어요. 선택은 이 기기에 저장되며 꿈 기록, 유형, 수면 레벨은 그대로예요.",
-    "可随时切换人类或动物角色。选择保存在本设备上，不影响梦境记录、类型或睡眠等级。",
-    "Switch between human and animal characters anytime. Your choice stays on this device; dreams, type, and sleep level stay the same.",
+    "人間版と動物版をいつでも選べます。ログイン中は選択もアカウントに同期され、夢の記録・診断タイプ・睡眠レベルは変わりません。",
+    "사람과 동물 캐릭터를 언제든 바꿀 수 있어요. 로그인 중에는 선택도 계정에 동기화되며 꿈 기록, 유형, 수면 레벨은 그대로예요.",
+    "可随时切换人类或动物角色。登录后选择也会同步至账号，不影响梦境记录、类型或睡眠等级。",
+    "Switch between human and animal characters anytime. When signed in, your choice syncs with your account; dreams, type, and sleep level stay the same.",
   ],
   settings: ["設定", "설정", "设置", "Settings"],
   hero: [
@@ -535,10 +535,10 @@ export const messages = {
     "Saved on this device. Back up important entries.",
   ],
   cloudReady: [
-    "クラウド同期が利用できます。画像は端末内だけに保存します。",
-    "클라우드 동기화를 사용할 수 있어요. 이미지는 기기에만 저장돼요.",
-    "云同步可用，图片仅保存在设备上。",
-    "Cloud sync is available. Images stay on this device.",
+    "夢・日記・画像・プロフィールを本人のアカウントに同期します。",
+    "꿈·일기·사진·프로필을 본인 계정에 동기화해요.",
+    "梦境、日记、图片和个人资料会同步至本人账号。",
+    "Dreams, diary, photos and profile sync to your own account.",
   ],
   syncError: [
     "同期できませんでした。端末に保存済みです。あとで再同期してください。",
