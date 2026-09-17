@@ -40,11 +40,11 @@ npm start
 - 夢は初期状態で非公開。保存後の詳細 → 公開設定で、公開用ニックネーム・タイトル・本文を確認し、同意して公開します。元の日記・写真・睡眠・AI分析は公開しません。
 - プランは端末の値で認可せず、Firebase IDトークンとサーバー専用会員情報で確認。Stripeの署名付きWebhookと支払済み期間により反映します。
 - GPT振り返り/OCRは有料プランの回数・費用上限内で使用。保存は常にローカル処理で、AI呼び出しは明示操作時だけです。
-- WebはStripe Checkout/契約管理へ接続。iOS・Androidでの新規購入はストア内課金の接続待ちで、購入ボタンを無効化しています。
+- WebはStripe Checkout/契約管理へ接続。iOS・AndroidはRevenueCat経由のストア内課金（App Store / Google Play）で購入・復元し、サーバーがRevenueCatの購読者情報を秘密キーで読み直してから権限を付与します。
 
 ## GPT・課金・投稿機能の接続
 
-`.env.example`を`.env`へコピーし、OpenAI、同じFirebaseプロジェクトのサーバー認証情報、Stripeの4価格IDとWebhook署名シークレットを設定してください。キーをGitHubへ保存しないでください。未設定時も無料の端末内記録は使えますが、未設定の有料サービスを購入可能とは表示しません。
+`.env.example`を`.env`へコピーし、OpenAI、同じFirebaseプロジェクトのサーバー認証情報、Stripeの4価格IDとWebhook署名シークレット、RevenueCatの秘密キーとWebhook認証値を設定してください。キーをGitHubへ保存しないでください。未設定時も無料の端末内記録は使えますが、未設定の有料サービスを購入可能とは表示しません。
 
 AIをオンにすると、明示的に「分析」を押した際に夢と前日の日記が、OCR時に写真がOpenAIへ送られます。公開文章とコメントも安全性確認のためOpenAIへ送られます。個人APIキーによる制限回避は提供しません。旧Claude用エンドポイントは廃止しました。
 
@@ -54,6 +54,8 @@ AIをオンにすると、明示的に「分析」を押した際に夢と前日
 - `GET /api/account`：会員状態・使用数・次回AI枠更新
 - `POST /api/billing/checkout`、`POST /api/billing/portal`：Web決済/契約管理
 - `POST /api/billing/webhook`：Stripe署名のみで検証
+- `POST /api/billing/revenuecat/sync`：ストア購入後にRevenueCatの購読者情報を再取得して会員状態を更新
+- `POST /api/billing/revenuecat/webhook`：RevenueCat Webhook（Authorization headerで認証、本文は再取得の合図のみ）
 - `GET /api/community/feed`、`POST /api/community/publish`、`GET /api/community/mine`
 - `POST /api/community/posts/:id/private`、`GET /api/community/posts/:id`
 - `POST /api/community/posts/:id/reaction`、`POST /api/community/posts/:id/comments`
@@ -104,12 +106,14 @@ AIは振り返りとOCRを補います。タイプ分類と睡眠点数は引き
 ## モバイル
 
 ```sh
-API_URL=https://your-server.example.com npm run mobile:sync
+API_URL=https://your-server.example.com \
+REVENUECAT_IOS_API_KEY=appl_xxx REVENUECAT_ANDROID_API_KEY=goog_xxx \
+npm run mobile:sync
 npx cap open android
 # または npx cap open ios
 ```
 
-Xcode・Android Studio・署名環境は別途必要です。Webファイル変更後は再同期してください。
+Xcode・Android Studio・署名環境は別途必要です。Webファイル変更後は再同期してください。RevenueCatのキー未指定時はTest Storeキーで動作確認ビルドになります。ストア内課金の設定は[課金ドキュメントのRevenueCat節](docs/billing/PLANS_AND_SETUP.md#5-revenuecatios--android-のストア内課金)を参照してください。
 
 ## テスト
 

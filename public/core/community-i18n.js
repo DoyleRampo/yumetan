@@ -116,6 +116,48 @@ export const communityMessages = {
     "商店内购买尚在准备中，已订阅账号可登录使用。",
     "In-store purchase is being prepared. Existing subscribers can sign in.",
   ],
+  storeBilling: [
+    "購入と契約の変更・解約はApp Store / Google Playで行います。購入後に反映されない場合は「購入を復元」を押してください。",
+    "구매와 구독 변경·해지는 App Store / Google Play에서 해요. 구매 후 반영되지 않으면 '구매 복원'을 눌러 주세요.",
+    "购买及订阅的更改、取消在App Store / Google Play中进行。购买后若未生效，请点击“恢复购买”。",
+    "Purchases, plan changes and cancellation happen in the App Store / Google Play. If a purchase is not reflected, tap Restore purchases.",
+  ],
+  restorePurchases: [
+    "購入を復元",
+    "구매 복원",
+    "恢复购买",
+    "Restore purchases",
+  ],
+  purchaseDone: [
+    "購入を反映しました。",
+    "구매를 반영했어요.",
+    "已应用购买。",
+    "Your purchase is now active.",
+  ],
+  purchaseCancelled: [
+    "購入をキャンセルしました。",
+    "구매를 취소했어요.",
+    "已取消购买。",
+    "Purchase cancelled.",
+  ],
+  restoreNone: [
+    "このアカウントで復元できる有効な購入は見つかりませんでした。",
+    "이 계정에서 복원할 유효한 구매를 찾지 못했어요.",
+    "未找到此账号可恢复的有效购买。",
+    "No active purchase to restore was found for this account.",
+  ],
+  storeUnavailable: [
+    "ストアに接続できませんでした。時間をおいて再試行してください。",
+    "스토어에 연결하지 못했어요. 나중에 다시 시도해 주세요.",
+    "无法连接商店，请稍后重试。",
+    "Could not reach the store. Try again later.",
+  ],
+  storeProductMissing: [
+    "このプランはストアで準備中です。",
+    "이 플랜은 스토어에서 준비 중이에요.",
+    "该套餐尚未在商店上架。",
+    "This plan is not available in the store yet.",
+  ],
   planRules: [
     "記録枠は記録の日付ごと。日記は全プラン1日1ページで何度でも編集できます。交流枠は毎日、AI枠は毎月1日0:00 UTCにリセット。年額も同じ月間枠で、繰り越しはありません。",
     "기록 한도는 기록 날짜 기준이에요. 일기는 모든 플랜에서 하루 한 페이지를 계속 편집할 수 있어요. 커뮤니티는 매일, AI는 매월 1일 00:00 UTC에 초기화돼요. 연간도 같은 월 한도이며 이월되지 않아요.",

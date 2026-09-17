@@ -9,6 +9,7 @@ import { registerFeatures } from "./server-features.js";
 import { firebaseServices } from "./server/store.js";
 import { createAccess, fault } from "./server/access.js";
 import { createBilling } from "./server/billing.js";
+import { createRevenueCat } from "./server/revenuecat.js";
 import { createAI } from "./server/openai.js";
 import { registerCommunity } from "./server/community.js";
 try {
@@ -22,7 +23,12 @@ const knowledge = await fs.readFile(
 const services = firebaseServices() || {};
 const access = createAccess(services),
   billing = createBilling({ access }),
+  revenuecat = createRevenueCat({ access }),
   ai = createAI({ access });
+const account = async (uid) => ({
+  ...(await billing.account(uid)),
+  storeBillingConfigured: revenuecat.configured,
+});
 const app = express();
 app.disable("x-powered-by");
 app.use("/api", (req, res, next) => {
@@ -47,6 +53,16 @@ app.post(
   }),
 );
 app.use(express.json({ limit: "750kb" }));
+// RevenueCat authenticates with its own Authorization value, so this route sits
+// before the Firebase bearer middleware. The body is only a hint; the subscriber
+// is re-read from RevenueCat with the server-side secret key.
+app.post(
+  "/api/billing/revenuecat/webhook",
+  asyncRoute(async (req, res) => {
+    await revenuecat.webhook(req.body, req.get("Authorization"));
+    res.json({ received: true });
+  }),
+);
 registerAuthBridge(app, { ...services, asyncRoute });
 const bursts = new Map();
 app.use(
@@ -77,6 +93,7 @@ app.get("/api/health", (req, res) =>
     hasServerKey: Boolean(process.env.OPENAI_API_KEY),
     acceptsUserKey: false,
     billingConfigured: billing.configured,
+    storeBillingConfigured: revenuecat.configured,
     communityConfigured: Boolean(services.store && process.env.OPENAI_API_KEY),
     langs: ["ja", "ko", "zh", "en"],
   }),
@@ -84,8 +101,16 @@ app.get("/api/health", (req, res) =>
 app.get(
   "/api/account",
   asyncRoute(async (req, res) =>
-    res.json(await billing.account((await user(req)).uid)),
+    res.json(await account((await user(req)).uid)),
   ),
+);
+app.post(
+  "/api/billing/revenuecat/sync",
+  asyncRoute(async (req, res) => {
+    const { uid } = await user(req);
+    await revenuecat.sync(uid);
+    res.json(await account(uid));
+  }),
 );
 app.post(
   "/api/billing/checkout",

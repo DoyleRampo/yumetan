@@ -106,7 +106,68 @@
 
 - `SUPPORT_URL` に問い合わせページを設定。通報は定期確認し、必要に応じユーザーを停止。`memberships/{uid}.suspended=true` は管理者のみが設定。
 - 運営者のFirebase Custom Claimに `moderator: true` を付与。`GET /api/moderation/reports` で未処理通報、`POST /api/moderation/reports/:id` に `{ "action": "hide" }` または `dismiss` で処理。一般ユーザーはアクセス不可。
-- iOS/Androidでは外部決済ボタンを表示せず、ストア内購入は未提供と明記。ストア内課金/復元・サーバー通知の検証を接続してからストアで販売を開始してください。既存Web会員はログインして利用できます。配布地域/ストア条件の審査は別途必要です。[Appleのガイドライン](https://developer.apple.com/jp/app-store/review/guidelines/)
+- iOS/Androidでは外部決済ボタンを表示せず、ストア内購入はRevenueCat経由で提供します（次節）。既存Web会員はログインして利用できます。配布地域/ストア条件の審査は別途必要です。[Appleのガイドライン](https://developer.apple.com/jp/app-store/review/guidelines/)
+
+### 5. RevenueCat（iOS / Android のストア内課金）
+
+ネイティブアプリの購入は `@revenuecat/purchases-capacitor` で行い、権限付与はサーバーがRevenueCatの購読者情報を秘密キーで読み直して決めます。端末が返す値、Webhook本文のプラン名は権限の根拠にしません。Stripe（Web）とRevenueCat（ストア）は同じ `memberships/{uid}` に書き込み、`source` に現在プランを付与している側を記録します。
+
+本アプリはCapacitor製のため、RevenueCatダッシュボードが表示するSwiftUI用の `Purchases.configure(withAPIKey:)` はそのまま使いません。同じ設定を `public/core/store-billing.js` からJavaScriptで行い、ネイティブビルド時に `scripts/build-mobile.mjs` が公開SDKキーを `dist/config.js` に埋め込みます。
+
+#### ダッシュボード側の設定
+
+1. **Products**: App Store Connect / Google Play Console に4つの自動更新サブスクリプションを作成し、RevenueCatに登録。商品IDは次の語を含めてください（プラン名と `monthly` / `yearly` で判定します）。
+
+   | プラン | 周期 | 商品ID（推奨） |
+   |---|---|---|
+   | スターター | 月額 | `yumetan_starter_monthly` |
+   | スターター | 年額 | `yumetan_starter_yearly` |
+   | スタンダード | 月額 | `yumetan_standard_monthly` |
+   | スタンダード | 年額 | `yumetan_standard_yearly` |
+
+   Google Playは `商品ID:ベースプランID`（例 `yumetan_starter:monthly`）の形でも判定できます。
+2. **Entitlements**: `starter` と `standard` の2つを作成し、上の商品をそれぞれに紐付け。サーバーはこの2つの識別子だけを見ます（`server/revenuecat.js` の `ENTITLEMENTS`）。
+3. **Offerings**: `default` オファリングに4パッケージを追加。アプリは商品IDでプラン・周期を判定するため、パッケージ識別子は任意です。
+4. **API keys**: 公開SDKキー（`appl_…` / `goog_…`）はモバイルビルドの環境変数へ、秘密キー（`sk_…`）はサーバーの `.env` へ。ダッシュボードの「Install the SDK」に表示される `test_…` キーはTest Store用で、実課金なしに購入フローを確認できます。
+5. **Webhooks**: URLを `https://<サーバー>/api/billing/revenuecat/webhook`、Authorization headerに推測できない値（例 `Bearer <ランダム文字列>`）を設定し、同じ文字列を `REVENUECAT_WEBHOOK_AUTH` に入れます。サーバーはこのヘッダーを固定時間比較で照合し、本文のユーザーIDについてRevenueCatから購読者を再取得します。`TEST` イベントは受理のみ。
+
+#### サーバー環境変数
+
+| 変数 | 内容 |
+|---|---|
+| `REVENUECAT_SECRET_API_KEY` | 秘密APIキー。`GET /v1/subscribers/{uid}` の読み取りに使用 |
+| `REVENUECAT_WEBHOOK_AUTH` | Webhookに設定したAuthorization headerの値そのもの |
+| `REVENUECAT_ACCEPT_SANDBOX` | `true`（初期値）ならサンドボックス/Test Store購入も有料扱い。本番サーバーでは `false` を推奨 |
+
+`REVENUECAT_SECRET_API_KEY` が無いと `/api/account` の `storeBillingConfigured` が `false` になり、アプリの購入ボタンは無効のまま「準備中」と表示します。
+
+#### モバイルビルド
+
+```sh
+API_URL=https://your-server.example.com \
+REVENUECAT_IOS_API_KEY=appl_xxx REVENUECAT_ANDROID_API_KEY=goog_xxx \
+npm run mobile:sync
+```
+
+キー未指定ならTest Storeキーで `dist/config.js` を生成し、警告を出します。ストア公開ビルドでは必ず本番キーを指定してください。iOSはXcodeの Signing & Capabilities で **In-App Purchase** を追加し、`pod install`（`npx cap sync ios`）で `RevenuecatPurchasesCapacitor` を取り込みます。AndroidはGradle同期で `revenuecat-purchases-capacitor` が追加され、課金権限はSDKのマニフェストから統合されます。
+
+#### 動作
+
+- ログイン済み（非匿名）のFirebase UIDをRevenueCatのApp User IDとして `logIn` し、ログアウト時は `logOut`。ゲストはRevenueCat上でも匿名です。購入はログイン後のみ可能で、購入ボタンは未ログイン・未設定時に無効です。
+- 「このプランを選ぶ」→ `Purchases.purchasePackage` → 成功後に `POST /api/billing/revenuecat/sync`。サーバーがRevenueCatを読み直し、`memberships/{uid}` に `plan` / `cycle` / `paidUntil`（entitlementの `expires_date`）/ `source: "revenuecat"` を保存。有効期限が過ぎた後の同期でフリーに戻します。
+- 「購入を復元」→ `restorePurchases` → 同じ同期。機種変更・再インストール時に使用。
+- 「契約管理・解約」→ RevenueCatの `managementURL`（App Store / Google Playの購読設定）を開く。ストア購読の変更・解約・返金はストア側で行い、アプリからは行いません。
+- Stripe会員が有効な間は、ストアの同ランク以下のプランで上書きしません（より上位のプランは反映）。逆にストア会員はStripe Checkoutで `manageSubscription` を返し二重契約を防ぎます。未払いのStripeイベントがストア会員のプランを取り消すこともありません。
+- 有料期間中はStripeと同じ利用枠。日次/月次リセット、AI費用上限、コミュニティ制限は共通です。
+
+#### 確認手順
+
+1. Test Storeキーでビルドし、Xcode/Android Studioから起動。ログイン後にプラン画面で購入 → 「購入を反映しました」と表示され、`memberships/{uid}.source` が `revenuecat` になること。
+2. RevenueCatダッシュボードのCustomer画面で該当UIDにentitlementが付き、Webhook配信履歴が200であること。
+3. サンドボックスで期限切れ・解約・復元・別端末ログイン後の復元を確認。
+4. App Store/Google Playの本番商品・本番キーへ切り替え、`REVENUECAT_ACCEPT_SANDBOX=false` にしてから配信。
+
+参考: [RevenueCat Capacitor SDK](https://www.revenuecat.com/docs/getting-started/installation/capacitor)、[Webhooks](https://www.revenuecat.com/docs/integrations/webhooks)、[REST API: Get subscriber](https://www.revenuecat.com/docs/api-v1)。
 
 ## 検証の範囲
 

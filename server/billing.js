@@ -61,6 +61,11 @@ export function createBilling({
         paidUntil: member.paidUntil || null,
         cycle: member.cycle || null,
         cancelAtPeriodEnd: Boolean(member.cancelAtPeriodEnd),
+        source: member.source || (member.subscriptionId ? "stripe" : null),
+        store:
+          member.source === "revenuecat"
+            ? member.revenuecat?.store || null
+            : null,
         billingConfigured: configured,
         aiConfigured: Boolean(env.OPENAI_API_KEY),
         supportUrl: env.SUPPORT_URL || null,
@@ -89,6 +94,12 @@ export function createBilling({
       if (!price.active || !pricePlan(price))
         throw fault(503, "billingUnavailable");
       const member = await access.member(user.uid);
+      // A store subscription (RevenueCat) is managed in the store, never doubled on Stripe.
+      if (
+        member.source === "revenuecat" &&
+        activePlan(member, now()) !== "free"
+      )
+        throw fault(409, "manageSubscription");
       if (member.customerId) {
         const subscriptions = await stripe.subscriptions.list({
           customer: member.customerId,
@@ -211,8 +222,16 @@ export function createBilling({
           !paid
         )
           return;
+        // An unpaid Stripe event never revokes a plan the app stores granted through RevenueCat.
+        if (
+          member.source === "revenuecat" &&
+          activePlan(member, now()) !== "free" &&
+          !paid
+        )
+          return;
         tx.set(path, {
           ...member,
+          ...(paid ? { source: "stripe" } : {}),
           subscriptionId: sub.id,
           plan: paid ? selected.plan : "free",
           cycle: selected?.cycle || null,

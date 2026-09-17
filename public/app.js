@@ -43,6 +43,7 @@ import {
   mergeRecords,
 } from "./core/storage.js";
 import { reflect } from "./core/reflection.js";
+import { createStoreBilling } from "./core/store-billing.js";
 const $ = (s) => document.querySelector(s);
 const esc = (value) =>
   String(value ?? "").replace(
@@ -56,6 +57,13 @@ const id = () => crypto.randomUUID();
 const cap = window.Capacitor,
   native = cap?.isNativePlatform?.(),
   plugins = cap?.Plugins || {};
+// App Store / Google Play subscriptions (RevenueCat). Unavailable on the web.
+const storeBilling = createStoreBilling({
+  cap,
+  config: window.YUMETAN_CONFIG?.revenueCat,
+});
+const storeUser = () =>
+  cloud?.uid() && !cloud.isAnonymous() ? cloud.uid() : null;
 let state = { version: 4, profile: null, records: [], deleted: [] },
   options = {
     language: "ja",
@@ -110,6 +118,7 @@ const social = createCommunity({
     type ? getCharacter(type, set) : { setId: options.characterSet },
   currentType: () => currentType()?.id || "observer",
   isNative: () => Boolean(native),
+  store: storeBilling,
 });
 const name = (type) => localized(type.names, language());
 const group = (type) => GROUPS.find((g) => g.id === type.group);
@@ -1231,6 +1240,7 @@ async function offerGuestImport(sourceKey, guest) {
 }
 async function switchAccount() {
   social.reset();
+  storeBilling.identify(storeUser());
   stopCloudWatch?.();
   storageKey = cloud.uid() ? `yumetan.v4.${cloud.uid()}` : "yumetan.v4.local";
   state = { version: 4, profile: null, records: [], deleted: [] };
@@ -1634,6 +1644,7 @@ document.addEventListener("visibilitychange", () => {
 });
 await boot();
 if (native) {
+  storeBilling.configure(storeUser()).catch(() => {});
   plugins.App?.addListener("appStateChange", ({ isActive }) => {
     if (isActive) resumeNativeLogin();
   });
