@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "communityPosts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "public", "order": "ASCENDING" },
+        { "fieldPath": "sortKey", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "communityPosts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner", "order": "ASCENDING" },
+        { "fieldPath": "public", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

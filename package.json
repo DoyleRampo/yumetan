@@ -1,6 +1,6 @@
 {
   "name": "yumetan",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "description": "ユメタン — 16タイプの夢キャラクターを育てる、夢と睡眠の日記AI（日本語・English・한국어・中文）",
   "type": "module",
   "private": true,
@@ -18,10 +18,9 @@
     "characters:build": "node scripts/build-characters.mjs"
   },
   "engines": {
-    "node": ">=20.12"
+    "node": ">=22"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "latest",
     "@capacitor-community/speech-recognition": "^7.0.1",
     "@capacitor-community/text-to-speech": "^8.0.2",
     "@capacitor/android": "^8.5.1",
@@ -31,6 +30,9 @@
     "@capacitor/local-notifications": "^8.0.0",
     "@capacitor/preferences": "^8.0.1",
     "express": "^4.21.0",
+    "firebase-admin": "^14.4.0",
+    "openai": "^7.17.0",
+    "stripe": "^22.6.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {

@@ -1,3 +1,5 @@
+import { createCommunity, communityText } from "./community.js";
+import { canSaveRecord, PLANS } from "./core/plans.js";
 import {
   DEFAULT_CHARACTER_SET,
   CHARACTER_SETS,
@@ -55,7 +57,6 @@ let state = { version: 4, profile: null, records: [], deleted: [] },
     code: "",
     characterSet: DEFAULT_CHARACTER_SET,
   };
-let sessionApiKey = "";
 let storageKey = "yumetan.v4.local",
   page = "home",
   selectedId = null,
@@ -71,6 +72,32 @@ let t = translator("ja"),
   voice = null;
 const language = () => options.language;
 const characterById = (id) => getCharacter(id, options.characterSet);
+const ct = (key) => communityText(key, language());
+const social = createCommunity({
+  api,
+  language,
+  esc,
+  navigate: (next) => {
+    processing = false;
+    navigate(next);
+  },
+  render,
+  toast,
+  run: (fn) =>
+    run(async () => {
+      disableActionButtons();
+      await fn();
+    }),
+  markSaved: () => {
+    dirty = false;
+  },
+  signedIn: () => Boolean(cloud?.state.enabled && !cloud.isAnonymous()),
+  nickname: () => state.profile?.nickname || "Dreamer",
+  character: (type, set) =>
+    type ? getCharacter(type, set) : { setId: options.characterSet },
+  currentType: () => currentType()?.id || "observer",
+  isNative: () => Boolean(native),
+});
 const name = (type) => localized(type.names, language());
 const group = (type) => GROUPS.find((g) => g.id === type.group);
 const dateText = (date) =>
@@ -147,6 +174,7 @@ function header() {
     ["record", "✎"],
     ["diary", "▤"],
     ["history", "▦"],
+    ["community", "☁"],
     ["settings", "⚙"],
   ]
     .map(
@@ -155,7 +183,11 @@ function header() {
     )
     .join("");
   $("#language").onchange = async (e) => {
-    if (page === "settings" && dirty && !confirm(t("unsaved"))) {
+    if (
+      ["settings", "share", "community-post"].includes(page) &&
+      dirty &&
+      !confirm(t("unsaved"))
+    ) {
       e.target.value = language();
       return;
     }
@@ -188,15 +220,21 @@ function render() {
     history: historyView,
     detail: detailView,
     settings: settingsView,
+    community: () => social.view("community"),
+    plans: () => social.view("plans"),
+    share: () => social.view("share"),
+    "community-post": () => social.view("community-post"),
   };
   $("#app").innerHTML = (views[page] || homeView)();
   bindForms();
+  social.bind();
 }
 
 function navigate(next, force = false) {
   if (processing && !force) return;
   if (!force && dirty && !confirm(t("unsaved"))) return;
   stopVoice();
+  social.leave();
   dirty = false;
   draft = null;
   if (!state.profile && next !== "onboard") next = "onboard";
@@ -211,6 +249,11 @@ function navigate(next, force = false) {
   render();
   window.scrollTo(0, 0);
   $("#app").focus({ preventScroll: true });
+  if (["community", "plans", "share"].includes(page))
+    social.enter(
+      page,
+      state.records.find((r) => r.id === selectedId),
+    );
 }
 function profileView() {
   const p = draft || state.profile || {};
@@ -298,7 +341,7 @@ function recordView() {
   draft ||= freshDream();
   const d = draft,
     previous = previousDiary(state.records, d.date);
-  return `<div class="narrow"><p class="eyebrow">DREAM JOURNAL</p><h1>${t("recordTitle")}</h1><form id="dream-form">
+  return `<div class="narrow"><p class="eyebrow">DREAM JOURNAL</p><h1>${t("recordTitle")}</h1><p class="help">${ct("privacyNote")}</p><p class="help">${ct("dreamLimit")}: ${state.records.filter((r) => r.kind === "dream" && r.date === d.date).length} / ${PLANS[social.plan()].dreams}</p><form id="dream-form">
  <div class="card">${input("date", "dream-date", d.date, "date", `required max="${localDate()}"`)}${area("dreamText", "dream-text", d.text, t("dreamPlaceholder"))}<div class="row">${button("voice", "voice", "small ghost")}</div><details ${d.photo ? "open" : ""}><summary>${t("photo")}</summary><p class="help">${t("photoHint")}</p><label class="field"><span>${t("photo")}</span><input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp"></label>${d.photo ? `<img class="photo" src="${esc(d.photo)}" alt="${t("photoAlt")}"><div class="row">${button("recognize", "recognize", "small")}${button("removePhoto", "remove-photo", "small ghost")}</div>` : ""}</details></div>
  <div class="card"><h2>${t("tags")}</h2><p class="help">${t("tagHint")}</p>${themes(d.typeTags)}</div>
  <div class="card"><h2>${t("sleep")}</h2><label class="check"><input type="checkbox" id="include-sleep" ${d.sleep ? "checked" : ""}><span>${t("sleepOptional")}</span></label><div id="sleep-fields" ${d.sleep ? "" : "hidden"}><div class="grid">${input("hours", "hours", d.sleep?.hours ?? "", "number", 'min="0" max="24" step="0.25"')}${input("awakenings", "awakenings", d.sleep?.awakenings ?? "", "number", 'min="0" max="30" step="1"')}</div><label class="field"><span>${t("rested")}</span><select class="input" id="rested"><option value="">—</option>${[1, 2, 3, 4, 5].map((v) => `<option value="${v}" ${d.sleep?.rested === v ? "selected" : ""}>${v}</option>`).join("")}</select></label><label class="check"><input type="checkbox" id="nightmare" ${d.sleep?.nightmare ? "checked" : ""}><span>${t("nightmare")}</span></label></div><p class="help">${t("sleepNote")}</p></div>
@@ -362,19 +405,20 @@ function entries(query = "", filter = "all") {
 function detailView() {
   const r = state.records.find((r) => r.id === selectedId);
   if (!r) return `<p>${t("empty")}</p>`;
-  return `<div class="narrow"><p class="eyebrow">${esc(dateText(r.date))}</p><h1>${t("detail")}</h1><div class="card"><p class="prose">${esc(r.text)}</p>${r.photo ? `<img class="photo" src="${esc(r.photo)}" alt="${t("photoAlt")}">` : ""}${r.sleep ? `<p class="help">${t("hours")}: ${r.sleep.hours} · ${t("awakenings")}: ${r.sleep.awakenings} · ${t("rested")}: ${r.sleep.rested}</p>` : ""}</div>${r.kind === "dream" && r.analysis ? analysisCard(r) : ""}<div class="row">${button("edit", "edit", "primary")}${button("delete", "delete", "danger ghost")}${button("history", "history", "ghost")}</div></div>`;
+  return `<div class="narrow"><p class="eyebrow">${esc(dateText(r.date))}</p><h1>${t("detail")}</h1><div class="card"><p class="prose">${esc(r.text)}</p>${r.photo ? `<img class="photo" src="${esc(r.photo)}" alt="${t("photoAlt")}">` : ""}${r.sleep ? `<p class="help">${t("hours")}: ${r.sleep.hours} · ${t("awakenings")}: ${r.sleep.awakenings} · ${t("rested")}: ${r.sleep.rested}</p>` : ""}</div>${r.kind === "dream" && r.analysis ? analysisCard(r) : ""}${r.kind === "dream" ? `<div class="card"><h2>${ct("share")}</h2><p class="help">${ct("privacyNote")}</p><button class="btn ghost" data-go="share">${ct("share")}</button></div>` : ""}<div class="row">${button("edit", "edit", "primary")}${button("delete", "delete", "danger ghost")}${button("history", "history", "ghost")}</div></div>`;
 }
 function settingsView() {
   const cloudOn = cloud?.state.enabled,
     signed = cloudOn && !cloud.isAnonymous();
-  return `<div class="narrow"><h1>${t("settings")}</h1><div class="card"><h2>${t("profile")}</h2><p>${esc(state.profile?.nickname)} · ${languageNames[language()]}</p><div class="row">${button("edit", "profile", "ghost")}${button("retake", "retake", "ghost")}</div><p class="help">${t("privacy")}</p></div>
+  return `<div class="narrow"><h1>${t("settings")}</h1><div class="card"><h2>${ct("plans")}</h2><button class="btn primary" data-go="plans">${ct("plans")}</button></div><div class="card"><h2>${t("profile")}</h2><p>${esc(state.profile?.nickname)} · ${languageNames[language()]}</p><div class="row">${button("edit", "profile", "ghost")}${button("retake", "retake", "ghost")}</div><p class="help">${t("privacy")}</p></div>
  <form id="character-form" class="card"><fieldset class="character-set-field"><legend>${t("characterSet")}</legend><p class="help">${t("characterSetHint")}</p><div class="character-set-options">${CHARACTER_SETS.map((set) => `<label class="character-set-option"><input type="radio" name="character-set" value="${set.id}" ${options.characterSet === set.id ? "checked" : ""}><span class="character-set-label">${localized(set.label, language())}</span>${avatar(typeById(currentType()?.id), null, false, set.id)}<span>${localized(set.names, language())}</span></label>`).join("")}</div></fieldset><button type="submit" class="btn primary">${t("save")}</button></form>
- <form id="settings-form" class="card"><h2>AI</h2><label class="check"><input type="checkbox" id="engine" ${options.engine === "ai" ? "checked" : ""}><span>${t("ai")}</span></label><p class="help">${t("aiHint")}</p>${input("apiUrl", "api-url", options.apiBase, "url", 'placeholder="https://…"')}${input("code", "access-code", options.code, "password", 'autocomplete="off"')}${input("ownKey", "own-key", sessionApiKey, "password", 'autocomplete="off"')}<p class="help">${t("ownKeyHint")}</p><div class="row"><button type="submit" class="btn primary">${t("save")}</button>${button("testConnection", "health", "ghost")}</div></form>
+ <form id="settings-form" class="card"><h2>AI</h2><label class="check"><input type="checkbox" id="engine" ${options.engine === "ai" ? "checked" : ""}><span>${t("ai")}</span></label><p class="help">${ct("planAIHint")}</p>${input("apiUrl", "api-url", options.apiBase, "url", 'placeholder="https://…"')}<div class="row"><button type="submit" class="btn primary">${t("save")}</button>${button("testConnection", "health", "ghost")}</div></form>
  <form id="alarm-form" class="card"><h2>${t("alarm")}</h2>${input("alarmTime", "alarm-time", options.alarmTime || "07:00", "time", "required")}<p class="help">${t(native && cap.getPlatform() === "android" ? "alarmHint" : "alarmManual")}</p><button type="submit" class="btn primary">${t(native && cap.getPlatform() === "android" ? "alarmOpen" : "save")}</button><p id="alarm-status" class="status" role="status"></p>${native && cap.getPlatform() === "ios" ? `<p class="help">${t("notifyHint")}</p><div class="row">${button("notifyWake", "notify-wake", "ghost")}${button("cancelWake", "cancel-wake", "ghost")}</div>` : ""}</form>
  <div class="card"><h2>${t("backup")}</h2><p class="help">${t("localOnly")}</p>${button("export", "export", "ghost")}<label class="field" style="margin-top:20px"><span>${t("import")}</span><input type="file" id="import-file" accept="application/json,.json"></label><p class="help">${t("importHint")}</p></div>
  <div class="card"><h2>${t("account")}</h2><p class="help">${t(cloudOn ? "cloudReady" : "localOnly")}</p>${cloudOn ? (signed ? `<p>${esc(cloud.email())}</p><div class="row">${button("signOut", "signout", "ghost")}${button("sync", "sync", "ghost")}</div>` : `<form id="account-form">${input("email", "email", "", "email", 'required autocomplete="email"')}${input("password", "password", "", "password", 'minlength="6" autocomplete="current-password"')}<div class="row"><button type="submit" class="btn primary">${t("signIn")}</button>${button("signUp", "signup", "ghost")}${button("resetPassword", "reset-password", "small ghost")}</div></form>`) : ""}</div></div>`;
 }
 function capture() {
+  social.capture();
   if (page === "record" && $("#dream-text")) {
     draft = {
       ...draft,
@@ -410,7 +454,16 @@ function bindForms() {
     .querySelectorAll("input,textarea,select")
     .forEach((el) =>
       el.addEventListener("input", () => {
-        if (["record", "diary", "onboard", "settings"].includes(page))
+        if (
+          [
+            "record",
+            "diary",
+            "onboard",
+            "settings",
+            "share",
+            "community-post",
+          ].includes(page)
+        )
           dirty = true;
         if (page === "settings" && el.closest("form"))
           el.closest("form").dataset.dirty = "true";
@@ -599,7 +652,20 @@ async function analyzeDraft() {
   render();
 }
 async function saveDream() {
-  await analyzeDraft();
+  capture();
+  checkDraft();
+  if (!canSaveRecord(state.records, draft, social.plan()))
+    throw new Error(ct("freeQuota"));
+  // Saving is always local. Paid AI runs only on the explicit analyze action.
+  if (!draft.analysis) {
+    const result = reflect({
+      ...draft,
+      records: state.records,
+      language: language(),
+    });
+    draft.analysis = result.analysis;
+    draft.typeTags = result.tags;
+  }
   const beforeType = currentType()?.id,
     before = growth(state.records, state.profile?.ageGroup).level;
   const saved = normalizeRecord({
@@ -691,12 +757,10 @@ async function saveOptions() {
     )
       throw new Error(t("networkError"));
   }
-  sessionApiKey = $("#own-key").value.trim();
   options = {
     ...options,
     engine: $("#engine").checked ? "ai" : "local",
     apiBase: url,
-    code: $("#access-code").value.trim(),
   };
   await write("yumetan.v4.options", options);
   settingsFormSaved("#settings-form");
@@ -711,22 +775,32 @@ async function api(path, body) {
   const controller = new AbortController(),
     timer = setTimeout(() => controller.abort(), 60000);
   try {
+    const token =
+      cloud?.state.enabled && !cloud.isAnonymous()
+        ? await cloud.idToken?.()
+        : null;
     const response = await fetch(base + path, {
       method: body ? "POST" : "GET",
       headers: {
         "Content-Type": "application/json",
         "X-Yumetan-User": await userId(),
         "X-Yumetan-Code": options.code,
-        ...(sessionApiKey ? { "X-Yumetan-Key": sessionApiKey } : {}),
+        ...(token ? { Authorization: "Bearer " + token } : {}),
       },
       body: body
         ? JSON.stringify({ ...body, language: language() })
         : undefined,
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error();
-    return await response.json();
-  } catch {
+    const data = await response.json();
+    if (!response.ok)
+      throw Object.assign(
+        new Error(data.code ? ct(data.code) : t("networkError")),
+        { userMessage: data.code ? ct(data.code) : t("networkError") },
+      );
+    return data;
+  } catch (e) {
+    if (e.userMessage) throw e;
     throw new Error(t("networkError"));
   } finally {
     clearTimeout(timer);
@@ -920,6 +994,13 @@ async function performSync() {
     }
     for (const record of merged) {
       const { photo, ...payload } = record;
+      const remoteRecord = remote.find((r) => r.id === record.id);
+      if (remoteRecord) {
+        const { photo: remotePhoto, ...normalizedRemote } =
+          normalizeRecord(remoteRecord);
+        if (JSON.stringify(payload) === JSON.stringify(normalizedRemote))
+          continue;
+      }
       if (record.kind === "diary" && cloud.saveDiary)
         await cloud.saveDiary(payload);
       else await cloud.saveDream(payload);
@@ -949,6 +1030,7 @@ async function account(mode) {
       )
         return;
       await cloud.signUp(email, password);
+      await social.refreshAccount().catch(() => {});
       await syncCloud();
     } else if (mode === "signin") {
       if (!email || !password) return;
@@ -973,6 +1055,7 @@ async function account(mode) {
   }
 }
 async function switchAccount() {
+  social.reset();
   storageKey = `yumetan.v4.${cloud.uid()}`;
   await write("yumetan.v4.active", storageKey);
   const cached = await read(storageKey),
@@ -993,6 +1076,7 @@ async function switchAccount() {
     progress?.answers?.length === 16 ? progress.answers : Array(16).fill(null);
   quizIndex = Math.max(0, Math.min(15, progress?.index || 0));
   draft = null;
+  await social.refreshAccount().catch(() => {});
   await syncCloud();
 }
 async function startVoice() {
@@ -1145,6 +1229,8 @@ const actions = {
   },
   delete: async () => {
     if (!confirm(t("deleteConfirm"))) return;
+    const record = state.records.find((r) => r.id === selectedId);
+    if (record?.kind === "dream") await social.makeRecordPrivate(record.id);
     await commit({
       ...state,
       records: state.records.filter((r) => r.id !== selectedId),
@@ -1281,7 +1367,16 @@ async function boot() {
         ? "home"
         : "quiz"
       : "onboard";
+    if (cloud && !cloud.isAnonymous())
+      await social.refreshAccount().catch(() => {});
+    if (
+      state.profile?.typeAnswers &&
+      (location.hash === "#plans" ||
+        new URLSearchParams(location.search).has("billing"))
+    )
+      page = "plans";
     render();
+    if (page === "plans") social.enter("plans");
     if (cloud)
       syncCloud().then(() => {
         if (

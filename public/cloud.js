@@ -49,6 +49,7 @@ window.YumetanCloud = {
     try { const ds = await getDocs(this.diaryCol()); for (const d of ds.docs) await deleteDoc(d.ref); } catch {}
     return snap.size;
   },
+  async idToken() { return state.user ? state.user.getIdToken() : null; },
   uid() { return state.user?.uid || ""; },
   async saveProfile(profile) { const { doc, setDoc } = state.fns; await setDoc(doc(state.db, "users", state.user.uid), { profile, updatedAt: new Date().toISOString() }, { merge: true }); },
   async loadProfile() { const { doc, getDoc } = state.fns; const snap = await getDoc(doc(state.db, "users", state.user.uid)); return snap.exists() ? snap.data().profile || null : null; },
