@@ -1,4 +1,4 @@
-package com.hikaso.yumetan;
+package com.doyle.yumetan;
 
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
