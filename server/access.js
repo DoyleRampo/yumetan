@@ -32,6 +32,9 @@ export function createAccess({ store, verify, now = Date.now }) {
       if (member.suspended) throw fault(403, "accountSuspended");
       return { member, plan, limits: PLANS[plan] };
     },
+    // Free members may only use fields with a non-zero free allowance (the AI taster).
+    // Their AI cost is also charged to a service-wide free pool so a surge of new accounts
+    // can never spend the budget reserved for paying members.
     async consume(
       uid,
       field,
@@ -39,6 +42,7 @@ export function createAccess({ store, verify, now = Date.now }) {
       monthly = false,
       budget = 0,
       globalBudget = 20000000,
+      freeGlobalBudget = 5000000,
     ) {
       if (
         !Number.isInteger(amount) ||
@@ -46,27 +50,32 @@ export function createAccess({ store, verify, now = Date.now }) {
         !Number.isFinite(budget) ||
         budget < 0 ||
         !Number.isFinite(globalBudget) ||
-        globalBudget <= 0
+        globalBudget <= 0 ||
+        !Number.isFinite(freeGlobalBudget) ||
+        freeGlobalBudget < 0
       )
         throw fault(400, "invalidInput");
       const period = monthly ? monthKey(now()) : dayKey(now());
       const path = `usage/${uid}_${monthly ? "m" : "d"}_${period}`;
       return store.transaction(async (tx) => {
-        const member = await tx.get(memberPath(uid));
+        const member = (await tx.get(memberPath(uid))) || {};
         const plan = activePlan(member, now());
-        if (plan === "free") throw fault(403, "paidRequired");
+        if (!Number.isInteger(PLANS[plan][field]))
+          throw fault(400, "invalidInput");
+        if (plan === "free" && PLANS.free[field] < 1)
+          throw fault(403, "paidRequired");
         if (member.suspended) throw fault(403, "accountSuspended");
         const usage = (await tx.get(path)) || {};
         const globalPath = `serviceBudgets/${monthKey(now())}`;
         const global = budget ? (await tx.get(globalPath)) || {} : {};
-        if (!Number.isInteger(PLANS[plan][field]))
-          throw fault(400, "invalidInput");
         if ((usage[field] || 0) + amount > PLANS[plan][field])
           throw fault(429, "quotaReached");
         if (
           budget &&
           ((usage.aiCost || 0) + budget > PLANS[plan].aiBudgetMicros ||
-            (global.aiCost || 0) + budget > globalBudget)
+            (global.aiCost || 0) + budget > globalBudget ||
+            (plan === "free" &&
+              (global.freeAiCost || 0) + budget > freeGlobalBudget))
         )
           throw fault(429, "aiBudgetReached");
         tx.set(path, {
@@ -75,7 +84,13 @@ export function createAccess({ store, verify, now = Date.now }) {
           ...(budget ? { aiCost: (usage.aiCost || 0) + budget } : {}),
         });
         if (budget)
-          tx.set(globalPath, { aiCost: (global.aiCost || 0) + budget });
+          tx.set(globalPath, {
+            ...global,
+            aiCost: (global.aiCost || 0) + budget,
+            ...(plan === "free"
+              ? { freeAiCost: (global.freeAiCost || 0) + budget }
+              : {}),
+          });
       });
     },
   };

@@ -297,3 +297,21 @@ test("read caps are atomic, not reset by reload; daily and monthly rollovers use
   s.setTime(Date.parse("2026-10-01T00:00:00Z"));
   await s.access.consume("alice", "reflections", 1, true);
 });
+test("free members keep the AI taster but never gain community allowances", async () => {
+  const s = setup();
+  for (const field of ["reads", "publishes", "comments", "reactions"])
+    await assert.rejects(
+      s.access.consume("carol", field),
+      (e) => e.status === 403 && e.code === "paidRequired",
+    );
+  for (let i = 0; i < PLANS.free.reflections; i++)
+    await s.access.consume("carol", "reflections", 1, true);
+  await assert.rejects(
+    s.access.consume("carol", "reflections", 1, true),
+    (e) => e.status === 429 && e.code === "quotaReached",
+  );
+  assert.equal(
+    (await s.store.get("usage/carol_m_2026-09")).reflections,
+    PLANS.free.reflections,
+  );
+});

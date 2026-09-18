@@ -220,24 +220,97 @@ test("GPT uses bounded structured output, no storage; free and over-budget calls
     schema: z.object({ text: z.string() }),
     kind: "reflections",
   };
-  await assert.rejects(ai.call(req), (e) => e.status === 403);
-  assert.equal(count, 0);
+  // Free taster: 3 reflections a month for a signed-in member without any membership document.
+  for (let i = 0; i < 3; i++)
+    assert.deepEqual(await ai.call(req), { text: "Hello" });
+  assert.equal(count, 3);
+  await assert.rejects(ai.call(req), (e) => e.code === "quotaReached");
+  assert.equal(count, 3);
+  assert.equal((await store.get("usage/a_m_2026-09")).reflections, 3);
+  const pool = await store.get("serviceBudgets/2026-09");
+  assert.ok(pool.freeAiCost > 0 && pool.freeAiCost === pool.aiCost);
+  // Free OCR is 1 a month; further attempts stop before the provider is called.
+  const ocr = { ...req, kind: "handwriting" };
+  assert.deepEqual(await ai.call(ocr), { text: "Hello" });
+  assert.equal(args.max_completion_tokens, 1600);
+  await assert.rejects(ai.call(ocr), (e) => e.code === "quotaReached");
+  assert.equal(count, 4);
   store.data.set("memberships/a", {
     plan: "starter",
     status: "active",
     paidUntil: now + 86400000,
   });
+  store.data.set("usage/a_m_2026-09", {});
+  store.data.set("serviceBudgets/2026-09", {});
   assert.deepEqual(await ai.call(req), { text: "Hello" });
   assert.equal(args.store, false);
   assert.equal(args.max_completion_tokens, 800);
   assert.equal(args.response_format.json_schema.strict, true);
+  assert.equal(
+    (await store.get("serviceBudgets/2026-09")).freeAiCost,
+    undefined,
+  );
   store.data.set("usage/a_m_2026-09", { aiCost: 499999 });
   await assert.rejects(ai.call(req), (e) => e.code === "aiBudgetReached");
-  assert.equal(count, 1);
+  assert.equal(count, 5);
   store.data.set("usage/a_m_2026-09", {});
   store.data.set("serviceBudgets/2026-09", { aiCost: 20000000 });
   await assert.rejects(ai.call(req), (e) => e.code === "aiBudgetReached");
+  assert.equal(count, 5);
+});
+test("the free AI pool stops free members before it can touch the paid budget", async () => {
+  const store = new MemoryStore(),
+    access = createAccess({ store, now: () => now });
+  let count = 0;
+  const client = {
+    chat: {
+      completions: {
+        create: async () => {
+          count++;
+          return {
+            choices: [
+              { finish_reason: "stop", message: { content: '{"text":"ok"}' } },
+            ],
+          };
+        },
+      },
+    },
+  };
+  const ai = createAI({
+    access,
+    env: { AI_GLOBAL_MONTHLY_USD: "20", AI_FREE_GLOBAL_MONTHLY_USD: "0.01" },
+    client,
+  });
+  const req = (uid) => ({
+    user: { uid },
+    system: [{ text: "x" }],
+    messages: [{ role: "user", content: "hello" }],
+    schema: z.object({ text: z.string() }),
+    kind: "reflections",
+  });
+  store.data.set("serviceBudgets/2026-09", { aiCost: 9000, freeAiCost: 9000 });
+  await assert.rejects(
+    ai.call(req("free1")),
+    (e) => e.code === "aiBudgetReached",
+  );
+  assert.equal(count, 0);
+  // Per-member free cost cap also applies even when the pool has room.
+  store.data.set("serviceBudgets/2026-09", {});
+  store.data.set("usage/free1_m_2026-09", { aiCost: 44000 });
+  await assert.rejects(
+    ai.call(req("free1")),
+    (e) => e.code === "aiBudgetReached",
+  );
+  // Paid members ignore the free pool entirely.
+  store.data.set("serviceBudgets/2026-09", { aiCost: 9000, freeAiCost: 9000 });
+  store.data.set("memberships/paid1", {
+    plan: "standard",
+    status: "active",
+    paidUntil: now + 86400000,
+  });
+  assert.deepEqual(await ai.call(req("paid1")), { text: "ok" });
   assert.equal(count, 1);
+  assert.equal((await store.get("serviceBudgets/2026-09")).freeAiCost, 9000);
 });
 test("provider errors, refused/truncated responses and oversized input do not return invented AI output", async () => {
   const store = new MemoryStore(),

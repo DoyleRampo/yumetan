@@ -56,6 +56,7 @@ export function createAI({
         true,
         costMicros,
         Number(env.AI_GLOBAL_MONTHLY_USD || 20) * 1000000,
+        Number(env.AI_FREE_GLOBAL_MONTHLY_USD || 5) * 1000000,
       );
       let result;
       try {
