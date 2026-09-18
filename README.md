@@ -40,7 +40,7 @@ npm start
 - 夢は初期状態で非公開。保存後の詳細 → 公開設定で、公開用ニックネーム・タイトル・本文を確認し、同意して公開します。元の日記・写真・睡眠・AI分析は公開しません。
 - プランは端末の値で認可せず、Firebase IDトークンとサーバー専用会員情報で確認。Stripeの署名付きWebhookと支払済み期間により反映します。
 - GPT振り返り/OCRはプランごとの回数・費用上限内で使用（無料3回/1回、スターター30回/5回、スタンダード90回/20回）。保存は常にローカル処理で、AI呼び出しは明示操作時だけです。
-- WebはStripe Checkout/契約管理へ接続。iOS・AndroidはRevenueCatでストア内課金を提供する設計で、[プロダクト定義と設定手順](docs/billing/REVENUECAT.md)を用意しています。SDK/Webhook接続までは購入ボタンを無効化しています。
+- WebはStripe Checkout/契約管理へ接続。iOSはRevenueCat経由のApp Store内課金を提供する設計で、[プロダクト定義と設定手順](docs/billing/REVENUECAT.md)を用意しています。SDK/Webhook接続までは購入ボタンを無効化しています。Google Playでの配信は行いません。
 
 ## GPT・課金・投稿機能の接続
 
@@ -109,7 +109,7 @@ npx cap open android
 # または npx cap open ios
 ```
 
-Xcode・Android Studio・署名環境は別途必要です。Webファイル変更後は再同期してください。
+Xcode・Android Studio・署名環境は別途必要です。Webファイル変更後は再同期してください。アプリIDは `com.doyle.yumetan` です。配信はApp Storeのみで、Androidプロジェクトは開発・検証用に残しています。
 
 ## テスト
 

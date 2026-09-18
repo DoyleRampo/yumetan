@@ -125,13 +125,13 @@
 
 ### 4. ストア内課金（RevenueCat）
 
-iOS/Androidのサブスクリプションは RevenueCat で管理します。プロダクトID・エンタイトルメント・オファリングの定義は `public/core/plans.js` の `STORE_PRODUCTS` / `ENTITLEMENTS` / `OFFERING` を単一ソースとし、`node scripts/revenuecat-setup.mjs` で作成できます。手順とサーバー連携方針は [REVENUECAT.md](REVENUECAT.md) を参照してください。
+iOS（App Store）のサブスクリプションは RevenueCat で管理します。Google Play での配信は行いません。プロダクトID・エンタイトルメント・オファリングの定義は `public/core/plans.js` の `STORE_PRODUCTS` / `ENTITLEMENTS` / `OFFERING` を単一ソースとし、`node scripts/revenuecat-setup.mjs` で作成できます。手順とサーバー連携方針は [REVENUECAT.md](REVENUECAT.md) を参照してください。
 
 ### 5. 運営・ストア
 
 - `SUPPORT_URL` に問い合わせページを設定。通報は定期確認し、必要に応じユーザーを停止。`memberships/{uid}.suspended=true` は管理者のみが設定。
 - 運営者のFirebase Custom Claimに `moderator: true` を付与。`GET /api/moderation/reports` で未処理通報、`POST /api/moderation/reports/:id` に `{ "action": "hide" }` または `dismiss` で処理。一般ユーザーはアクセス不可。
-- iOS/Androidでは外部決済ボタンを表示せず、ストア内購入は未提供と明記。ストア内課金/復元・サーバー通知の検証を接続してからストアで販売を開始してください。既存Web会員はログインして利用できます。配布地域/ストア条件の審査は別途必要です。[Appleのガイドライン](https://developer.apple.com/jp/app-store/review/guidelines/)
+- iOSでは外部決済ボタンを表示せず、ストア内購入は未提供と明記。ストア内課金/復元・サーバー通知の検証を接続してからApp Storeで販売を開始してください。既存Web会員はログインして利用できます。Androidプロジェクトは開発用に残していますが、Google Playでの配信・課金は対象外です。配布地域/ストア条件の審査は別途必要です。[Appleのガイドライン](https://developer.apple.com/jp/app-store/review/guidelines/)
 
 ## 検証の範囲
 

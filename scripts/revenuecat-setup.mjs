@@ -6,8 +6,9 @@
 //
 // Requires REVENUECAT_SECRET_API_KEY (a v2 secret key with write access to products,
 // entitlements and offerings) and REVENUECAT_PROJECT_ID in .env or the environment.
-// Store products must already exist in App Store Connect / Google Play Console;
-// RevenueCat product objects only reference them. The script never deletes anything.
+// Store products must already exist in App Store Connect (the app ships on iOS only; Stripe
+// prices are added when a Stripe app exists). RevenueCat product objects only reference them.
+// The script never deletes anything.
 import {
   PLANS,
   ENTITLEMENTS,
@@ -27,7 +28,6 @@ const stripePrices = Object.fromEntries(
     env[`STRIPE_PRICE_${k.toUpperCase()}`] || null,
   ]),
 );
-const storeApps = { appStore: "app_store", playStore: "play_store" };
 
 function plan() {
   const products = [];
@@ -38,13 +38,6 @@ function plan() {
       appType: "app_store",
       storeIdentifier: p.appStore,
       displayName: `${label} · iOS`,
-      plan: p.plan,
-    });
-    products.push({
-      key,
-      appType: "play_store",
-      storeIdentifier: p.playStore,
-      displayName: `${label} · Android`,
       plan: p.plan,
     });
     if (stripePrices[key])
@@ -121,11 +114,10 @@ async function main() {
   const P = `/projects/${project}`;
   const apps = await listAll(`${P}/apps`);
   const appByType = Object.fromEntries(apps.map((a) => [a.type, a]));
-  for (const type of ["app_store", "play_store"])
-    if (!appByType[type])
-      throw new Error(
-        `No ${type} app in project ${project}. Add the app in the RevenueCat dashboard first.`,
-      );
+  if (!appByType.app_store)
+    throw new Error(
+      `No App Store app in project ${project}. Add the iOS app in the RevenueCat dashboard first.`,
+    );
   if (!appByType.stripe && spec.products.some((p) => p.appType === "stripe"))
     console.warn(
       "STRIPE_PRICE_* are set but the project has no Stripe app; skipping Stripe products.",

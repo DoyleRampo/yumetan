@@ -55,7 +55,8 @@ export const PLANS = {
 };
 export const STAMPS = ["🌙", "✨", "🤝", "💭", "🌱"];
 // Store / RevenueCat identifiers. One entitlement per paid plan; each store product maps to
-// exactly one plan+cycle. Keep in sync with docs/billing/REVENUECAT.md and the Stripe prices.
+// exactly one plan+cycle. Native purchases ship on the App Store only (no Google Play release).
+// Keep in sync with docs/billing/REVENUECAT.md and the Stripe prices.
 export const ENTITLEMENTS = {
   starter: { id: "starter", displayName: "Yumetan Starter" },
   standard: { id: "standard", displayName: "Yumetan Standard" },
@@ -64,26 +65,22 @@ export const STORE_PRODUCTS = {
   starter_monthly: {
     plan: "starter",
     cycle: "monthly",
-    appStore: "com.hikaso.yumetan.starter.monthly",
-    playStore: "yumetan_starter:monthly",
+    appStore: "com.doyle.yumetan.starter.monthly",
   },
   starter_yearly: {
     plan: "starter",
     cycle: "yearly",
-    appStore: "com.hikaso.yumetan.starter.yearly",
-    playStore: "yumetan_starter:yearly",
+    appStore: "com.doyle.yumetan.starter.yearly",
   },
   standard_monthly: {
     plan: "standard",
     cycle: "monthly",
-    appStore: "com.hikaso.yumetan.standard.monthly",
-    playStore: "yumetan_standard:monthly",
+    appStore: "com.doyle.yumetan.standard.monthly",
   },
   standard_yearly: {
     plan: "standard",
     cycle: "yearly",
-    appStore: "com.hikaso.yumetan.standard.yearly",
-    playStore: "yumetan_standard:yearly",
+    appStore: "com.doyle.yumetan.standard.yearly",
   },
 };
 export const OFFERING = {
@@ -115,7 +112,7 @@ export const OFFERING = {
 };
 export function storeProductPlan(identifier) {
   const found = Object.entries(STORE_PRODUCTS).find(
-    ([, p]) => p.appStore === identifier || p.playStore === identifier,
+    ([, p]) => p.appStore === identifier,
   );
   return found ? { plan: found[1].plan, cycle: found[1].cycle } : null;
 }
