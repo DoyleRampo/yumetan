@@ -95,7 +95,7 @@
 
 **ストア側**
 
-- App Store Connect: 有料App契約に同意し、自動更新サブスクリプションを4つ作成（月490円 / 年4,800円のスターター、月980円 / 年9,800円のスタンダード）。製品IDは `yumetan_starter_monthly`、`yumetan_starter_yearly`、`yumetan_standard_monthly`、`yumetan_standard_yearly` を推奨（別のIDでも、`starter`/`standard` と `monthly`/`yearly`（または `year`/`annual`）を含んでいればアプリが一致させます）。Sandboxテスターも作成。
+- App Store Connect: 有料App契約に同意し、自動更新サブスクリプションを4つ作成（月490円 / 年4,800円のスターター、月980円 / 年9,800円のスタンダード）。製品IDは `com.doyle.yumetan.starter.monthly`、`com.doyle.yumetan.starter.yearly`、`com.doyle.yumetan.standard.monthly`、`com.doyle.yumetan.standard.yearly`（別のIDでも、`starter`/`standard` と `monthly`/`yearly`（または `year`/`annual`）を含んでいればアプリが一致させます）。Sandboxテスターも作成。
 - Google Play Console（Androidを配布する場合）: 同じ製品IDで定期購入を作成し、基本プランを月/年で設定。ライセンステスターを登録。
 
 **RevenueCat側**（プロジェクト: ユメタン）
@@ -103,7 +103,7 @@
 - Apps: iOS / Android のアプリを登録し、App Store Connect の In-App Purchase Key と Google Play のサービスアカウントを接続。
 - Products: ストアの4製品を取り込む。
 - Entitlements: `starter` と `standard` の2つを作り、月/年の製品をそれぞれ紐づける。サーバーはこのEntitlement名でプランを決め、製品IDから月/年を判定します。
-- Offerings: `default` に4製品のPackageを追加。
+- Offerings: `default` に4製品のPackageを追加（カスタム識別子 `starter_monthly` / `starter_yearly` / `standard_monthly` / `standard_yearly`）。初期のTest Store用Package（Monthly / Yearly / Lifetime）は削除してよい。
 - API keys: 各アプリの公開SDKキー（`appl_…` / `goog_…`）はアプリのビルド時に `REVENUECAT_IOS_KEY` / `REVENUECAT_ANDROID_KEY` として `npm run mobile:build` へ渡す。秘密APIキー（`sk_…`）はサーバーの `REVENUECAT_SECRET_API_KEY` にだけ設定。
 - Integrations → Webhooks: URL `https://<サーバー>/api/billing/revenuecat`、Authorization header に自分で決めた長いランダム文字列を入力し、同じ値をサーバーの `REVENUECAT_WEBHOOK_AUTH` に設定。
 
