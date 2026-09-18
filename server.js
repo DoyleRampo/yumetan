@@ -38,12 +38,13 @@ app.use("/api", (req, res, next) => {
 });
 const asyncRoute = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
+// RevenueCat's Authorization header is a shared secret, not a Firebase token,
+// so this route is registered before the bearer-token middleware below.
 app.post(
-  "/api/billing/webhook",
-  express.raw({ type: "application/json", limit: "1mb" }),
+  "/api/billing/revenuecat",
+  express.json({ limit: "256kb" }),
   asyncRoute(async (req, res) => {
-    await billing.webhook(req.body, req.get("stripe-signature"));
-    res.json({ received: true });
+    res.json(await billing.webhook(req.get("authorization"), req.body));
   }),
 );
 app.use(express.json({ limit: "750kb" }));
@@ -88,16 +89,8 @@ app.get(
   ),
 );
 app.post(
-  "/api/billing/checkout",
-  asyncRoute(async (req, res) =>
-    res.json(await billing.checkout(await user(req), req.body)),
-  ),
-);
-app.post(
-  "/api/billing/portal",
-  asyncRoute(async (req, res) =>
-    res.json(await billing.portal(await user(req))),
-  ),
+  "/api/billing/sync",
+  asyncRoute(async (req, res) => res.json(await billing.sync(await user(req)))),
 );
 registerCommunity(app, {
   access: verifiedAccess,

@@ -46,7 +46,7 @@ async function fixture(page, plan = "starter") {
     ]),
   );
   registerCommunity(app, { access, asyncRoute: (f) => f });
-  const billing = createBilling({ access, env: {}, stripe: null });
+  const billing = createBilling({ access, env: {} });
   await page.route("**/cloud.js*", (r) =>
     r.fulfill({
       contentType: "text/javascript",

@@ -17,6 +17,8 @@ export function createCommunity({
   character,
   currentType,
   isNative,
+  purchases,
+  uid = () => null,
 }) {
   let account = { plan: "free" },
     current = "",
@@ -40,6 +42,9 @@ export function createCommunity({
     account.paidUntil && account.paidUntil <= Date.now()
       ? "free"
       : account.plan || "free";
+  // Purchases run only inside the store apps, and only once the server can verify them.
+  const canBuy = () =>
+    Boolean(isNative() && purchases?.available() && account.billingConfigured);
   const paywall = () =>
     `<div class="card paywall"><span class="eyebrow">MEMBERS' DREAMS</span><h2>${t("communityIntro")}</h2><p>${t("paidRequired")}</p>${b("plans", "plans")}${!signedIn() ? `<p>${t("loginRequired")}</p>${b("accountSettings", "settings")}` : ""}</div>`;
   const status = () =>
@@ -67,11 +72,11 @@ export function createCommunity({
     )
       .map(
         (p) =>
-          `<section class="card plan-card ${p.id === plan() ? "selected" : ""}"><h2>${localized(p.names, language())}</h2><p class="plan-price">¥${p[cycle].toLocaleString()}<small> / ${t(cycle)}</small></p>${p.id === plan() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${fields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl>${p.id !== "free" && p.id !== plan() && plan() === "free" ? b("choosePlan", "checkout", `data-plan="${p.id}" ${isNative() || !account.billingConfigured || !signedIn() ? "disabled" : ""}`) : ""}</section>`,
+          `<section class="card plan-card ${p.id === plan() ? "selected" : ""}"><h2>${localized(p.names, language())}</h2><p class="plan-price">¥${p[cycle].toLocaleString()}<small> / ${t(cycle)}</small></p>${p.id === plan() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${fields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl>${p.id !== "free" && p.id !== plan() && plan() === "free" && isNative() ? b("choosePlan", "checkout", `data-plan="${p.id}" ${!canBuy() ? "disabled" : ""}`) : ""}</section>`,
       )
       .join(
         "",
-      )}</div><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.month?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && !isNative() && account.billingConfigured ? b("managePlan", "portal") : ""}<p>${!signedIn() ? t("loginRequired") : isNative() ? t("nativeBilling") : !account.billingConfigured ? t("billingUnavailable") : t("billingReturn")}</p></div><p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p><p class="help">${t("renewalNote")}</p>`;
+      )}</div><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.month?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}<p>${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : t("billingReturn")}</p></div><p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p><p class="help">${t("renewalNote")}</p>`;
   }
   function shareView() {
     const d = shareDraft;
@@ -188,14 +193,31 @@ export function createCommunity({
               await enter(current, shareRecord);
               return;
             }
-            if (action === "checkout" || action === "portal") {
-              const r = await api(
-                "/api/billing/" + action,
-                action === "checkout" ? { plan: el.dataset.plan, cycle } : {},
-              );
-              if (!/^https:\/\/(checkout|billing)\.stripe\.com\//.test(r.url))
+            if (action === "checkout" || action === "restore") {
+              if (!canBuy() || !signedIn())
                 throw new Error(t("billingUnavailable"));
-              location.assign(r.url);
+              let done;
+              try {
+                done =
+                  action === "checkout"
+                    ? await purchases.buy(uid(), el.dataset.plan, cycle)
+                    : await purchases.restore(uid());
+              } catch (e) {
+                throw new Error(t(e?.code || "purchaseFailed"));
+              }
+              if (!done) {
+                toast(t("purchaseCancelled"));
+                return;
+              }
+              // The store receipt never grants access by itself; the server verifies it.
+              account = await api("/api/billing/sync", {});
+              toast(t(plan() === "free" ? "purchasePending" : "purchaseDone"));
+              render();
+              return;
+            }
+            if (action === "manage") {
+              if (/^https:\/\//.test(account.managementUrl || ""))
+                window.open(account.managementUrl, "_blank", "noopener");
               return;
             }
             if (action === "next") {

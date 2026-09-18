@@ -7,187 +7,195 @@ import { createBilling } from "../server/billing.js";
 import { createAI } from "../server/openai.js";
 const now = Date.parse("2026-09-17T00:00:00Z");
 const env = {
-  STRIPE_WEBHOOK_SECRET: "whsec_test",
-  PUBLIC_APP_URL: "https://example.test",
-  STRIPE_PRICE_STARTER_MONTHLY: "p_sm",
-  STRIPE_PRICE_STARTER_YEARLY: "p_sy",
-  STRIPE_PRICE_STANDARD_MONTHLY: "p_tm",
-  STRIPE_PRICE_STANDARD_YEARLY: "p_ty",
+  REVENUECAT_SECRET_API_KEY: "sk_test",
+  REVENUECAT_WEBHOOK_AUTH: "hook-secret",
 };
-const price = {
-  id: "p_sm",
-  active: true,
-  currency: "jpy",
-  unit_amount: 490,
-  recurring: { interval: "month", interval_count: 1 },
-};
+const iso = (ms) => new Date(ms).toISOString();
+function subscriber(overrides = {}) {
+  const expires = iso(now + 86400000 * 30);
+  return {
+    request_date_ms: now,
+    subscriber: {
+      management_url: "https://apps.apple.com/account/subscriptions",
+      entitlements: {
+        starter: {
+          expires_date: expires,
+          product_identifier: "yumetan_starter_monthly",
+          purchase_date: iso(now - 1000),
+        },
+      },
+      subscriptions: {
+        yumetan_starter_monthly: {
+          expires_date: expires,
+          store: "app_store",
+          is_sandbox: false,
+          unsubscribe_detected_at: null,
+        },
+      },
+      ...overrides,
+    },
+  };
+}
 function billingFixture() {
   const store = new MemoryStore(),
     access = createAccess({ store, now: () => now });
-  store.data.set("memberships/alice", { customerId: "cus_a" });
-  store.data.set("billingCustomers/cus_a", { uid: "alice" });
-  let sub = {
-    id: "sub_a",
-    customer: "cus_a",
-    status: "active",
-    items: {
-      data: [
-        {
-          price,
-          quantity: 1,
-          current_period_end: Math.floor(now / 1000) + 86400 * 30,
-        },
-      ],
-    },
-    latest_invoice: { status: "paid" },
-    cancel_at_period_end: false,
-  };
-  let event = {
-    id: "evt_1",
-    created: 100,
-    type: "invoice.paid",
-    data: { object: { subscription: "sub_a" } },
-  };
   const calls = [];
-  const stripe = {
-    webhooks: {
-      constructEvent: (raw, signature) => {
-        if (signature !== "valid") throw Error();
-        return event;
-      },
-    },
-    subscriptions: {
-      retrieve: async () => sub,
-      list: async () => ({ data: [] }),
-    },
-    prices: { retrieve: async () => price },
-    customers: { create: async () => ({ id: "cus_a" }) },
-    checkout: {
-      sessions: {
-        list: async () => ({ data: [] }),
-        create: async (...args) => {
-          calls.push(args);
-          return { url: "https://checkout.stripe.com/test" };
-        },
-      },
-    },
-    billingPortal: {
-      sessions: {
-        create: async (params) => {
-          calls.push(params);
-          return { url: "https://billing.stripe.com/test" };
-        },
-      },
-    },
+  let response = subscriber();
+  const fetch = async (url, init) => {
+    calls.push({ url, init });
+    if (response instanceof Error) throw response;
+    if (typeof response === "number") return { ok: false, status: response };
+    return { ok: true, status: 200, json: async () => response };
   };
+  const event = (type, extra = {}) => ({
+    api_version: "1.0",
+    event: { type, app_user_id: "alice", ...extra },
+  });
   return {
     store,
     access,
-    stripe,
     calls,
-    billing: createBilling({ access, env, stripe }),
-    event: (v) => (event = v),
-    sub: (v) => (sub = { ...sub, ...v }),
+    event,
+    billing: createBilling({ access, env, fetch }),
+    respond: (v) => (response = v),
   };
 }
-test("only a signed webhook with paid recognized price grants access; replay is idempotent", async () => {
+test("webhook requires the shared secret and grants only what RevenueCat reports", async () => {
   const s = billingFixture();
   await assert.rejects(
-    s.billing.webhook(Buffer.from("{}"), "invalid"),
-    (e) => e.status === 400,
+    s.billing.webhook("wrong", s.event("INITIAL_PURCHASE")),
+    (e) => e.status === 401,
   );
+  await assert.rejects(
+    s.billing.webhook(undefined, s.event("INITIAL_PURCHASE")),
+    (e) => e.status === 401,
+  );
+  assert.equal(s.calls.length, 0);
   assert.equal((await s.billing.account("alice")).plan, "free");
-  await s.billing.webhook(Buffer.from("{}"), "valid");
-  assert.equal((await s.billing.account("alice")).plan, "starter");
-  const snapshot = await s.store.get("memberships/alice");
-  await s.billing.webhook(Buffer.from("{}"), "valid");
-  assert.deepEqual(await s.store.get("memberships/alice"), snapshot);
-  s.event({
-    id: "evt_2",
-    created: 101,
-    type: "customer.subscription.updated",
-    data: { object: { id: "sub_a" } },
+  // A test ping from the dashboard is acknowledged without touching members.
+  assert.deepEqual(await s.billing.webhook("hook-secret", s.event("TEST")), {
+    synced: 0,
   });
-  s.sub({
-    items: {
-      data: [
-        {
-          price: { ...price, id: "arbitrary_price" },
-          quantity: 1,
-          current_period_end: 9999999999,
+  await s.billing.webhook(
+    "hook-secret",
+    s.event("INITIAL_PURCHASE", {
+      entitlement_ids: ["standard"],
+      expiration_at_ms: now + 86400000 * 365,
+    }),
+  );
+  // The event body claimed "standard"; the REST subscriber says starter.
+  const account = await s.billing.account("alice");
+  assert.equal(account.plan, "starter");
+  assert.equal(account.cycle, "monthly");
+  assert.equal(
+    account.managementUrl,
+    "https://apps.apple.com/account/subscriptions",
+  );
+  assert.equal(account.billingConfigured, true);
+  assert.match(s.calls[0].url, /\/v1\/subscribers\/alice$/);
+  assert.equal(s.calls[0].init.headers.Authorization, "Bearer sk_test");
+});
+test("expiry, cancellation and anonymous ids never overgrant; stale syncs are ignored", async () => {
+  const s = billingFixture();
+  s.respond(
+    subscriber({
+      subscriptions: {
+        yumetan_starter_monthly: {
+          expires_date: iso(now + 86400000 * 30),
+          store: "play_store",
+          unsubscribe_detected_at: iso(now - 500),
         },
-      ],
-    },
-  });
-  await s.billing.webhook(Buffer.from("{}"), "valid");
+      },
+    }),
+  );
+  await s.billing.webhook("hook-secret", s.event("CANCELLATION"));
+  let account = await s.billing.account("alice");
+  assert.equal(account.plan, "starter");
+  assert.equal(account.cancelAtPeriodEnd, true);
+  s.respond(
+    subscriber({
+      request_date_ms: now + 1000,
+      entitlements: {
+        starter: {
+          expires_date: iso(now - 1),
+          product_identifier: "yumetan_starter_monthly",
+        },
+      },
+    }),
+  );
+  await s.billing.webhook("hook-secret", s.event("EXPIRATION"));
   assert.equal((await s.billing.account("alice")).plan, "free");
+  // An older snapshot arriving late must not resurrect access.
+  s.respond({ ...subscriber(), request_date_ms: now - 5000 });
+  await s.billing.webhook("hook-secret", s.event("RENEWAL"));
+  assert.equal((await s.billing.account("alice")).plan, "free");
+  // Anonymous RevenueCat ids and malformed ids are skipped, not written.
+  const before = s.calls.length;
+  const r = await s.billing.webhook(
+    "hook-secret",
+    s.event("INITIAL_PURCHASE", {
+      app_user_id: "$RCAnonymousID:abc",
+      original_app_user_id: "../admin",
+      aliases: ["$RCAnonymousID:def"],
+    }),
+  );
+  assert.deepEqual(r, { synced: 0 });
+  assert.equal(s.calls.length, before);
 });
-test("cancellation, payment failure, expiry and stale events never overgrant", async () => {
+test("client sync uses the verified uid only and surfaces provider failures", async () => {
   const s = billingFixture();
-  s.sub({ cancel_at_period_end: true });
-  await s.billing.webhook(Buffer.from("{}"), "valid");
-  assert.equal((await s.billing.account("alice")).plan, "starter");
-  assert.equal((await s.billing.account("alice")).cancelAtPeriodEnd, true);
-  s.event({
-    id: "evt_fail",
-    created: 102,
-    type: "invoice.payment_failed",
-    data: {
-      object: { parent: { subscription_details: { subscription: "sub_a" } } },
+  s.respond({
+    ...subscriber(),
+    subscriber: {
+      ...subscriber().subscriber,
+      entitlements: {
+        standard: {
+          expires_date: iso(now + 86400000 * 365),
+          product_identifier: "yumetan_standard_yearly:p1y",
+        },
+      },
+      subscriptions: {
+        "yumetan_standard_yearly:p1y": {
+          store: "play_store",
+          is_sandbox: true,
+        },
+      },
     },
   });
-  s.sub({ status: "past_due", latest_invoice: { status: "open" } });
-  await s.billing.webhook(Buffer.from("{}"), "valid");
-  assert.equal((await s.billing.account("alice")).plan, "free");
-  s.event({
-    id: "evt_old",
-    created: 101,
-    type: "invoice.paid",
-    data: { object: { subscription: "sub_a" } },
-  });
-  s.sub({ status: "active", latest_invoice: { status: "paid" } });
-  await s.billing.webhook(Buffer.from("{}"), "valid");
-  assert.equal((await s.billing.account("alice")).plan, "free");
-});
-test("checkout ignores browser prices and redirect URLs; portal uses server-owned customer", async () => {
-  const s = billingFixture();
-  await s.billing.checkout(
-    { uid: "alice", email: "example@example.test" },
-    {
-      plan: "starter",
-      cycle: "monthly",
-      price: "cheap",
-      customer: "cus_other",
-      success_url: "https://evil.test",
-    },
-  );
-  const params = s.calls[0][0];
-  assert.equal(params.line_items[0].price, "p_sm");
-  assert.equal(params.customer, "cus_a");
-  assert.ok(params.success_url.startsWith("https://example.test/"));
+  const account = await s.billing.sync({ uid: "bob", plan: "admin" });
+  assert.equal(account.plan, "standard");
+  assert.equal(account.cycle, "yearly");
+  assert.match(s.calls[0].url, /\/subscribers\/bob$/);
+  assert.equal((await s.store.get("memberships/bob")).sandbox, true);
+  s.respond(500);
   await assert.rejects(
-    s.billing.checkout({ uid: "alice" }, { plan: "admin", cycle: "monthly" }),
-    (e) => e.status === 400,
+    s.billing.sync({ uid: "bob" }),
+    (e) => e.code === "billingFailed",
   );
-  await s.billing.portal({ uid: "alice" });
-  assert.equal(s.calls[1].customer, "cus_a");
-  s.stripe.subscriptions.list = async () => ({
-    data: [{ status: "past_due" }],
-  });
+  assert.equal((await s.billing.account("bob")).plan, "standard");
+  s.respond(new Error("network"));
   await assert.rejects(
-    s.billing.checkout({ uid: "alice" }, { plan: "starter", cycle: "monthly" }),
-    (e) => e.code === "manageSubscription",
+    s.billing.sync({ uid: "bob" }),
+    (e) => e.code === "billingFailed",
   );
 });
-test("missing payment credentials do not offer simulated purchases", async () => {
+test("missing RevenueCat credentials do not offer simulated purchases", async () => {
   const store = new MemoryStore(),
     access = createAccess({ store, now: () => now }),
-    billing = createBilling({ access, env: {}, stripe: null });
+    billing = createBilling({
+      access,
+      env: {},
+      fetch: async () => ({ ok: true }),
+    });
   assert.equal(billing.configured, false);
+  await assert.rejects(billing.sync({ uid: "a" }), (e) => e.status === 503);
   await assert.rejects(
-    billing.checkout({ uid: "a" }, { plan: "starter", cycle: "monthly" }),
+    billing.webhook("anything", {
+      event: { type: "RENEWAL", app_user_id: "a" },
+    }),
     (e) => e.status === 503,
   );
+  assert.equal((await billing.account("a")).billingConfigured, false);
 });
 test("GPT uses bounded structured output, no storage; free and over-budget calls never reach provider", async () => {
   const store = new MemoryStore(),
@@ -282,28 +290,4 @@ test("provider errors, refused/truncated responses and oversized input do not re
     ],
   });
   await assert.rejects(ai.call(req), (e) => e.code === "aiFailed");
-});
-
-test("real Stripe signature verification rejects a modified raw webhook body", async () => {
-  const { default: Stripe } = await import("stripe");
-  const s = billingFixture();
-  const stripe = new Stripe("sk_test_fixture");
-  stripe.subscriptions.retrieve = s.stripe.subscriptions.retrieve;
-  const billing = createBilling({ access: s.access, env, stripe });
-  const raw = JSON.stringify({
-    id: "evt_signed",
-    created: 200,
-    type: "invoice.paid",
-    data: { object: { subscription: "sub_a" } },
-  });
-  const signature = stripe.webhooks.generateTestHeaderString({
-    payload: raw,
-    secret: env.STRIPE_WEBHOOK_SECRET,
-  });
-  await assert.rejects(
-    billing.webhook(Buffer.from(raw.replace("sub_a", "sub_evil")), signature),
-    (e) => e.code === "invalidSignature",
-  );
-  await billing.webhook(Buffer.from(raw), signature);
-  assert.equal((await billing.account("alice")).plan, "starter");
 });

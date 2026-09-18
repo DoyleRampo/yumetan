@@ -1,4 +1,4 @@
-# Render Blueprint. Configure test keys first; billing stays disabled until configured.
+# Render Blueprint. Billing stays disabled until the RevenueCat values are configured.
 services:
   - type: web
     name: yumetan
@@ -14,19 +14,9 @@ services:
         value: yumetan-a31f0
       - key: FIREBASE_SERVICE_ACCOUNT_JSON
         sync: false
-      - key: STRIPE_SECRET_KEY
+      - key: REVENUECAT_SECRET_API_KEY
         sync: false
-      - key: STRIPE_WEBHOOK_SECRET
+      - key: REVENUECAT_WEBHOOK_AUTH
         sync: false
-      - key: STRIPE_PRICE_STARTER_MONTHLY
-        sync: false
-      - key: STRIPE_PRICE_STARTER_YEARLY
-        sync: false
-      - key: STRIPE_PRICE_STANDARD_MONTHLY
-        sync: false
-      - key: STRIPE_PRICE_STANDARD_YEARLY
-        sync: false
-      - key: PUBLIC_APP_URL
-        value: https://yumetan.onrender.com
       - key: SUPPORT_URL
         sync: false

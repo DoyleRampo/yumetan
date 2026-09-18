@@ -38,13 +38,13 @@ npm start
 - 無料でも日付ごとに夢1件・日記1ページ。過去の記録の閲覧・編集・端末内分析は継続できます。
 - 有料会員は「みんなの夢」で他ユーザーの公開投稿を閲覧し、スタンプとコメントで交流できます。
 - 夢は初期状態で非公開。保存後の詳細 → 公開設定で、公開用ニックネーム・タイトル・本文を確認し、同意して公開します。元の日記・写真・睡眠・AI分析は公開しません。
-- プランは端末の値で認可せず、Firebase IDトークンとサーバー専用会員情報で確認。Stripeの署名付きWebhookと支払済み期間により反映します。
+- プランは端末の値で認可せず、Firebase IDトークンとサーバー専用会員情報で確認。RevenueCatのWebhookとサーバーからの契約照会により反映します。
 - GPT振り返り/OCRは有料プランの回数・費用上限内で使用。保存は常にローカル処理で、AI呼び出しは明示操作時だけです。
-- WebはStripe Checkout/契約管理へ接続。iOS・Androidでの新規購入はストア内課金の接続待ちで、購入ボタンを無効化しています。
+- 購入はiOS / Androidアプリ内のストア課金（App Store / Google Play、RevenueCat経由）だけです。Webでは購入ボタンを表示せず、アプリで購入したプランを同じアカウントで利用できます。
 
 ## GPT・課金・投稿機能の接続
 
-`.env.example`を`.env`へコピーし、OpenAI、同じFirebaseプロジェクトのサーバー認証情報、Stripeの4価格IDとWebhook署名シークレットを設定してください。キーをGitHubへ保存しないでください。未設定時も無料の端末内記録は使えますが、未設定の有料サービスを購入可能とは表示しません。
+`.env.example`を`.env`へコピーし、OpenAI、同じFirebaseプロジェクトのサーバー認証情報、RevenueCatの秘密APIキーとWebhook認証値を設定してください。キーをGitHubへ保存しないでください。未設定時も無料の端末内記録は使えますが、未設定の有料サービスを購入可能とは表示しません。
 
 AIをオンにすると、明示的に「分析」を押した際に夢と前日の日記が、OCR時に写真がOpenAIへ送られます。公開文章とコメントも安全性確認のためOpenAIへ送られます。個人APIキーによる制限回避は提供しません。旧Claude用エンドポイントは廃止しました。
 
@@ -52,8 +52,8 @@ AIをオンにすると、明示的に「分析」を押した際に夢と前日
 
 - `GET /api/health`：接続設定の有無（秘密値は返しません）
 - `GET /api/account`：会員状態・使用数・次回AI枠更新
-- `POST /api/billing/checkout`、`POST /api/billing/portal`：Web決済/契約管理
-- `POST /api/billing/webhook`：Stripe署名のみで検証
+- `POST /api/billing/sync`：ストア購入・復元後にRevenueCatの契約状態をサーバーへ反映
+- `POST /api/billing/revenuecat`：RevenueCat Webhook（Authorizationヘッダーの共有秘密で検証）
 - `GET /api/community/feed`、`POST /api/community/publish`、`GET /api/community/mine`
 - `POST /api/community/posts/:id/private`、`GET /api/community/posts/:id`
 - `POST /api/community/posts/:id/reaction`、`POST /api/community/posts/:id/comments`
