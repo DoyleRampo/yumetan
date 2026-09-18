@@ -58,7 +58,7 @@ AIをオンにすると、明示的に「分析」を押した際に夢と前日
 - `POST /api/community/posts/:id/private`、`GET /api/community/posts/:id`
 - `POST /api/community/posts/:id/reaction`、`POST /api/community/posts/:id/comments`
 - 通報・ブロック・コメント削除、運営者専用の通報確認/非表示API
-- `POST /api/reflect`、`POST /api/handwriting`：GPT-4.1 mini
+- `POST /api/reflect`、`POST /api/handwriting`：GPT-5.6 Luna
 - `GET /api/sleep-knowledge`：参照文献と暫定評価ルール
 
 AIは振り返りとOCRを補います。タイプ分類と睡眠点数は引き続き端末内のルールで計算します。
