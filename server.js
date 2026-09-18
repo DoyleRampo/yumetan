@@ -9,6 +9,7 @@ import { registerFeatures } from "./server-features.js";
 import { firebaseServices } from "./server/store.js";
 import { createAccess, fault } from "./server/access.js";
 import { createBilling } from "./server/billing.js";
+import { createRevenueCat } from "./server/revenuecat.js";
 import { createAI } from "./server/openai.js";
 import { registerCommunity } from "./server/community.js";
 try {
@@ -22,6 +23,7 @@ const knowledge = await fs.readFile(
 const services = firebaseServices() || {};
 const access = createAccess(services),
   billing = createBilling({ access }),
+  revenuecat = createRevenueCat({ access }),
   ai = createAI({ access });
 const app = express();
 app.disable("x-powered-by");
@@ -47,6 +49,14 @@ app.post(
   }),
 );
 app.use(express.json({ limit: "750kb" }));
+// RevenueCat authenticates with its own Authorization header, so this route must sit
+// before the Firebase bearer-token middleware below.
+app.post(
+  "/api/billing/revenuecat",
+  asyncRoute(async (req, res) =>
+    res.json(await revenuecat.webhook(req.body, req.get("Authorization"))),
+  ),
+);
 registerAuthBridge(app, { ...services, asyncRoute });
 const bursts = new Map();
 app.use(
@@ -77,6 +87,7 @@ app.get("/api/health", (req, res) =>
     hasServerKey: Boolean(process.env.OPENAI_API_KEY),
     acceptsUserKey: false,
     billingConfigured: billing.configured,
+    nativeBillingConfigured: revenuecat.configured,
     communityConfigured: Boolean(services.store && process.env.OPENAI_API_KEY),
     langs: ["ja", "ko", "zh", "en"],
   }),
@@ -84,7 +95,10 @@ app.get("/api/health", (req, res) =>
 app.get(
   "/api/account",
   asyncRoute(async (req, res) =>
-    res.json(await billing.account((await user(req)).uid)),
+    res.json({
+      ...(await billing.account((await user(req)).uid)),
+      nativeBillingConfigured: revenuecat.configured,
+    }),
   ),
 );
 app.post(

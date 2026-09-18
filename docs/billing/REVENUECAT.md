@@ -74,25 +74,29 @@ node scripts/revenuecat-setup.mjs --apply   # 無いものだけ作成（削除�
 
 6. Integrations → Webhooks で本番サーバーの `/api/billing/revenuecat`（実装予定）を登録し、Authorization ヘッダーの値を控える。
 
-### 3. サーバー連携（次の実装）
+### 3. サーバー連携（実装済み）
 
-`memberships/{uid}` の書き込み元を Stripe に加えて RevenueCat にも広げます。方針:
+`server/revenuecat.js` が `POST /api/billing/revenuecat` を受け取り、`memberships/{uid}` を Stripe と同じ形式で更新します。
 
-- `POST /api/billing/revenuecat`：Authorization ヘッダーが `REVENUECAT_WEBHOOK_AUTH` と一致しなければ 401。イベントの `app_user_id`（Firebase UID）と `aliases` を確認し、**イベント本文を信じず** `GET /v2/projects/{id}/customers/{uid}/active_entitlements` で現在のエンタイトルメントと期限を取り直してから書き込む。
-- 書き込み内容は Stripe と同じ `{ plan, cycle, status: "active", paidUntil, cancelAtPeriodEnd, provider: "revenuecat", lastEventCreated }`。`standard` と `starter` が両方あれば `standard`。
-- `EXPIRATION` / `CANCELLATION`（返金）/ `BILLING_ISSUE` で期限切れなら `plan: "free"`、`paidUntil: 0`。猶予期間中は RevenueCat の期限に従う。
-- `storeProductPlan(product_id)` で product ID をプランへ写像し、未知の product ID は無料扱い。
-- 同じ UID に Stripe と RevenueCat の両方があるとき、期限が遠いほうを採用（二重課金は Customer Portal / App Store の購読管理で解約案内）。
+- 認証：リクエストの `Authorization` ヘッダーが環境変数 `REVENUECAT_WEBHOOK_AUTH` と完全一致しなければ 401。RevenueCat の Webhook 設定で同じ値を入れます。
+- `app_user_id` / `original_app_user_id` / `aliases` のうち Firebase UID 形式のものを会員として扱い、`$RCAnonymousID:` は無視します（SDK に UID を渡す前の購入は会員に結びつきません。アプリはログイン後にのみ購入ボタンを有効にします）。
+- `product_id` を `storeProductPlan()` でプラン・周期へ写像。未知の商品は無料扱い。
+- `expiration_at_ms` を `paidUntil` に採用。INITIAL_PURCHASE / RENEWAL / UNCANCELLATION / PRODUCT_CHANGE / SUBSCRIPTION_EXTENDED / TEMPORARY_ENTITLEMENT_GRANT は有効化、CANCELLATION（解約予約）/ BILLING_ISSUE / SUBSCRIPTION_PAUSED は期限まで有効で `cancelAtPeriodEnd: true`、EXPIRATION と返金（期限が過去）は無料へ。TEST や TRANSFER などは 200 で受け取り無視。
+- 同じイベント ID の再送は無視。`event_timestamp_ms` が既存より古いイベントも無視。
+- `environment: SANDBOX` は `REVENUECAT_ALLOW_SANDBOX=true` のときだけ反映（TestFlight / Sandbox テスト用。本番は false）。
+- Stripe の有効期間のほうが長い場合は Stripe を維持し、ストア購入の期限が長ければ `provider: "revenuecat"` に切り替えます。
 
-### 4. アプリ連携（次の実装）
+### 4. アプリ連携（実装済み）
 
-- `@revenuecat/purchases-capacitor` を追加し、iOS 起動時に `configure({ apiKey, appUserID: uid })`、ログイン時に `logIn`、ログアウトで `logOut`。
-- プラン画面の購入ボタンを iOS では `purchasePackage` に切り替え、Web は従来の Stripe Checkout のまま。購入後は `/api/account` を再取得して表示（サーバーの会員状態が正）。
-- 「購入の復元」ボタン（Apple 審査要件）と、契約管理は App Store の購読管理画面へのリンク。
-- iOS では外部決済（Stripe）のボタンやリンクを出さない（App Store 審査ガイドライン）。
+- `@revenuecat/purchases-capacitor` を依存に追加。`npx cap sync ios` で Pod が入ります。
+- `public/core/native-billing.js` が iOS でのみ動き、`configure({ apiKey, appUserID: uid })`、ログイン時 `logIn`、ログアウト時 `logOut` を行います。公開 SDK キーは `npm run mobile:build` 実行時の環境変数 `REVENUECAT_APPLE_API_KEY` から `dist/config.js` に埋め込みます（`sk_` で始まる秘密キーは拒否）。
+- プラン画面の購入ボタンは iOS では `purchasePackage` を呼び、完了後に `/api/account` を数回再取得してプラン反映を待ちます。「購入を復元」ボタンと App Store の契約管理リンクを表示し、Stripe の導線は出しません。
+- ボタンが有効になる条件：iOS、SDK キーあり、サーバーが `REVENUECAT_WEBHOOK_AUTH` を設定済み（`/api/account` の `nativeBillingConfigured`）、非匿名ログイン。
 
 ### 5. テスト
 
+- サーバーの `.env` に `REVENUECAT_WEBHOOK_AUTH` と、テスト中は `REVENUECAT_ALLOW_SANDBOX=true` を設定。
+- `REVENUECAT_APPLE_API_KEY=<公開SDKキー> API_URL=https://<公開URL> npm run mobile:sync` → Xcode で実機にインストール。
 - iOS Sandbox テスターで購入 → `memberships` が `active` になるか、期限（Sandbox は短縮）で `free` に戻るか、復元、アップグレード/ダウングレード、支払い失敗を確認。
 - RevenueCat の Test webhook イベントでサーバーの受信を確認。
 - 本番切替時は Webhook URL、Authorization、v2 secret key、Public API key を本番プロジェクトの値に揃える。

@@ -6,6 +6,7 @@ import {
   cancelNativeAuth,
 } from "./core/native-auth.js";
 import { createCommunity, communityText } from "./community.js";
+import { createNativeBilling } from "./core/native-billing.js";
 import { canSaveRecord, PLANS } from "./core/plans.js";
 import {
   DEFAULT_CHARACTER_SET,
@@ -86,8 +87,10 @@ const at = (key) => authText(key, language());
 const language = () => options.language;
 const characterById = (id) => getCharacter(id, options.characterSet);
 const ct = (key) => communityText(key, language());
+const nativeBilling = createNativeBilling();
 const social = createCommunity({
   api,
+  nativeBilling,
   language,
   esc,
   navigate: (next) => {
@@ -1244,8 +1247,17 @@ async function switchAccount() {
   quizAnswers =
     progress?.answers?.length === 16 ? progress.answers : Array(16).fill(null);
   quizIndex = Math.max(0, Math.min(15, progress?.index || 0));
+  await identifyNativeBilling();
   await social.refreshAccount().catch(() => {});
   await syncCloud();
+}
+// RevenueCat app user ID follows the signed-in Firebase UID (never the anonymous guest UID).
+async function identifyNativeBilling() {
+  try {
+    await nativeBilling.identify(
+      cloud?.state.enabled && !cloud.isAnonymous() ? cloud.uid() : null,
+    );
+  } catch {}
 }
 async function resumeNativeLogin() {
   if (!native || !cloud || authChanging || processing) return;
@@ -1592,6 +1604,7 @@ async function boot() {
       });
       watchAccount();
     }
+    await identifyNativeBilling();
     if (cloud && !cloud.isAnonymous())
       await social.refreshAccount().catch(() => {});
     if (

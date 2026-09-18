@@ -54,6 +54,7 @@ AIをオンにすると、明示的に「分析」を押した際に夢と前日
 - `GET /api/account`：会員状態・使用数・次回AI枠更新
 - `POST /api/billing/checkout`、`POST /api/billing/portal`：Web決済/契約管理
 - `POST /api/billing/webhook`：Stripe署名のみで検証
+- `POST /api/billing/revenuecat`：RevenueCat Webhook（共有Authorizationヘッダーで検証、App Store購入をプランへ反映）
 - `GET /api/community/feed`、`POST /api/community/publish`、`GET /api/community/mine`
 - `POST /api/community/posts/:id/private`、`GET /api/community/posts/:id`
 - `POST /api/community/posts/:id/reaction`、`POST /api/community/posts/:id/comments`
@@ -104,9 +105,8 @@ AIは振り返りとOCRを補います。タイプ分類と睡眠点数は引き
 ## モバイル
 
 ```sh
-API_URL=https://your-server.example.com npm run mobile:sync
-npx cap open android
-# または npx cap open ios
+API_URL=https://your-server.example.com REVENUECAT_APPLE_API_KEY=appl_xxx npm run mobile:sync
+npx cap open ios
 ```
 
 Xcode・Android Studio・署名環境は別途必要です。Webファイル変更後は再同期してください。アプリIDは `com.doyle.yumetan` です。配信はApp Storeのみで、Androidプロジェクトは開発・検証用に残しています。

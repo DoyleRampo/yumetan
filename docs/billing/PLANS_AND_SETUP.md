@@ -125,7 +125,7 @@
 
 ### 4. ストア内課金（RevenueCat）
 
-iOS（App Store）のサブスクリプションは RevenueCat で管理します。Google Play での配信は行いません。プロダクトID・エンタイトルメント・オファリングの定義は `public/core/plans.js` の `STORE_PRODUCTS` / `ENTITLEMENTS` / `OFFERING` を単一ソースとし、`node scripts/revenuecat-setup.mjs` で作成できます。手順とサーバー連携方針は [REVENUECAT.md](REVENUECAT.md) を参照してください。
+iOS（App Store）のサブスクリプションは RevenueCat で管理し、`POST /api/billing/revenuecat` の Webhook（`REVENUECAT_WEBHOOK_AUTH` で認証）が会員状態を更新します。Google Play での配信は行いません。プロダクトID・エンタイトルメント・オファリングの定義は `public/core/plans.js` の `STORE_PRODUCTS` / `ENTITLEMENTS` / `OFFERING` を単一ソースとし、`node scripts/revenuecat-setup.mjs` で作成できます。手順とサーバー連携方針は [REVENUECAT.md](REVENUECAT.md) を参照してください。
 
 ### 5. 運営・ストア
 

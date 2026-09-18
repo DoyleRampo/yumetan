@@ -60,6 +60,7 @@ export function createBilling({
         plan: member.suspended ? "free" : plan,
         paidUntil: member.paidUntil || null,
         cycle: member.cycle || null,
+        provider: member.provider || (member.subscriptionId ? "stripe" : null),
         cancelAtPeriodEnd: Boolean(member.cancelAtPeriodEnd),
         billingConfigured: configured,
         aiConfigured: Boolean(env.OPENAI_API_KEY),

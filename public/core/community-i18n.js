@@ -110,6 +110,48 @@ export const communityMessages = {
     "Manage / cancel",
   ],
   refresh: ["更新する", "새로고침", "刷新", "Refresh"],
+  restorePurchases: [
+    "購入を復元",
+    "구매 복원",
+    "恢复购买",
+    "Restore purchases",
+  ],
+  manageAppStore: [
+    "App Storeで契約管理",
+    "App Store에서 구독 관리",
+    "在App Store管理订阅",
+    "Manage in App Store",
+  ],
+  storeBillingNote: [
+    "購入はApp Storeで処理され、Apple IDに請求されます。反映まで少し時間がかかる場合は「更新する」を押してください。解約・変更はApp Storeの契約管理から行えます。",
+    "결제는 App Store에서 처리되어 Apple ID로 청구돼요. 반영이 늦으면 새로고침을 눌러 주세요. 해지·변경은 App Store 구독 관리에서 할 수 있어요.",
+    "购买由App Store处理并计入Apple ID。若未及时生效请点击刷新。取消或更改请前往App Store订阅管理。",
+    "Purchases are handled by the App Store and billed to your Apple ID. Tap Refresh if activation takes a moment. Cancel or change plans in App Store subscription settings.",
+  ],
+  purchaseDone: [
+    "プランが有効になりました。",
+    "플랜이 활성화됐어요.",
+    "套餐已生效。",
+    "Your plan is now active.",
+  ],
+  purchasePending: [
+    "購入を受け付けました。反映まで少し時間がかかります。しばらくしてから「更新する」を押してください。",
+    "구매를 접수했어요. 반영까지 시간이 걸릴 수 있으니 잠시 후 새로고침해 주세요.",
+    "已收到购买，生效可能需要片刻，请稍后刷新。",
+    "Purchase received. Activation can take a moment; tap Refresh shortly.",
+  ],
+  purchaseCancelled: [
+    "購入をキャンセルしました。",
+    "구매를 취소했어요.",
+    "已取消购买。",
+    "Purchase cancelled.",
+  ],
+  purchaseFailed: [
+    "購入を完了できませんでした。App Storeの状態を確認してもう一度お試しください。",
+    "구매를 완료하지 못했어요. App Store 상태를 확인하고 다시 시도해 주세요.",
+    "购买未能完成，请检查App Store状态后重试。",
+    "The purchase could not be completed. Check the App Store and try again.",
+  ],
   nativeBilling: [
     "ストア内での購入は準備中です。契約済みのアカウントはログインして利用できます。",
     "스토어 내 구매는 준비 중이에요. 구독 중인 계정은 로그인해서 사용할 수 있어요.",

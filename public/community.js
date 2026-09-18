@@ -17,6 +17,7 @@ export function createCommunity({
   character,
   currentType,
   isNative,
+  nativeBilling = null,
 }) {
   let account = { plan: "free" },
     current = "",
@@ -34,6 +35,15 @@ export function createCommunity({
     cycle = "monthly",
     commentDraft = "";
   const t = (key) => communityText(key, language());
+  // App Store purchase is offered only on iOS with the SDK key and a server able to receive
+  // RevenueCat webhooks; otherwise native shows the "coming soon" text and no button.
+  const storeBilling = () =>
+    Boolean(
+      isNative() &&
+      nativeBilling?.available?.() &&
+      account.nativeBillingConfigured &&
+      signedIn(),
+    );
   const b = (label, action, attrs = "") =>
     `<button type="button" class="btn ghost" data-social="${action}" ${attrs}>${t(label)}</button>`;
   const plan = () =>
@@ -67,11 +77,11 @@ export function createCommunity({
     )
       .map(
         (p) =>
-          `<section class="card plan-card ${p.id === plan() ? "selected" : ""}"><h2>${localized(p.names, language())}</h2><p class="plan-price">¥${p[cycle].toLocaleString()}<small> / ${t(cycle)}</small></p>${p.id === plan() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${fields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl>${p.id !== "free" && p.id !== plan() && plan() === "free" ? b("choosePlan", "checkout", `data-plan="${p.id}" ${isNative() || !account.billingConfigured || !signedIn() ? "disabled" : ""}`) : ""}</section>`,
+          `<section class="card plan-card ${p.id === plan() ? "selected" : ""}"><h2>${localized(p.names, language())}</h2><p class="plan-price">¥${p[cycle].toLocaleString()}<small> / ${t(cycle)}</small></p>${p.id === plan() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${fields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl>${p.id !== "free" && p.id !== plan() && plan() === "free" ? (isNative() ? b("choosePlan", "purchase", `data-plan="${p.id}" ${storeBilling() ? "" : "disabled"}`) : b("choosePlan", "checkout", `data-plan="${p.id}" ${!account.billingConfigured || !signedIn() ? "disabled" : ""}`)) : ""}</section>`,
       )
       .join(
         "",
-      )}</div><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.month?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && !isNative() && account.billingConfigured ? b("managePlan", "portal") : ""}<p>${!signedIn() ? t("loginRequired") : isNative() ? t("nativeBilling") : !account.billingConfigured ? t("billingUnavailable") : t("billingReturn")}</p></div><p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p><p class="help">${t("renewalNote")}</p>`;
+      )}</div><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.month?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && !isNative() && account.billingConfigured ? b("managePlan", "portal") : ""}${storeBilling() ? `${b("restorePurchases", "restore")}<a class="btn ghost" href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noopener noreferrer">${t("manageAppStore")}</a>` : ""}<p>${!signedIn() ? t("loginRequired") : isNative() ? (storeBilling() ? t("storeBillingNote") : t("nativeBilling")) : !account.billingConfigured ? t("billingUnavailable") : t("billingReturn")}</p></div><p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p><p class="help">${t("renewalNote")}</p>`;
   }
   function shareView() {
     const d = shareDraft;
@@ -186,6 +196,26 @@ export function createCommunity({
             }
             if (action === "refresh") {
               await enter(current, shareRecord);
+              return;
+            }
+            if (action === "purchase" || action === "restore") {
+              if (!storeBilling()) throw new Error(t("billingUnavailable"));
+              try {
+                if (action === "purchase")
+                  await nativeBilling.purchase(el.dataset.plan, cycle);
+                else await nativeBilling.restore();
+              } catch (e) {
+                if (e?.code === "purchaseCancelled") return;
+                throw new Error(t(e?.code || "purchaseFailed"));
+              }
+              // The plan is granted by the RevenueCat webhook; poll briefly for it.
+              const before = plan();
+              for (let i = 0; i < 5 && plan() === before; i++) {
+                await new Promise((r) => setTimeout(r, i ? 3000 : 1500));
+                await refreshAccount().catch(() => {});
+              }
+              toast(t(plan() !== before ? "purchaseDone" : "purchasePending"));
+              render();
               return;
             }
             if (action === "checkout" || action === "portal") {
