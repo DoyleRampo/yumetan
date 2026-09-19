@@ -7,7 +7,7 @@
 | 機能 | フリー | スターター | スタンダード |
 |---|---:|---:|---:|
 | 月額 | 0円 | 490円 | 980円 |
-| 年額 | 0円 | 4,800円 | 9,800円 |
+| 年額 | 0円 | 4,900円 | 9,800円 |
 | 夢の記録（日付ごと） | 1件 | 3件 | 10件 |
 | 今日の日記（日付ごと） | 1ページ | 1ページ | 1ページ |
 | GPT振り返り（月） | なし | 30回 | 90回 |
@@ -57,10 +57,10 @@
 
 | 年額会員の月換算 | スターター | スタンダード |
 |---|---:|---:|
-| 売上 | 400円 | 約817円 |
-| 手数料30%控除後 | 280円 | 約572円 |
+| 売上 | 約408円 | 約817円 |
+| 手数料30%控除後 | 約286円 | 約572円 |
 | GPT月間費用上限 | 80円 | 200円 |
-| その他経費に充てられる残額 | 200円 | 約372円 |
+| その他経費に充てられる残額 | 約206円 | 約372円 |
 
 通常の振り返りを入力4,000/出力800トークンと仮定すると1回約0.46円、月30回約14円、90回約42円。長文・OCRに余裕を残しつつ内部上限を設けています。利益は保証できないため、実際の入力量・会員数・解約率・Firebase使用量で月次レビューしてください。無制限のGPTや無制限の投稿閲覧は設定していません。
 
@@ -95,7 +95,7 @@
 
 **ストア側**
 
-- App Store Connect: 有料App契約に同意し、自動更新サブスクリプションを4つ作成（月490円 / 年4,800円のスターター、月980円 / 年9,800円のスタンダード）。製品IDは `com.doyle.yumetan.starter.monthly`、`com.doyle.yumetan.starter.yearly`、`com.doyle.yumetan.standard.monthly`、`com.doyle.yumetan.standard.yearly`（別のIDでも、`starter`/`standard` と `monthly`/`yearly`（または `year`/`annual`）を含んでいればアプリが一致させます）。Sandboxテスターも作成。
+- App Store Connect: 有料App契約に同意し、自動更新サブスクリプションを4つ作成（月490円 / 年4,900円のスターター、月980円 / 年9,800円のスタンダード）。製品IDは `com.doyle.yumetan.starter.monthly`、`com.doyle.yumetan.starter.yearly`、`com.doyle.yumetan.standard.monthly`、`com.doyle.yumetan.standard.yearly`（別のIDでも、`starter`/`standard` と `monthly`/`yearly`（または `year`/`annual`）を含んでいればアプリが一致させます）。Sandboxテスターも作成。
 - Google Play Console（Androidを配布する場合）: 同じ製品IDで定期購入を作成し、基本プランを月/年で設定。ライセンステスターを登録。
 
 **RevenueCat側**（プロジェクト: ユメタン）

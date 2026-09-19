@@ -20,7 +20,7 @@ export const PLANS = {
     id: "starter",
     names: ["スターター", "스타터", "入门", "Starter"],
     monthly: 490,
-    yearly: 4800,
+    yearly: 4900,
     dreams: 3,
     diary: 1,
     reflections: 30,
