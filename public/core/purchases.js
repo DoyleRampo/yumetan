@@ -7,10 +7,22 @@ const cancelled = (e) =>
   e?.code === "1" ||
   e?.data?.userCancelled === true ||
   /cancel/i.test(String(e?.message || ""));
+// RevenueCat Test Store keys (test_...) only work in Debug builds: in a Release build
+// (TestFlight / App Store) the SDK shows "Wrong API Key" on configure and then exits
+// the app. Never hand such a key to the SDK unless the build opted in explicitly.
+export const usableApiKey = (key, allowTestStore = false) => {
+  const k = String(key || "");
+  if (!k || k.startsWith("sk_")) return "";
+  if (k.startsWith("test_") && !allowTestStore) return "";
+  return k;
+};
 export function createPurchases({ cap, plugins = {}, config } = {}) {
   const native = Boolean(cap?.isNativePlatform?.());
   const platform = native ? cap.getPlatform() : "";
-  const apiKey = String(config?.revenueCat?.[platform] || "");
+  const apiKey = usableApiKey(
+    config?.revenueCat?.[platform],
+    config?.revenueCat?.allowTestStore === true,
+  );
   let plugin = null,
     configuredFor = null;
   const available = () =>
