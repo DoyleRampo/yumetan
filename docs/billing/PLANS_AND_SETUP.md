@@ -106,6 +106,7 @@
 - Offerings: `default` に4製品のPackageを追加（カスタム識別子 `starter_monthly` / `starter_yearly` / `standard_monthly` / `standard_yearly`）。初期のTest Store用Package（Monthly / Yearly / Lifetime）は削除してよい。
 - API keys: 各アプリの公開SDKキー（`appl_…` / `goog_…`）はアプリのビルド時に `REVENUECAT_IOS_KEY` / `REVENUECAT_ANDROID_KEY` として `npm run mobile:build` へ渡す。秘密APIキー（`sk_…`）はサーバーの `REVENUECAT_SECRET_API_KEY` にだけ設定。
 - Test Store 用キー（`test_…`、RevenueCat → API keys → Test Store）は **Debugビルド専用**。TestFlight や App Store 向けの Release ビルドに入れると、SDKが起動時に「Wrong API Key」を表示してアプリを終了させます（[RevenueCat Test Store](https://www.revenuecat.com/docs/test-and-launch/sandbox/test-store)）。`npm run mobile:build` は `test_` キーを拒否し、シミュレータ等で Test Store を使うときだけ `REVENUECAT_ALLOW_TEST_STORE=1` を付けてビルドしてください。TestFlight で実機確認するときは `appl_…` キーで `npm run mobile:sync` し直してから Xcode でアーカイブします（Sandboxテスターで購入テストできます）。
+- Xcode の画面を使わずにアップロードする場合は `IOS_TEAM_ID=<Team ID> npm run ios:upload`（`scripts/ios-upload.sh`）。Release 構成でアーカイブし、自動署名で App Store Connect へ直接アップロードします。ビルド番号は未指定なら現在日時になります。
 - Integrations → Webhooks: URL `https://<サーバー>/api/billing/revenuecat`、Authorization header に自分で決めた長いランダム文字列を入力し、同じ値をサーバーの `REVENUECAT_WEBHOOK_AUTH` に設定。
 
 **サーバーの動作**
