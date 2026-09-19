@@ -2,12 +2,12 @@
 
 ## プラン
 
-価格は指定された日本円の請求総額としてStripe価格に登録します。年額は年1回の一括請求です。
+価格は指定された日本円の請求総額としてApp Store Connect / Google Play Consoleのサブスクリプション価格に登録します。年額は年1回の一括請求です。
 
 | 機能 | フリー | スターター | スタンダード |
 |---|---:|---:|---:|
 | 月額 | 0円 | 490円 | 980円 |
-| 年額 | 0円 | 4,800円 | 9,800円 |
+| 年額 | 0円 | 4,900円 | 9,800円 |
 | 夢の記録（日付ごと） | 1件 | 3件 | 10件 |
 | 今日の日記（日付ごと） | 1ページ | 1ページ | 1ページ |
 | GPT振り返り（月） | なし | 30回 | 90回 |
@@ -41,15 +41,15 @@
 
 ## GPT費用の考え方
 
-2026-09-17確認。GPT-4.1 miniは入力100万トークンUS$0.40、出力US$1.60。画像入力と構造化出力に対応し、推論トークンの追加変動がないため、本アプリの短い振り返りに採用しました。[公式モデル/料金](https://developers.openai.com/api/docs/models/gpt-4.1-mini)
+2026-09-18確認。GPT-5.6 Lunaは2026-07-30の値下げ後、入力100万トークンUS$0.20、出力US$1.20（GPT-4.1 miniのUS$0.40 / US$1.60より安価）。画像入力と構造化出力に対応します。推論モデルのため `reasoning_effort: "none"` を指定し、推論トークンによる費用・出力枠の変動をなくして採用しました。[公式モデル/料金](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
 
-- モデルを `gpt-4.1-mini-2025-04-14` に固定。変更時は費用計算も見直すこと。
+- モデルを `gpt-5.6-luna-2026-07-09` に固定。変更時は費用計算（`server/openai.js` の単価係数）も見直すこと。
 - 振り返りの出力800トークン、OCR出力1,600トークン。入力テキスト（指示/スキーマを含む）30,000 UTF-8バイト以内。画像は低詳細設定。
 - UTF-8バイト数をテキストのトークン数の保守的上限として扱い、画像/メッセージの予備枠を加えて呼び出し前に費用枠を確保。実請求額の会計ではなく、過大寄りの利用制限です。
 - 回数・ユーザー別費用・サービス全体費用をFirestoreの同一トランザクションで確保。同時アクセスや再起動による回数超過を防ぎます。
 - 自動リトライなし、45秒タイムアウト。API実行開始後は失敗/タイムアウトも回数・確保費用を消費（提供元で請求が発生したか判別できないため）。入力不正・枠不足は送信前に拒否。
 - 保存ボタンはAIを呼ばず、分析ボタンまたはOCRだけがAI枠を使います。`store: false`でAPI出力の保存を要求しません。
-- 本番の `AI_GLOBAL_MONTHLY_USD` は初期値20ドル。利用者増加時に料金収入と照合して変更。OpenAIプロジェクト側の予算/通知も別途設定してください。Moderation、Firebase、Stripe、ホスティング等はこのGPT上限に含みません。
+- 本番の `AI_GLOBAL_MONTHLY_USD` は初期値20ドル。OpenAI側の月間リロード上限と同じ値にしておくと、枠切れ時にアプリ側が先に分かりやすいメッセージで止まります。利用者増加時に料金収入と照合して変更。OpenAIプロジェクト側の予算/通知も別途設定してください。Moderation、Firebase、ストア手数料、ホスティング等はこのGPT上限に含みません。
 
 ### 試算（為替1ドル=160円、販売手数料30%を仮定した厳しめのシナリオ）
 
@@ -57,10 +57,10 @@
 
 | 年額会員の月換算 | スターター | スタンダード |
 |---|---:|---:|
-| 売上 | 400円 | 約817円 |
-| 手数料30%控除後 | 280円 | 約572円 |
+| 売上 | 約408円 | 約817円 |
+| 手数料30%控除後 | 約286円 | 約572円 |
 | GPT月間費用上限 | 80円 | 200円 |
-| その他経費に充てられる残額 | 200円 | 約372円 |
+| その他経費に充てられる残額 | 約206円 | 約372円 |
 
 通常の振り返りを入力4,000/出力800トークンと仮定すると1回約0.46円、月30回約14円、90回約42円。長文・OCRに余裕を残しつつ内部上限を設けています。利益は保証できないため、実際の入力量・会員数・解約率・Firebase使用量で月次レビューしてください。無制限のGPTや無制限の投稿閲覧は設定していません。
 
@@ -77,8 +77,7 @@
 
 | サーバー専用コレクション | 用途 |
 |---|---|
-| `memberships` | Stripe由来のプラン・期限・停止状態 |
-| `billingCustomers` / `billingEvents` | Stripe顧客との対応・イベント重複防止 |
+| `memberships` | RevenueCat由来のプラン・周期・期限・解約予定・停止状態 |
 | `usage` / `serviceBudgets` | 日次/月次回数とGPT費用予約 |
 | `communityPosts` と `comments` / `reactions` サブコレクション | 公開用コピーと交流 |
 | `communityStats` | 同時公開数 |
@@ -90,27 +89,42 @@
 
 `OPENAI_API_KEY` をサーバー環境へ設定。入力/出力制限に一致するモデルを利用できるプロジェクトを使ってください。個人キー入力欄、Claude API、キーによる無料枠迂回は廃止しています。
 
-### 3. Stripe（まずテストモード）
+### 3. RevenueCat（App Store / Google Play のサブスクリプション）
 
-- 月490円・年4,800円のStarter、月980円・年9,800円のStandardの4つの継続価格を作成（JPY、1か月/1年、数量1）。環境変数に価格IDを指定。
-- `STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET`、`PUBLIC_APP_URL`（HTTPSの公開元）を設定。
-- Webhook URLを `/api/billing/webhook` にし、`checkout.session.completed`、`customer.subscription.created/updated/deleted`、`invoice.paid`、`invoice.payment_failed` を購読。
-- Webhook署名と現在のSubscription・Invoice・Priceを検証してから権限を更新します。Checkoutから戻っただけでは権限を与えません。未知の価格、未払い、期限切れは無料扱い。
-- Customer Portalを有効化し、対象4価格だけを公開。解約は期間末、プラン変更のタイミングと差額精算はStripe側で明示して設定。自動更新・取消条件・事業者/問い合わせ情報を公開。
-- 二重購入防止のため既存SubscriptionがあればPortalへ案内、未完了Checkoutがあれば再利用します。
-- テストカードで購入、更新、年額、期間末解約、支払失敗、価格変更、Webhook再送を実環境で確認してから、すべてのキー/価格IDを本番モードへ揃えて切り替え。
+購入はiOS / Androidアプリ内のストア課金だけです。Web版に決済はなく、アプリで購入したプランを同じアカウントでWebでも使えます。Stripeは廃止しました。
 
-参考: [StripeのSubscription Webhook](https://docs.stripe.com/billing/subscriptions/webhooks)、[Checkout](https://docs.stripe.com/payments/checkout/build-subscriptions)。
+**ストア側**
+
+- App Store Connect: 有料App契約に同意し、自動更新サブスクリプションを4つ作成（月490円 / 年4,900円のスターター、月980円 / 年9,800円のスタンダード）。製品IDは `com.doyle.yumetan.starter.monthly`、`com.doyle.yumetan.starter.yearly`、`com.doyle.yumetan.standard.monthly`、`com.doyle.yumetan.standard.yearly`（別のIDでも、`starter`/`standard` と `monthly`/`yearly`（または `year`/`annual`）を含んでいればアプリが一致させます）。Sandboxテスターも作成。
+- Google Play Console（Androidを配布する場合）: 同じ製品IDで定期購入を作成し、基本プランを月/年で設定。ライセンステスターを登録。
+
+**RevenueCat側**（プロジェクト: ユメタン）
+
+- Apps: iOS / Android のアプリを登録し、App Store Connect の In-App Purchase Key と Google Play のサービスアカウントを接続。
+- Products: ストアの4製品を取り込む。
+- Entitlements: `starter` と `standard` の2つを作り、月/年の製品をそれぞれ紐づける。サーバーはこのEntitlement名でプランを決め、製品IDから月/年を判定します。
+- Offerings: `default` に4製品のPackageを追加（カスタム識別子 `starter_monthly` / `starter_yearly` / `standard_monthly` / `standard_yearly`）。初期のTest Store用Package（Monthly / Yearly / Lifetime）は削除してよい。
+- API keys: 各アプリの公開SDKキー（`appl_…` / `goog_…`）はアプリのビルド時に `REVENUECAT_IOS_KEY` / `REVENUECAT_ANDROID_KEY` として `npm run mobile:build` へ渡す。秘密APIキー（`sk_…`）はサーバーの `REVENUECAT_SECRET_API_KEY` にだけ設定。
+- Integrations → Webhooks: URL `https://<サーバー>/api/billing/revenuecat`、Authorization header に自分で決めた長いランダム文字列を入力し、同じ値をサーバーの `REVENUECAT_WEBHOOK_AUTH` に設定。
+
+**サーバーの動作**
+
+- アプリはRevenueCatの App User ID にFirebase UIDを使います。購入・復元後に `POST /api/billing/sync` を呼び、サーバーがRevenueCat REST API（`GET /v1/subscribers/{uid}`）で契約を照会して `memberships/{uid}` を更新します。
+- Webhookは Authorization ヘッダーを定数時間比較で検証し、イベント本文の権利情報は信用せず、含まれるユーザーIDについて同じ照会を行います。匿名ID（`$RCAnonymousID:…`）は無視します。`TEST` イベントは受理のみ。
+- 期限切れ・未知の製品は無料扱い。解約予定は `cancelAtPeriodEnd` として表示。古い照会結果が後から届いても上書きしません（`request_date_ms` で判定）。
+- Sandbox購入も有効化します（Sandboxテスター/ライセンステスターは開発者が登録した人だけが使えるため）。本番配布前にSandboxで購入・復元・解約・期限切れ・Webhook再送を確認してください。
+
+参考: [RevenueCat Webhooks](https://www.revenuecat.com/docs/integrations/webhooks)、[REST API v1](https://www.revenuecat.com/docs/api-v1)、[Capacitor SDK](https://github.com/RevenueCat/purchases-capacitor)。
 
 ### 4. 運営・ストア
 
 - `SUPPORT_URL` に問い合わせページを設定。通報は定期確認し、必要に応じユーザーを停止。`memberships/{uid}.suspended=true` は管理者のみが設定。
 - 運営者のFirebase Custom Claimに `moderator: true` を付与。`GET /api/moderation/reports` で未処理通報、`POST /api/moderation/reports/:id` に `{ "action": "hide" }` または `dismiss` で処理。一般ユーザーはアクセス不可。
-- iOS/Androidでは外部決済ボタンを表示せず、ストア内購入は未提供と明記。ストア内課金/復元・サーバー通知の検証を接続してからストアで販売を開始してください。既存Web会員はログインして利用できます。配布地域/ストア条件の審査は別途必要です。[Appleのガイドライン](https://developer.apple.com/jp/app-store/review/guidelines/)
+- iOS/Androidでは外部決済ボタンを表示せず、ストア内購入・復元だけを提供します。自動更新・取消条件・事業者/問い合わせ情報をアプリ内とストア掲載情報に明記してください。配布地域/ストア条件の審査は別途必要です。[Appleのガイドライン](https://developer.apple.com/jp/app-store/review/guidelines/)
 
 ## 検証の範囲
 
-ロジックとブラウザでは、テスト用Firebase認証・メモリ上のトランザクション・Stripe/GPTスタブを使用し、実ユーザーの夢を投稿したり課金したりしません。Firestore APIは本番アクセスできていないため、インデックス/IAM/実決済/ストア購入は上記手順で実環境の確認が必要です。
+ロジックとブラウザでは、テスト用Firebase認証・メモリ上のトランザクション・RevenueCat/GPTスタブを使用し、実ユーザーの夢を投稿したり課金したりしません。Firestore APIは本番アクセスできていないため、インデックス/IAM/ストア購入/Webhookは上記手順で実環境の確認が必要です。
 
 ### 依存関係
 

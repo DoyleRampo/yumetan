@@ -77,7 +77,7 @@ test("three plan prices, calendar entry quotas, editing and all translations are
       PLANS.standard.monthly,
       PLANS.standard.yearly,
     ],
-    [490, 4800, 980, 9800],
+    [490, 4900, 980, 9800],
   );
   const r = { id: "a", kind: "dream", date: "2026-09-17" };
   assert.equal(canSaveRecord([r], { ...r, id: "b" }), false);

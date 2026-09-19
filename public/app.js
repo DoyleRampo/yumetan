@@ -6,6 +6,7 @@ import {
   cancelNativeAuth,
 } from "./core/native-auth.js";
 import { createCommunity, communityText } from "./community.js";
+import { createPurchases } from "./core/purchases.js";
 import { canSaveRecord, PLANS } from "./core/plans.js";
 import {
   DEFAULT_CHARACTER_SET,
@@ -86,8 +87,15 @@ const at = (key) => authText(key, language());
 const language = () => options.language;
 const characterById = (id) => getCharacter(id, options.characterSet);
 const ct = (key) => communityText(key, language());
+const purchases = createPurchases({
+  cap,
+  plugins,
+  config: window.YUMETAN_CONFIG,
+});
 const social = createCommunity({
   api,
+  purchases,
+  uid: () => cloud?.uid() || null,
   language,
   esc,
   navigate: (next) => {
@@ -1594,11 +1602,7 @@ async function boot() {
     }
     if (cloud && !cloud.isAnonymous())
       await social.refreshAccount().catch(() => {});
-    if (
-      state.profile?.typeAnswers &&
-      (location.hash === "#plans" ||
-        new URLSearchParams(location.search).has("billing"))
-    )
+    if (state.profile?.typeAnswers && location.hash === "#plans")
       page = "plans";
     render();
     if (page === "plans") social.enter("plans");

@@ -431,10 +431,10 @@ export const messages = {
   ],
   ai: ["AIで分析する", "AI로 분석", "使用AI分析", "Analyze with AI"],
   aiHint: [
-    "初期設定は端末内分析です。AIをオンにすると夢・前日の日記（画像認識時は画像）を設定したサーバーとAnthropicに送信します。APIキーはサーバーのANTHROPIC_API_KEYに設定します。",
-    "기본값은 기기 내 분석이에요. AI를 켜면 꿈과 전날 일기(이미지 인식 시 이미지)를 설정한 서버와 Anthropic으로 보내요. API 키는 서버의 ANTHROPIC_API_KEY에 설정해 주세요.",
-    "默认在设备内分析。启用AI后，梦境和前一天日记（识别时包含图片）会发送到所配置服务器与Anthropic。API密钥在服务器ANTHROPIC_API_KEY中设置。",
-    "Analysis runs on-device by default. With AI enabled, dreams and the previous day’s diary (and images for handwriting recognition) are sent to your configured server and Anthropic. Set ANTHROPIC_API_KEY on the server.",
+    "初期設定は端末内分析です。AIをオンにすると夢・前日の日記（画像認識時は画像）を設定したサーバーとOpenAIに送信します。APIキーはサーバーのOPENAI_API_KEYに設定します。",
+    "기본값은 기기 내 분석이에요. AI를 켜면 꿈과 전날 일기(이미지 인식 시 이미지)를 설정한 서버와 OpenAI로 보내요. API 키는 서버의 OPENAI_API_KEY에 설정해 주세요.",
+    "默认在设备内分析。启用AI后，梦境和前一天日记（识别时包含图片）会发送到所配置服务器与OpenAI。API密钥在服务器OPENAI_API_KEY中设置。",
+    "Analysis runs on-device by default. With AI enabled, dreams and the previous day’s diary (and images for handwriting recognition) are sent to your configured server and OpenAI. Set OPENAI_API_KEY on the server.",
   ],
   apiUrl: [
     "APIサーバーURL（空欄は同じサーバー）",

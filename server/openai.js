@@ -8,8 +8,9 @@ export function createAI({
     ? new OpenAI({ apiKey: env.OPENAI_API_KEY, timeout: 45000, maxRetries: 0 })
     : null,
 }) {
-  // This budget calculation is specific to GPT-4.1 mini ($0.40/M input, $1.60/M output).
-  const model = "gpt-4.1-mini-2025-04-14";
+  // This budget calculation is specific to GPT-5.6 Luna ($0.20/M input, $1.20/M output,
+  // post 2026-07-30 pricing). Reasoning is disabled so no hidden reasoning tokens are billed.
+  const model = "gpt-5.6-luna-2026-07-09";
   return {
     model,
     async call({ user, system, messages, schema, kind }) {
@@ -46,8 +47,8 @@ export function createAI({
       if (bytes > 30000) throw fault(400, "aiTextTooLong");
       // UTF-8 bytes upper-bound text tokens; add image + request envelope reserve.
       const costMicros = Math.ceil(
-        (bytes + (kind === "handwriting" ? 4096 : 1024)) * 0.4 +
-          outputLimit * 1.6,
+        (bytes + (kind === "handwriting" ? 4096 : 1024)) * 0.2 +
+          outputLimit * 1.2,
       );
       await access.consume(
         user.uid,
@@ -62,6 +63,7 @@ export function createAI({
         result = await client.chat.completions.create({
           model,
           store: false,
+          reasoning_effort: "none",
           max_completion_tokens: outputLimit,
           messages: [
             { role: "system", content: system.map((s) => s.text).join("\n") },

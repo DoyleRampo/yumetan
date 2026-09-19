@@ -46,7 +46,7 @@ async function fixture(page, plan = "starter") {
     ]),
   );
   registerCommunity(app, { access, asyncRoute: (f) => f });
-  const billing = createBilling({ access, env: {}, stripe: null });
+  const billing = createBilling({ access, env: {} });
   await page.route("**/cloud.js*", (r) =>
     r.fulfill({
       contentType: "text/javascript",
@@ -144,7 +144,7 @@ test("Free keeps one dream and one editable diary per date; plans and paid feed 
   await expect(page.locator(".plan-card")).toHaveCount(3);
   await expect(page.locator("main")).toContainText("¥490");
   await page.locator("[data-social=yearly]").click();
-  await expect(page.locator("main")).toContainText("¥4,800");
+  await expect(page.locator("main")).toContainText("¥4,900");
   await expect(page.locator("main")).toContainText("¥9,800");
   for (const lang of ["ja", "ko", "zh", "en"]) {
     await page.locator("#language").selectOption(lang);
