@@ -136,14 +136,29 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
   await expect(page.locator("main")).toContainText(
     "Yesterday I worked on a challenge.",
   );
-  await expect(page.locator("main")).toContainText("Sleep level: 5 / 5");
+  // Sleep is never graded: the level comes from the number of logged dreams.
+  await expect(page.locator("main")).not.toContainText("Sleep level");
+  // The entry page has a "← previous page" link; the edge swipe does the same.
+  await expect(page.locator(".back-link")).toHaveText("← Dream journal");
+  await page.locator(".back-link").click();
+  await expect(page.locator("#dream-text")).toHaveValue(
+    "I faced a challenge and climbed a mountain.",
+  );
   await page.locator("nav [data-go=home]").click();
-  await expect(page.locator(".score")).toContainText("5");
+  await expect(page.locator(".score")).toContainText("Lv.1");
+  await expect(page.locator(".level-next")).toContainText("2 more to Lv.2");
+  await expect(page.locator(".level-next")).toContainText("Dreams logged: 1");
   await expect(
     page.locator(".character-row .character-stars .lit"),
-  ).toHaveCount(5);
+  ).toHaveCount(1);
+  await expect(page.locator(".back-link")).toHaveCount(0);
+  await page.locator(".character-row .character-link").first().click();
+  await expect(page.locator("h1")).toHaveText("Kiro");
+  await expect(page.locator(".back-link")).toHaveText("← Home");
+  await page.locator(".back-link").click();
+  await expect(page.locator("[data-action=catalog]")).toBeVisible();
   await page.reload();
-  await expect(page.locator(".score")).toContainText("5");
+  await expect(page.locator(".score")).toContainText("Lv.1");
   // The dream page opens today's saved dream directly; the recent list also finds it.
   await page.locator("nav [data-go=record]").click();
   await expect(page.locator("#dream-text")).toHaveValue(
@@ -166,12 +181,11 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
   await page.locator("#dream-form button[type=submit]").click();
   await expect(page.locator(".photo")).toBeVisible();
   await page.locator("#header [data-go=settings]").click();
-  // Developer-only sections (AI server, backup) are gone from Settings.
+  // Developer-only sections (AI server, backup) and the alarm are gone from Settings.
   await expect(page.locator("#settings-form, #import-file")).toHaveCount(0);
   await expect(page.locator("[data-action=export]")).toHaveCount(0);
-  await page.locator("#alarm-time").fill("06:30");
-  await page.locator("#alarm-form button").click();
-  await expect(page.locator("#alarm-status")).toContainText("will not ring");
+  await expect(page.locator("#alarm-form")).toHaveCount(0);
+  await expect(page.locator(".back-link")).toHaveCount(0);
   await page.locator("nav [data-go=record]").click();
   await expect(page.locator("#dream-text")).toHaveValue(
     "I faced a challenge and climbed a mountain.",
@@ -564,42 +578,6 @@ test("legacy main v4 profile, diary, and dream migrate without repeating onboard
   );
 });
 
-test("iOS notification schedules and cancels without claiming to be a Clock alarm", async ({
-  page,
-}) => {
-  await page.addInitScript(() => {
-    window.notificationCalls = [];
-    window.Capacitor = {
-      isNativePlatform: () => true,
-      getPlatform: () => "ios",
-      Plugins: {
-        LocalNotifications: {
-          requestPermissions: async () => ({ display: "granted" }),
-          schedule: async (input) => window.notificationCalls.push(input),
-          cancel: async (input) =>
-            window.notificationCalls.push({ cancel: input }),
-        },
-      },
-    };
-  });
-  await start(page, "en");
-  await page.locator("#header [data-go=settings]").click();
-  await page.locator("#alarm-time").fill("06:45");
-  await page.locator("[data-action=notify-wake]").click();
-  expect(
-    await page.evaluate(
-      () => window.notificationCalls[0].notifications[0].schedule.on,
-    ),
-  ).toEqual({ hour: 6, minute: 45 });
-  await expect(page.locator("#toast")).toContainText("not a Clock alarm");
-  await page.locator("[data-action=cancel-wake]").click();
-  expect(
-    await page.evaluate(
-      () => window.notificationCalls[1].cancel.notifications[0].id,
-    ),
-  ).toBe(1);
-});
-
 test("all sixteen illustrations and localized stories render without overflow", async ({
   page,
 }) => {
@@ -640,7 +618,7 @@ test("all sixteen illustrations and localized stories render without overflow", 
     ).toHaveText(last);
     await page.locator("[data-type-detail]").first().click();
     await expect(page.locator(".character-story").first()).toBeVisible();
-    await page.locator("[data-action=catalog]").click();
+    await page.locator(".back-link").click();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -662,7 +640,7 @@ test("all sixteen illustrations and localized stories render without overflow", 
   });
 });
 
-test("missing artwork preserves identity and unmeasured sleep shows no level stars", async ({
+test("missing artwork preserves identity and a fresh journal starts at one star", async ({
   page,
 }) => {
   await page.route("**/challenge.webp", (route) => route.abort());
@@ -673,7 +651,9 @@ test("missing artwork preserves identity and unmeasured sleep shows no level sta
   await expect(page.locator(".character-row .character-name")).toHaveText(
     "Kiro",
   );
-  await expect(page.locator(".character-stars")).toHaveCount(0);
+  await expect(
+    page.locator(".character-row .character-stars .lit"),
+  ).toHaveCount(1);
 });
 
 test("paid members switch collections both ways without changing journals, type or sleep", async ({
@@ -706,10 +686,10 @@ test("paid members switch collections both ways without changing journals, type 
     await expect(page.locator(".character-row")).toContainText(
       "The Challenger",
     );
-    await expect(page.locator(".score")).toContainText("5");
+    await expect(page.locator(".score")).toContainText("Lv.1");
     await expect(
       page.locator(".character-row .character-stars .lit"),
-    ).toHaveCount(5);
+    ).toHaveCount(1);
     const current = await page.evaluate(() =>
       JSON.parse(localStorage.getItem("yumetan.v4.member")),
     );
@@ -738,21 +718,15 @@ test("paid members switch collections both ways without changing journals, type 
   }
 });
 
-test("appearance save preserves other settings drafts and failed saves do not switch the active collection", async ({
+test("failed appearance saves do not switch the active collection", async ({
   page,
 }) => {
   await paidMember(page);
   await start(page, "en");
   await page.locator("#header [data-go=settings]").click();
-  await page.locator("#alarm-time").fill("06:15");
   await page.locator("#character-form input[value=human]").check();
   await page.locator("#character-form button[type=submit]").click();
   await expect(page.locator("#toast")).toContainText("Saved");
-  await expect(page.locator("#alarm-time")).toHaveValue("06:15");
-  page.once("dialog", (dialog) => dialog.dismiss());
-  await page.locator("nav [data-go=home]").click();
-  await expect(page.locator("#alarm-time")).toBeVisible();
-  await page.locator("#alarm-form button[type=submit]").click();
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
@@ -793,4 +767,37 @@ test("the floating tab bar switches pages by dragging the highlight", async ({
     await page.mouse.move(track.x + track.width * (0.12 + 0.04 * i), y);
   await page.mouse.up();
   await expect(page.locator("#dream-text")).toBeVisible();
+});
+
+test("the dream level climbs with logged dreams and swiping in from the left edge goes back", async ({
+  page,
+}) => {
+  await paidMember(page);
+  await start(page, "en");
+  for (let i = 0; i < 3; i++) {
+    await page.locator("nav [data-go=record]").click();
+    if (i) await page.locator("[data-action=new-dream]").click();
+    await page.locator("#dream-text").fill(`Dream number ${i + 1}`);
+    await page.locator("#dream-form button[type=submit]").click();
+    await expect(page.locator("main")).toContainText(`Dream number ${i + 1}`);
+  }
+  await expect(page.locator("#toast")).toContainText("level went up");
+  await page.locator("nav [data-go=home]").click();
+  await expect(page.locator(".score")).toContainText("Lv.2");
+  await expect(page.locator(".level-next")).toContainText("4 more to Lv.3");
+  await expect(page.locator(".level-gauge")).toHaveAttribute(
+    "aria-valuenow",
+    "0",
+  );
+  await page.locator("[data-action=catalog]").click();
+  await page.locator("[data-type-detail=chase]").click();
+  await expect(page.locator(".back-link")).toHaveText("← Explore all 16");
+  await page.mouse.move(8, 400);
+  await page.mouse.down();
+  for (let x = 20; x <= 140; x += 20) await page.mouse.move(x, 402);
+  await page.mouse.up();
+  await expect(page.locator("[data-type-detail]")).toHaveCount(16);
+  await expect(page.locator(".back-link")).toHaveText("← Home");
+  await page.goBack();
+  await expect(page.locator("[data-action=catalog]")).toBeVisible();
 });

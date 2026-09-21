@@ -68,7 +68,7 @@ for (const [width, height] of [
     await expect(page.locator("h1")).toHaveText("キロ");
     await expect(page.locator(".character-story")).toBeVisible();
     await noOverflow(page);
-    await page.locator("[data-action=catalog]").click();
+    await page.locator(".back-link").click();
     await expect(page.locator("[data-catalog-group=lucid]")).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -93,7 +93,7 @@ for (const [width, height] of [
     await expect(page.locator(".plan-card .plan-price")).toContainText("9,800");
     await expect(page.locator(".plan-card dl > div")).toHaveCount(9);
     await noOverflow(page);
-    await page.locator("[data-social=plans]").click();
+    await page.locator(".back-link").click();
     await expect(page.locator("[data-social=yearly]")).toHaveAttribute(
       "aria-pressed",
       "true",

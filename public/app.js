@@ -31,11 +31,10 @@ import {
   localDate,
   validDate,
   previousDiary,
-  sleepScore,
-  growth,
   adviceKeys,
   validateSleep,
 } from "./core/sleep.js";
+import { dreamLevel } from "./core/level.js";
 import {
   read,
   migrateLegacy,
@@ -56,7 +55,7 @@ const esc = (value) =>
       ],
   );
 const id = () => crypto.randomUUID();
-const APP_VERSION = "4.5.0";
+const APP_VERSION = "4.5.1";
 const cap = window.Capacitor,
   native = cap?.isNativePlatform?.(),
   plugins = cap?.Plugins || {};
@@ -192,7 +191,7 @@ function avatar(type, level = null, mini = false, setId = effectiveSet()) {
   return `<figure class="avatar level-${measured ? level : 0} ${mini ? "mini-avatar" : ""}" style="--accent:${group(item).color}" data-character="${item.id}" data-character-set="${normalizeCharacterSet(setId)}">
     <img class="character-art" src="${character.image}" width="768" height="768" alt="${esc(name(character))} · ${esc(name(item))}" decoding="async">
     <span class="character-fallback" hidden role="img" aria-label="${esc(name(character))}">${item.symbol}</span>
-    ${measured ? `<figcaption class="character-stars" aria-label="${esc(t("level"))} ${level} / 5">${Array.from({ length: 5 }, (_, i) => `<span aria-hidden="true" class="${i < level ? "lit" : ""}">✦</span>`).join("")}</figcaption>` : ""}
+    ${measured ? `<figcaption class="character-stars" aria-label="${esc(t("level"))} ★${level} / 5">${Array.from({ length: 5 }, (_, i) => `<span aria-hidden="true" class="${i < level ? "lit" : ""}">✦</span>`).join("")}</figcaption>` : ""}
   </figure>`;
 }
 function characterStory(type) {
@@ -306,6 +305,40 @@ function bindNavSwipe() {
   );
 }
 bindNavSwipe();
+// Swiping in from the left edge goes back one page, like the iOS back gesture.
+function bindEdgeSwipe() {
+  let start = null;
+  const begin = (x, y, target) => {
+    start =
+      x <= 32 && !target.closest?.("nav, input, textarea, select")
+        ? { x, y }
+        : null;
+  };
+  const end = (x, y) => {
+    if (!start) return;
+    const dx = x - start.x,
+      dy = Math.abs(y - start.y);
+    start = null;
+    if (dx > 70 && dy < 80 && hasBack() && !processing) goBack();
+  };
+  document.addEventListener(
+    "touchstart",
+    (e) => begin(e.touches[0].clientX, e.touches[0].clientY, e.target),
+    { passive: true },
+  );
+  document.addEventListener(
+    "touchend",
+    (e) => end(e.changedTouches[0].clientX, e.changedTouches[0].clientY),
+    { passive: true },
+  );
+  document.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse") begin(e.clientX, e.clientY, e.target);
+  });
+  document.addEventListener("pointerup", (e) => {
+    if (e.pointerType === "mouse") end(e.clientX, e.clientY);
+  });
+}
+bindEdgeSwipe();
 function render() {
   header();
   const views = {
@@ -326,7 +359,10 @@ function render() {
     "community-post": () => social.view("community-post"),
   };
   $("#app").dataset.page = page;
-  $("#app").innerHTML = (views[page] || homeView)();
+  $("#app").innerHTML =
+    (hasBack()
+      ? `<button type="button" class="back-link" data-action="back">← ${esc(pageTitle(backTarget()) || t("back"))}</button>`
+      : "") + (views[page] || homeView)();
   wrapJapaneseLabels($("#app"), language());
   bindForms();
   bindLanguage();
@@ -350,7 +386,69 @@ function render() {
   );
 }
 
-function navigate(next, force = false) {
+// Root pages sit on the tab bar (plus Settings). Every other page shows a
+// "← previous page" link; the stack remembers where the user came from and
+// PARENTS covers a page opened directly (reload, deep link).
+const ROOTS = [...NAV, "settings"];
+const PARENTS = {
+  catalog: "home",
+  "type-detail": "catalog",
+  detail: "record",
+  plans: "settings",
+  "plan-details": "plans",
+  share: "detail",
+  "community-post": "community",
+  onboard: "settings",
+};
+let navStack = [];
+function pageTitle(p) {
+  return {
+    home: t("home"),
+    record: t("recordTitle"),
+    diary: t("diaryTitle"),
+    community: ct("community"),
+    settings: t("settings"),
+    catalog: t("catalog"),
+    "type-detail": t("catalog"),
+    detail: t("detail"),
+    plans: ct("plans"),
+    "plan-details": ct("plans"),
+    share: ct("share"),
+    "community-post": ct("community"),
+    onboard: t("profile"),
+  }[p];
+}
+const hasBack = () =>
+  !ROOTS.includes(page) &&
+  !["quiz", "result"].includes(page) &&
+  !(page === "onboard" && !state.profile?.typeAnswers);
+function backTarget() {
+  const prev = navStack.at(-1);
+  if (prev && prev !== page) return prev;
+  if (page === "detail") {
+    const r = state.records.find((r) => r.id === selectedId);
+    return r?.kind === "diary" ? "diary" : "record";
+  }
+  return PARENTS[page] || "home";
+}
+function goBack() {
+  if (!hasBack()) return;
+  const target = backTarget(),
+    record =
+      page === "detail" ? state.records.find((r) => r.id === selectedId) : null;
+  navStack.pop();
+  processing = false;
+  navigate(target, false, true);
+  // Returning to a journal from an entry reopens that entry's date.
+  if (record && page === target && ["record", "diary"].includes(target)) {
+    draft =
+      record.kind === "diary"
+        ? diaryDraft(record.date)
+        : dreamDraft(record.date, record.id);
+    render();
+  }
+}
+function navigate(next, force = false, back = false) {
   if (processing && !force) return;
   if (!force && dirty && !confirm(t("unsaved"))) return;
   stopVoice();
@@ -364,8 +462,14 @@ function navigate(next, force = false) {
     !["onboard", "quiz", "result"].includes(next)
   )
     next = "quiz";
+  if (ROOTS.includes(next)) navStack = [];
+  else if (!back && next !== page && !["quiz", "result"].includes(page))
+    navStack.push(page);
+  if (navStack.length > 20) navStack = navStack.slice(-20);
   page = next;
-  history.replaceState(null, "", `#${page}`);
+  // Forward moves add a history entry so the browser/Android back button works.
+  if (back || ROOTS.includes(page)) history.replaceState(null, "", `#${page}`);
+  else history.pushState(null, "", `#${page}`);
   render();
   window.scrollTo(0, 0);
   $("#app").focus({ preventScroll: true });
@@ -407,15 +511,19 @@ function adviceCard() {
 function homeView() {
   const result = currentType(),
     type = typeById(result?.id) || TYPES[0],
-    value = growth(state.records, state.profile?.ageGroup);
+    value = dreamLevel(state.records);
   return `<section class="home-dashboard"><section class="hero"><div><p class="eyebrow">${esc(dateText(localDate()))} · ${esc(state.profile?.nickname)}</p><h1>${t("hero")}</h1><div class="row">${button("record", "record", "primary")}${button("diary", "diary", "ghost")}</div></div></section>
- <div class="card accent character-row" style="--accent:${group(type).color}">${avatar(type, value.level, true)}<div><span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p>${button("catalog", "catalog", "small ghost")}</div></div>
- <div class="home-insights"><div class="card sleep-overview"><div><h2>${t("level")}</h2><div class="score">${value.level ?? "—"} <small>/ 5</small></div><p class="help">${value.days ? `${value.days} / 7 · ${value.score} / 100` : t("unmeasured")}</p></div><div class="alarm-shortcut"><span class="muted">${esc(options.alarmTime || "07:00")}</span>${button("alarm", "alarm", "small ghost")}</div></div><details class="card home-advice"><summary>${t("advice")}</summary><p class="help">${t("levelHint")}</p>${adviceCard()}</details></div></section>`;
+ <div class="card accent character-row" style="--accent:${group(type).color}"><button type="button" class="character-link" data-type-detail="${type.id}" aria-label="${esc(name(characterById(type.id)))} · ${esc(t("more"))}">${avatar(type, value.stars, true)}</button><div><span class="tag-label">${name(group(type))}</span><button type="button" class="character-link" data-type-detail="${type.id}"><h2 class="character-name">${name(characterById(type.id))}</h2></button><p class="help">${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p>${button("catalog", "catalog", "small ghost")}</div></div>
+ <div class="home-insights"><div class="card level-card"><div class="row between"><h2>${t("level")}</h2><div class="score">Lv.<b>${value.level}</b></div></div><div class="level-gauge" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value.progress}" aria-label="${esc(t("level"))}"><i style="width:${value.progress}%"></i></div><p class="help level-next">${esc(
+   t("nextLevel")
+     .replace("{n}", value.remaining)
+     .replace("{l}", value.level + 1),
+ )} · ${t("dreamsLogged")}: ${value.count}</p></div><details class="card home-advice"><summary>${t("advice")}</summary><p class="help">${t("levelHint")}</p>${adviceCard()}</details></div></section>`;
 }
 
 function catalogView() {
   const active = currentType()?.id;
-  return `<div class="row between page-heading"><div><p class="eyebrow">${localized(characterSetById(effectiveSet()).names, language())}</p><h1>${t("catalog")}</h1></div>${button("home", "home", "small ghost")}</div><p class="help">${t("catalogHint")}</p>
+  return `<div class="row between page-heading"><div><p class="eyebrow">${localized(characterSetById(effectiveSet()).names, language())}</p><h1>${t("catalog")}</h1></div></div><p class="help">${t("catalogHint")}</p>
   <div class="catalog-filters" role="group" aria-label="${t("catalog")}">${[{ id: "all", names: [t("catalogAll"), t("catalogAll"), t("catalogAll"), t("catalogAll")] }, ...GROUPS].map((g) => `<button class="btn small ghost" data-catalog-group="${g.id}" aria-pressed="${catalogGroup === g.id}">${language() === "ja" ? name(g).replace("タイプ", "") : name(g)}</button>`).join("")}</div>
   <div class="catalog-table">${GROUPS.filter(
     (g) => catalogGroup === "all" || catalogGroup === g.id,
@@ -437,7 +545,7 @@ function catalogView() {
 function typeDetailView() {
   const type =
     typeById(selectedType) || typeById(currentType()?.id) || TYPES[0];
-  return `<div class="narrow">${button("catalog", "catalog", "small ghost")}<div class="card type-detail" style="--accent:${group(type).color}">${avatar(type)}<div><span class="tag-label">${name(group(type))}</span><h1 class="character-name">${name(characterById(type.id))}</h1><p>${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p>${characterStory(type)}</div></div></div>`;
+  return `<div class="narrow"><div class="card type-detail" style="--accent:${group(type).color}">${avatar(type)}<div><span class="tag-label">${name(group(type))}</span><h1 class="character-name">${name(characterById(type.id))}</h1><p>${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p>${characterStory(type)}</div></div></div>`;
 }
 function freshDream(date = localDate()) {
   return {
@@ -578,7 +686,7 @@ function analysisCard(d) {
     .map((type) => `<span class="tag-label">${name(type)}</span>`)
     .join(
       "",
-    )}</div>${body}${prev ? `<h3>${t("previousDiary")} · ${esc(dateText(prev.date))}</h3><p class="prose">${esc(prev.text)}</p><p class="help">${t("diaryContext")}</p>${common.length ? `<p>${t("sharedThemes")}: ${common.map(typeById).map(name).join(" · ")}</p>` : ""}` : `<p class="help">${t("noDiary")}</p>`}${d.sleep ? `<p>${t("level")}: ${sleepScore(d.sleep, state.profile?.ageGroup)?.level ?? "—"} / 5</p>` : ""}${ai ? `<p class="help">${t("readingNote")}</p>` : ""}${button("speak", "speak", "small ghost")}</div>`;
+    )}</div>${body}${prev ? `<h3>${t("previousDiary")} · ${esc(dateText(prev.date))}</h3><p class="prose">${esc(prev.text)}</p><p class="help">${t("diaryContext")}</p>${common.length ? `<p>${t("sharedThemes")}: ${common.map(typeById).map(name).join(" · ")}</p>` : ""}` : `<p class="help">${t("noDiary")}</p>`}${ai ? `<p class="help">${t("readingNote")}</p>` : ""}${button("speak", "speak", "small ghost")}</div>`;
 }
 function diaryView() {
   draft ||= diaryDraft(localDate());
@@ -588,7 +696,7 @@ function diaryView() {
 function detailView() {
   const r = state.records.find((r) => r.id === selectedId);
   if (!r) return `<p>${t("empty")}</p>`;
-  return `<div class="narrow"><p class="eyebrow">${esc(dateText(r.date))}</p><h1>${t("detail")}</h1><div class="card"><p class="prose">${esc(r.text)}</p>${r.photo ? `<img class="photo" src="${esc(r.photo)}" alt="${t("photoAlt")}">` : ""}${r.sleep ? `<p class="help">${t("hours")}: ${r.sleep.hours} · ${t("awakenings")}: ${r.sleep.awakenings} · ${t("rested")}: ${r.sleep.rested}</p>` : ""}</div>${r.kind === "dream" && r.analysis ? analysisCard(r) : ""}${r.kind === "dream" ? `<div class="card"><h2>${ct("share")}</h2><p class="help">${ct("privacyNote")}</p><button class="btn ghost" data-go="share">${ct("share")}</button></div>` : ""}<div class="row">${button("edit", "edit", "primary")}${button("delete", "delete", "danger ghost")}${button("back", "back-to-journal", "ghost")}</div></div>`;
+  return `<div class="narrow"><p class="eyebrow">${esc(dateText(r.date))}</p><h1>${t("detail")}</h1><div class="card"><p class="prose">${esc(r.text)}</p>${r.photo ? `<img class="photo" src="${esc(r.photo)}" alt="${t("photoAlt")}">` : ""}${r.sleep ? `<p class="help">${t("hours")}: ${r.sleep.hours} · ${t("awakenings")}: ${r.sleep.awakenings} · ${t("rested")}: ${r.sleep.rested}</p>` : ""}</div>${r.kind === "dream" && r.analysis ? analysisCard(r) : ""}${r.kind === "dream" ? `<div class="card"><h2>${ct("share")}</h2><p class="help">${ct("privacyNote")}</p><button class="btn ghost" data-go="share">${ct("share")}</button></div>` : ""}<div class="row">${button("edit", "edit", "primary")}${button("delete", "delete", "danger ghost")}</div></div>`;
 }
 // Settings follow the usual mobile order: who you are, what you pay for, how
 // the app looks, reminders, account, and finally the small print.
@@ -608,7 +716,6 @@ function settingsView() {
  ).join(
    "",
  )}</div></fieldset><button type="submit" class="btn primary">${t("save")}</button></form>
- <form id="alarm-form" class="card"><h2>${t("alarm")}</h2>${input("alarmTime", "alarm-time", options.alarmTime || "07:00", "time", "required")}<p class="help">${t(native && cap.getPlatform() === "android" ? "alarmHint" : "alarmManual")}</p><button type="submit" class="btn primary">${t(native && cap.getPlatform() === "android" ? "alarmOpen" : "save")}</button><p id="alarm-status" class="status" role="status"></p>${native && cap.getPlatform() === "ios" ? `<p class="help">${t("notifyHint")}</p><div class="row">${button("notifyWake", "notify-wake", "ghost")}${button("cancelWake", "cancel-wake", "ghost")}</div>` : ""}</form>
  ${accountView()}
  <section class="card about-card"><h2>${t("about")}</h2><p class="help">${t("typeNote")}</p><p class="help">${ct("planAIHint")}</p><p class="help">${t("version")} ${APP_VERSION}</p></section></div>`;
 }
@@ -888,11 +995,6 @@ function bindForms() {
         toast(t("saved"));
       });
     };
-  if ($("#alarm-form"))
-    $("#alarm-form").onsubmit = (e) => {
-      e.preventDefault();
-      run(setAlarm);
-    };
   if ($("#account-form"))
     $("#account-form").onsubmit = (e) => {
       e.preventDefault();
@@ -990,7 +1092,7 @@ async function saveDream() {
     draft.typeTags = result.tags;
   }
   const beforeType = currentType()?.id,
-    before = growth(state.records, state.profile?.ageGroup).level;
+    before = dreamLevel(state.records).level;
   const saved = normalizeRecord({
     ...draft,
     updatedAt: new Date().toISOString(),
@@ -1003,7 +1105,7 @@ async function saveDream() {
   selectedId = saved.id;
   processing = false;
   navigate("detail", true);
-  const after = growth(state.records, state.profile?.ageGroup).level;
+  const after = dreamLevel(state.records).level;
   toast(
     t(
       before && after > before
@@ -1175,52 +1277,6 @@ async function recognize() {
   dirty = true;
   render();
   toast(t("ocrReview"));
-}
-async function setAlarm() {
-  const time = $("#alarm-time").value;
-  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Error(t("required"));
-  options.alarmTime = time;
-  await write("yumetan.v4.options", options);
-  settingsFormSaved("#alarm-form");
-  if (native && cap.getPlatform() === "android") {
-    try {
-      const alarm = plugins.SystemAlarm || cap.registerPlugin("SystemAlarm");
-      await alarm.setAlarm({
-        hour: Number(time.slice(0, 2)),
-        minute: Number(time.slice(3)),
-        label: t("brand"),
-      });
-      $("#alarm-status").textContent = t("alarmLaunched");
-    } catch {
-      $("#alarm-status").textContent = t("alarmManual");
-    }
-  } else $("#alarm-status").textContent = `${t("alarmManual")} ${time}`;
-}
-async function wakeNotification(cancel = false) {
-  const notification =
-    plugins.LocalNotifications || cap?.registerPlugin?.("LocalNotifications");
-  if (!native || !notification) throw new Error(t("notifyDenied"));
-  if (cancel) {
-    await notification.cancel({ notifications: [{ id: 1 }] });
-    toast(t("saved"));
-    return;
-  }
-  await setAlarm();
-  const permission = await notification.requestPermissions();
-  if (permission.display !== "granted") throw new Error(t("notifyDenied"));
-  const [hour, minute] = options.alarmTime.split(":").map(Number);
-  await notification.schedule({
-    notifications: [
-      {
-        id: 1,
-        title: t("brand"),
-        body: t("recordTitle"),
-        schedule: { on: { hour, minute }, repeats: true },
-        sound: "default",
-      },
-    ],
-  });
-  toast(t("notifyHint"));
 }
 function syncCloud() {
   if (syncTask) {
@@ -1556,22 +1612,9 @@ const actions = {
     $("#dream-text")?.focus();
   },
   "delete-entry": deleteOpenEntry,
-  "back-to-journal": () => {
-    const r = state.records.find((r) => r.id === selectedId);
-    processing = false;
-    navigate(r?.kind === "diary" ? "diary" : "record");
-    if (r) {
-      draft =
-        r.kind === "diary" ? diaryDraft(r.date) : dreamDraft(r.date, r.id);
-      render();
-    }
-  },
   profile: () => navigate("onboard"),
   begin: () => navigate("home", true),
-  alarm: () => {
-    navigate("settings");
-    $("#alarm-form")?.scrollIntoView({ behavior: "smooth" });
-  },
+  back: goBack,
   retake: async () => {
     quizAnswers = Array(16).fill(null);
     quizIndex = 0;
@@ -1604,8 +1647,6 @@ const actions = {
   },
   voice: startVoice,
   speak,
-  "notify-wake": () => wakeNotification(),
-  "cancel-wake": () => wakeNotification(true),
   sync: syncCloud,
   guest: () => {
     $("#nickname")?.focus();
@@ -1689,11 +1730,10 @@ document.addEventListener("click", (event) => {
           "catalog",
           "profile",
           "begin",
-          "alarm",
+          "back",
           "edit",
           "quiz-back",
           "new-dream",
-          "back-to-journal",
         ].includes(el.dataset.action)
       )
         action();
@@ -1707,7 +1747,10 @@ window.addEventListener("beforeunload", (event) => {
     event.returnValue = "";
   }
 });
-window.addEventListener("popstate", () => navigate("home"));
+window.addEventListener("popstate", () => {
+  if (hasBack()) goBack();
+  else if (page !== "home") navigate("home");
+});
 async function boot() {
   try {
     const old = await read("yumetan.settings", {}),
@@ -1718,7 +1761,6 @@ async function boot() {
         apiBase: old.apiBase || "",
         code: old.code || "",
         language: old.lang || old.profile?.language || "ja",
-        alarmTime: old.alarm?.time || "07:00",
       }),
     };
     options.characterSet = normalizeCharacterSet(options.characterSet);
@@ -1825,6 +1867,11 @@ await boot();
 if (native) {
   plugins.App?.addListener("appStateChange", ({ isActive }) => {
     if (isActive) resumeNativeLogin();
+  });
+  plugins.App?.addListener("backButton", () => {
+    if (hasBack()) goBack();
+    else if (page !== "home") navigate("home");
+    else plugins.App.exitApp?.();
   });
   await resumeNativeLogin();
 }

@@ -23,6 +23,7 @@ import {
   mergeRecords,
 } from "../public/core/storage.js";
 import { reflect } from "../public/core/reflection.js";
+import { dreamLevel, levelThreshold } from "../public/core/level.js";
 import {
   reflectionInput,
   handwritingInput,
@@ -402,4 +403,33 @@ test("character collection defaults and fallbacks retain all stable type IDs and
   assert.equal(characterById("challenge").names[3], "Kiro");
   assert.equal(characterById("challenge", "human").names[3], "Kakeru");
   assert.equal(characterById("missing").id, "chase");
+});
+
+test("dream level grows with logged dreams only, on a widening curve without a cap", () => {
+  const dreams = (n) =>
+    Array.from({ length: n }, (_, i) => record({ id: `d${i}` }));
+  const diaries = Array.from({ length: 50 }, (_, i) =>
+    record({ id: `j${i}`, kind: "diary" }),
+  );
+  assert.deepEqual(dreamLevel([]), {
+    level: 1,
+    count: 0,
+    next: 3,
+    remaining: 3,
+    progress: 0,
+    stars: 1,
+  });
+  assert.equal(dreamLevel(diaries).level, 1);
+  assert.equal(dreamLevel(dreams(2)).remaining, 1);
+  assert.equal(dreamLevel(dreams(3)).level, 2);
+  assert.equal(dreamLevel(dreams(3)).progress, 0);
+  assert.equal(dreamLevel(dreams(5)).progress, 50);
+  assert.equal(dreamLevel(dreams(20)).level, 5);
+  assert.equal(dreamLevel(dreams(90)).level, 10);
+  assert.equal(dreamLevel(dreams(115)).level, 11);
+  assert.equal(dreamLevel(dreams(7)).stars, 1);
+  assert.equal(dreamLevel(dreams(12)).stars, 2);
+  assert.equal(dreamLevel(dreams(500)).stars, 5);
+  for (let level = 2; level < 30; level++)
+    assert.ok(levelThreshold(level) < levelThreshold(level + 1));
 });

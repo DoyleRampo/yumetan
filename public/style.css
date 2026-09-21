@@ -832,18 +832,24 @@ button {
   gap: 16px;
 }
 header {
-  padding: calc(12px + env(safe-area-inset-top))
-    max(16px, env(safe-area-inset-right)) 12px
+  padding: calc(4px + env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right)) 6px
     max(16px, env(safe-area-inset-left));
+  min-height: 0;
 }
 main {
-  padding: 24px max(20px, env(safe-area-inset-right))
+  padding: 16px max(20px, env(safe-area-inset-right))
     calc(124px + env(safe-area-inset-bottom))
     max(20px, env(safe-area-inset-left));
 }
+/* Page titles: one quiet line of light Mincho, shared by every screen. */
 h1 {
-  font-size: clamp(25px, 3.4vw, 38px);
-  margin-bottom: 12px;
+  font-size: clamp(19px, 2.4vw, 24px);
+  font-weight: 300;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  white-space: normal;
+  margin-bottom: 10px;
 }
 h2 {
   font-size: 20px;
@@ -898,7 +904,10 @@ summary {
   padding: 8px 0;
 }
 .home-dashboard .hero h1 {
-  font-size: clamp(27px, 3.4vw, 38px);
+  font-size: clamp(19px, 2.4vw, 24px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .home-dashboard .character-row {
   margin: 0;
@@ -941,12 +950,6 @@ summary {
 }
 .sleep-overview .help {
   margin: 8px 0 0;
-}
-.alarm-shortcut {
-  display: grid;
-  gap: 4px;
-  justify-items: center;
-  flex-shrink: 0;
 }
 .home-advice {
   padding-block: 6px;
@@ -1235,8 +1238,8 @@ summary {
     padding: 0;
   }
   .home-dashboard .hero h1 {
-    font-size: 28px;
-    line-height: 1.35;
+    font-size: 19px;
+    line-height: 1.5;
     margin-bottom: 8px;
   }
   .home-dashboard .hero p {
@@ -1771,5 +1774,98 @@ nav button:focus-visible {
   .date-input {
     max-width: 150px;
     padding-inline: 8px;
+  }
+}
+
+/* Header is a single compact row; the brand's tagline stays small. */
+.brand {
+  font-size: 19px;
+  line-height: 1.15;
+}
+.brand small {
+  font-size: 9px;
+  letter-spacing: 0.24em;
+}
+.icon-btn {
+  width: 40px;
+  height: 40px;
+}
+
+/* "← previous page" link at the top of every non-root page. */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 10px;
+  padding: 6px 10px 6px 2px;
+  border: 0;
+  background: none;
+  color: var(--gold);
+  font-size: 14px;
+  min-height: 40px;
+  border-radius: 10px;
+}
+.back-link:hover {
+  background: #ffffff0a;
+}
+
+/* Home: the character portrait and name open the character page. */
+.character-link {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: inherit;
+  border-radius: 24px;
+  color: inherit;
+}
+.character-link h2 {
+  margin: 6px 0;
+}
+.character-link:hover .character-art {
+  filter: brightness(1.08);
+}
+
+/* Dream level: a game-style gauge fed by how many dreams are logged. */
+.level-card .row {
+  margin-bottom: 8px;
+}
+.level-card h2 {
+  font-size: 15px;
+  margin: 0;
+}
+.level-card .score {
+  font-size: 22px;
+  color: var(--gold);
+}
+.level-card .score b {
+  font-size: 30px;
+  font-weight: 500;
+}
+.level-gauge {
+  height: 12px;
+  border-radius: 999px;
+  background: #ffffff14;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.level-gauge i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--purple), var(--gold));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--gold) 50%, transparent);
+  transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.level-next {
+  margin: 8px 0 0;
+}
+@media (max-width: 680px) {
+  .home-dashboard .character-row {
+    flex-direction: row;
+    text-align: left;
+  }
+  .brand {
+    font-size: 18px;
   }
 }
