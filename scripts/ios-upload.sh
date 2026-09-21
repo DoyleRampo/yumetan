@@ -13,13 +13,26 @@
 #   BUILD_NUMBER  （任意）ビルド番号。未指定なら現在日時（例: 202609191230）を使うので、
 #                 前回より必ず大きくなる。
 #   MARKETING_VERSION （任意）表示バージョン。未指定なら Xcode プロジェクトの値（1.0）。
+#   ASC_KEY_ID / ASC_ISSUER_ID / ASC_API_KEY_PATH
+#                 （任意、3つセット）App Store Connect API キーの Key ID・Issuer ID・.p8 ファイルのパス。
+#                 指定すると Apple ID のログインなしで署名の準備とアップロードができる（GitHub Actions 用）。
 #
-# 署名は Xcode に登録済みの Apple ID による自動署名（-allowProvisioningUpdates）を使う。
-# Xcode → Settings → Accounts に Apple ID が追加されていること。
+# 署名は自動署名（-allowProvisioningUpdates）。API キー未指定なら Xcode → Settings → Accounts に
+# 登録済みの Apple ID を使うので、Apple ID が追加されていること。
+# Apple Distribution 証明書がキーチェーンに入っている必要がある。
 set -eu
 
 : "${IOS_TEAM_ID:?IOS_TEAM_ID（Apple Developer の Team ID）を指定してください}"
 BUILD_NUMBER="${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
+MARKETING_VERSION="${MARKETING_VERSION:-}"
+AUTH_ARGS=""
+if [ -n "${ASC_KEY_ID:-}" ] || [ -n "${ASC_ISSUER_ID:-}" ] || [ -n "${ASC_API_KEY_PATH:-}" ]; then
+  : "${ASC_KEY_ID:?ASC_KEY_ID / ASC_ISSUER_ID / ASC_API_KEY_PATH は3つセットで指定してください}"
+  : "${ASC_ISSUER_ID:?ASC_KEY_ID / ASC_ISSUER_ID / ASC_API_KEY_PATH は3つセットで指定してください}"
+  : "${ASC_API_KEY_PATH:?ASC_KEY_ID / ASC_ISSUER_ID / ASC_API_KEY_PATH は3つセットで指定してください}"
+  [ -f "$ASC_API_KEY_PATH" ] || { echo "ASC_API_KEY_PATH のファイルがありません: $ASC_API_KEY_PATH" >&2; exit 1; }
+  AUTH_ARGS="-authenticationKeyPath $ASC_API_KEY_PATH -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
+fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/build/ios"
 ARCHIVE="$OUT/App.xcarchive"
@@ -45,6 +58,7 @@ xcodebuild archive \
   -destination "generic/platform=iOS" \
   -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates \
+  $AUTH_ARGS \
   DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
   CODE_SIGN_STYLE=Automatic \
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
@@ -70,6 +84,7 @@ xcodebuild -exportArchive \
   -archivePath "$ARCHIVE" \
   -exportOptionsPlist "$EXPORT_PLIST" \
   -exportPath "$OUT/export" \
-  -allowProvisioningUpdates
+  -allowProvisioningUpdates \
+  $AUTH_ARGS
 
 echo "アップロードしました（build $BUILD_NUMBER）。App Store Connect → TestFlight で処理完了を待ってください。"

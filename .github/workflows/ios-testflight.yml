@@ -1,0 +1,107 @@
+# develop ブランチへ push されるたびに iOS アプリをビルドし、TestFlight（App Store Connect）へアップロードする。
+#
+# 必要な Repository secrets（Settings → Secrets and variables → Actions）:
+#   API_URL                 アプリが接続する公開サーバーの URL
+#   REVENUECAT_IOS_KEY      RevenueCat の iOS 公開キー（appl_…）
+#   IOS_TEAM_ID             Apple Developer の Team ID（10桁）
+#   IOS_DIST_CERT_P12       Apple Distribution 証明書（.p12）を base64 にした文字列
+#   IOS_DIST_CERT_PASSWORD  .p12 のパスワード
+#   ASC_KEY_ID              App Store Connect API キーの Key ID
+#   ASC_ISSUER_ID           App Store Connect API キーの Issuer ID
+#   ASC_API_KEY_P8          App Store Connect API キーの .p8 ファイルの中身
+#
+# ビルド番号は scripts/ios-upload.sh が現在日時（例: 202609211230）から付けるので、毎回前回より大きくなる。
+name: iOS TestFlight
+
+on:
+  push:
+    branches: [develop]
+    paths-ignore:
+      - "android/**"
+      - "docs/**"
+      - "**.md"
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: "表示バージョン（例: 1.1）。空なら Xcode プロジェクトの値を使う"
+        required: false
+        type: string
+
+# 同時に 2 本走るとビルド番号（分単位）が衝突しうるので、1 本ずつ順番に実行する
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    name: Archive and upload
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build web assets and sync to iOS
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          REVENUECAT_IOS_KEY: ${{ secrets.REVENUECAT_IOS_KEY }}
+        run: |
+          npm run mobile:build
+          npx cap sync ios
+
+      - name: Install signing certificate into a temporary keychain
+        env:
+          IOS_DIST_CERT_P12: ${{ secrets.IOS_DIST_CERT_P12 }}
+          IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+        run: |
+          set -eu
+          KEYCHAIN="$RUNNER_TEMP/ios-build.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          CERT="$RUNNER_TEMP/distribution.p12"
+          echo "$IOS_DIST_CERT_P12" | base64 --decode > "$CERT"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT" -P "$IOS_DIST_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          # Apple の中間証明書（証明書チェーンの検証に必要。ランナーに無い場合に備えて入れておく）
+          curl -fsSL -o "$RUNNER_TEMP/AppleWWDRCAG3.cer" https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer \
+            && security import "$RUNNER_TEMP/AppleWWDRCAG3.cer" -k "$KEYCHAIN" -A || echo "WWDR 中間証明書の取り込みをスキップしました"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychain -d user -s "$KEYCHAIN" "$HOME/Library/Keychains/login.keychain-db"
+          rm -f "$CERT"
+
+          echo "取り込んだ署名用証明書:"
+          security find-identity -v -p codesigning "$KEYCHAIN"
+          echo "KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
+      - name: Write App Store Connect API key
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          set -eu
+          KEY="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s\n' "$ASC_API_KEY_P8" > "$KEY"
+          chmod 600 "$KEY"
+          echo "ASC_API_KEY_PATH=$KEY" >> "$GITHUB_ENV"
+
+      - name: Archive and upload to TestFlight
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          MARKETING_VERSION: ${{ inputs.marketing_version }}
+        run: npm run ios:upload
+
+      - name: Remove temporary keychain and API key
+        if: always()
+        run: |
+          [ -n "${KEYCHAIN:-}" ] && security delete-keychain "$KEYCHAIN" || true
+          rm -f "${ASC_API_KEY_PATH:-}" "$RUNNER_TEMP/distribution.p12"

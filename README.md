@@ -111,6 +111,24 @@ npx cap open android
 
 Xcode・Android Studio・署名環境は別途必要です。Webファイル変更後は再同期してください。
 
+### TestFlight への自動アップロード
+
+`develop` ブランチへ push すると GitHub Actions（`.github/workflows/ios-testflight.yml`）が macOS ランナーで `npm run mobile:sync` 相当の同期と `npm run ios:upload` を実行し、App Store Connect（TestFlight）へアップロードします。`android/`・`docs/`・`*.md` だけの変更では動きません。Actions タブの「iOS TestFlight」から手動実行（表示バージョンの指定も可）もできます。ビルド番号は実行時刻（例: `202609211230`）なので毎回前回より大きくなります。
+
+必要な Repository secrets（Settings → Secrets and variables → Actions）:
+
+| Secret | 値 |
+| --- | --- |
+| `API_URL` | アプリが接続する公開サーバーの URL |
+| `REVENUECAT_IOS_KEY` | RevenueCat の iOS 公開キー（`appl_…`。`test_` は不可） |
+| `IOS_TEAM_ID` | Apple Developer の Team ID（10桁） |
+| `IOS_DIST_CERT_P12` | Apple Distribution 証明書を Keychain Access から .p12 で書き出し、`base64 -i 証明書.p12` した文字列 |
+| `IOS_DIST_CERT_PASSWORD` | .p12 書き出し時のパスワード |
+| `ASC_KEY_ID` / `ASC_ISSUER_ID` | App Store Connect → Users and Access → Integrations → Team Keys の Key ID と Issuer ID（役割は App Manager） |
+| `ASC_API_KEY_P8` | ダウンロードした `AuthKey_*.p8` の中身（BEGIN 行から END 行まで） |
+
+Mac 上で同じ手順を手動で行う場合は `IOS_TEAM_ID=<Team ID> npm run ios:upload`。`ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_API_KEY_PATH`（.p8 のパス）を付けると Apple ID のログインなしで動きます。
+
 ## テスト
 
 ```sh
