@@ -53,7 +53,7 @@ if [ -n "${IOS_PROVISIONING_PROFILE:-}" ]; then
   PROFILE_UUID="$(printf '%s' "$PROFILE_PLIST" | plutil -extract UUID raw -o - -)"
   PROFILE_APP_ID="$(printf '%s' "$PROFILE_PLIST" | plutil -extract Entitlements.application-identifier raw -o - -)"
   if [ "$PROFILE_APP_ID" != "$IOS_TEAM_ID.$BUNDLE_ID" ]; then
-    echo "プロビジョニングプロファイル「$PROFILE_NAME」は $PROFILE_APP_ID 用です。$IOS_TEAM_ID.$BUNDLE_ID 用（App Store Connect 配布）のプロファイルを作り直してください。" >&2
+    echo "プロビジョニングプロファイル「${PROFILE_NAME}」は $PROFILE_APP_ID 用です。$IOS_TEAM_ID.$BUNDLE_ID 用（App Store Connect 配布）のプロファイルを作り直してください。" >&2
     exit 1
   fi
   if ! security find-identity -v -p codesigning | grep -q "Apple Distribution"; then
@@ -69,7 +69,7 @@ if [ -n "${IOS_PROVISIONING_PROFILE:-}" ]; then
   EXPORT_SIGNING="  <key>signingStyle</key><string>manual</string>
   <key>signingCertificate</key><string>Apple Distribution</string>
   <key>provisioningProfiles</key><dict><key>$BUNDLE_ID</key><string>$PROFILE_NAME</string></dict>"
-  echo "手動署名: プロファイル「$PROFILE_NAME」($PROFILE_UUID)"
+  echo "手動署名: プロファイル「${PROFILE_NAME}」($PROFILE_UUID)"
 fi
 
 if [ ! -f "$ROOT/ios/App/App/public/config.js" ]; then
@@ -119,4 +119,4 @@ xcodebuild -exportArchive \
   -allowProvisioningUpdates \
   $AUTH_ARGS
 
-echo "アップロードしました（build $BUILD_NUMBER）。App Store Connect → TestFlight で処理完了を待ってください。"
+echo "アップロードしました（build ${BUILD_NUMBER}）。App Store Connect → TestFlight で処理完了を待ってください。"
