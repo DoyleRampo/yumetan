@@ -4,8 +4,9 @@
 #   API_URL                 アプリが接続する公開サーバーの URL
 #   REVENUECAT_IOS_KEY      RevenueCat の iOS 公開キー（appl_…）
 #   IOS_TEAM_ID             Apple Developer の Team ID（10桁）
-#   IOS_DIST_CERT_P12       Apple Distribution 証明書（.p12）を base64 にした文字列
+#   IOS_DIST_CERT_P12       Apple Distribution 証明書（.p12、秘密鍵入り）を base64 にした文字列
 #   IOS_DIST_CERT_PASSWORD  .p12 のパスワード
+#   IOS_PROVISIONING_PROFILE App Store Connect 配布用プロビジョニングプロファイル（.mobileprovision）を base64 にした文字列
 #   ASC_KEY_ID              App Store Connect API キーの Key ID
 #   ASC_ISSUER_ID           App Store Connect API キーの Issuer ID
 #   ASC_API_KEY_P8          App Store Connect API キーの .p8 ファイルの中身
@@ -80,7 +81,25 @@ jobs:
 
           echo "取り込んだ署名用証明書:"
           security find-identity -v -p codesigning "$KEYCHAIN"
+          if ! security find-identity -v -p codesigning "$KEYCHAIN" | grep -q "Apple Distribution"; then
+            echo "::error::IOS_DIST_CERT_P12 に Apple Distribution 証明書が入っていません（Apple Development では TestFlight にアップロードできません）。Keychain Access で「Apple Distribution: …」を秘密鍵ごと .p12 に書き出し、Secret を登録し直してください。"
+            exit 1
+          fi
           echo "KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
+      - name: Write provisioning profile
+        env:
+          IOS_PROVISIONING_PROFILE_B64: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+        run: |
+          set -eu
+          if [ -z "$IOS_PROVISIONING_PROFILE_B64" ]; then
+            echo "::error::Secret IOS_PROVISIONING_PROFILE がありません。developer.apple.com → Profiles で App Store Connect 配布用プロファイルを作り、.mobileprovision を base64 にして登録してください。"
+            exit 1
+          fi
+          PROFILE="$RUNNER_TEMP/AppStore.mobileprovision"
+          echo "$IOS_PROVISIONING_PROFILE_B64" | base64 --decode > "$PROFILE"
+          security cms -D -i "$PROFILE" | plutil -extract Name raw -o - - | sed 's/^/プロファイル: /'
+          echo "IOS_PROVISIONING_PROFILE=$PROFILE" >> "$GITHUB_ENV"
 
       - name: Write App Store Connect API key
         env:
@@ -104,4 +123,4 @@ jobs:
         if: always()
         run: |
           [ -n "${KEYCHAIN:-}" ] && security delete-keychain "$KEYCHAIN" || true
-          rm -f "${ASC_API_KEY_PATH:-}" "$RUNNER_TEMP/distribution.p12"
+          rm -f "${ASC_API_KEY_PATH:-}" "${IOS_PROVISIONING_PROFILE:-}" "$RUNNER_TEMP/distribution.p12"

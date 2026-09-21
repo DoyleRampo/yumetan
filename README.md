@@ -122,12 +122,15 @@ Xcode・Android Studio・署名環境は別途必要です。Webファイル変�
 | `API_URL` | アプリが接続する公開サーバーの URL |
 | `REVENUECAT_IOS_KEY` | RevenueCat の iOS 公開キー（`appl_…`。`test_` は不可） |
 | `IOS_TEAM_ID` | Apple Developer の Team ID（10桁） |
-| `IOS_DIST_CERT_P12` | Apple Distribution 証明書を Keychain Access から .p12 で書き出し、`base64 -i 証明書.p12` した文字列 |
+| `IOS_DIST_CERT_P12` | **Apple Distribution** 証明書（Apple Development ではない）を Keychain Access から秘密鍵ごと .p12 で書き出し、`base64 -i 証明書.p12` した文字列 |
 | `IOS_DIST_CERT_PASSWORD` | .p12 書き出し時のパスワード |
+| `IOS_PROVISIONING_PROFILE` | developer.apple.com → Certificates, Identifiers & Profiles → Profiles で作った **App Store Connect** 配布用プロファイル（App ID `com.doyle.yumetan`、上の Distribution 証明書を選択）の .mobileprovision を `base64 -i` した文字列 |
 | `ASC_KEY_ID` / `ASC_ISSUER_ID` | App Store Connect → Users and Access → Integrations → Team Keys の Key ID と Issuer ID（役割は App Manager） |
 | `ASC_API_KEY_P8` | ダウンロードした `AuthKey_*.p8` の中身（BEGIN 行から END 行まで） |
 
-Mac 上で同じ手順を手動で行う場合は `IOS_TEAM_ID=<Team ID> npm run ios:upload`。`ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_API_KEY_PATH`（.p8 のパス）を付けると Apple ID のログインなしで動きます。
+CI では Xcode の自動署名を使わず、`scripts/ios-manual-signing.mjs` がビルド時のチェックアウト上で App ターゲットの Release 構成だけを上記プロファイルによる手動署名に切り替えます（リポジトリの Xcode プロジェクトは自動署名のまま）。
+
+Mac 上で同じ手順を手動で行う場合は `IOS_TEAM_ID=<Team ID> npm run ios:upload`（Xcode にログイン済みの Apple ID による自動署名）。`ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_API_KEY_PATH`（.p8 のパス）を付けるとアップロードに API キーを使い、`IOS_PROVISIONING_PROFILE`（.mobileprovision のパス）を付けると CI と同じ手動署名になります。
 
 ## テスト
 
