@@ -14,6 +14,30 @@ async function localOnly(page) {
     }),
   );
 }
+// A signed-in Starter member: the server-verified plan unlocks AI readings and
+// the human character collection. No real Firebase or OpenAI traffic occurs.
+async function paidMember(page, plan = "starter") {
+  await localOnly(page);
+  await page.route("**/cloud.js*", (route) =>
+    route.fulfill({
+      contentType: "text/javascript",
+      body: `
+ const get=()=>JSON.parse(localStorage.getItem('test.db.member')||'{"records":[],"profile":null}');
+ const set=value=>localStorage.setItem('test.db.member',JSON.stringify(value));
+ window.YumetanCloud={state:{enabled:true},ready:Promise.resolve({enabled:true}),uid:()=>'member',isAnonymous:()=>false,email:()=>'member@example.test',idToken:async()=>'test-token',loadOnce:async()=>get().records,loadProfile:async()=>get().profile,saveProfile:async profile=>set({...get(),profile}),saveDream:async record=>set({...get(),records:[...get().records.filter(r=>r.id!==record.id),record]}),deleteDream:async id=>set({...get(),records:get().records.filter(r=>r.id!==id)}),signOut:async()=>{}};
+ `,
+    }),
+  );
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: {
+        plan,
+        paidUntil: Date.now() + 86400000 * 30,
+        usage: { day: {}, month: {} },
+      },
+    }),
+  );
+}
 async function start(page, lang = "ja") {
   await localOnly(page);
   await page.goto("/");
@@ -28,11 +52,11 @@ async function start(page, lang = "ja") {
   }
   await expect(page.locator("[data-action=begin]")).toBeVisible();
   await expect(page.locator(".character-name")).toHaveText(
-    { ja: "カケル", ko: "카케루", zh: "翔", en: "Kakeru" }[lang],
+    { ja: "キロ", ko: "키로", zh: "奇洛", en: "Kiro" }[lang],
   );
   await expect(page.locator(".character-art")).toHaveAttribute(
     "src",
-    /dreamwalkers-v1\/challenge\.webp$/,
+    /moonkeepers-v1\/challenge\.webp$/,
   );
   await page.locator("[data-action=begin]").click();
   await expect(page.locator("[data-action=record]")).toBeVisible();
@@ -51,9 +75,14 @@ for (const [lang, label] of [
     await start(page, lang);
     await expect(page.locator(".character-row")).toContainText(label);
     await expect(page.locator(".character-row .character-name")).toHaveText(
-      { ja: "カケル", ko: "카케루", zh: "翔", en: "Kakeru" }[lang],
+      { ja: "キロ", ko: "키로", zh: "奇洛", en: "Kiro" }[lang],
     );
     await expect(page.locator("html")).toHaveAttribute("lang", lang);
+    // Icon-only floating tab bar with the settings button in the header.
+    await expect(page.locator("nav button")).toHaveCount(4);
+    await expect(page.locator("nav button")).toHaveText(["", "", "", ""]);
+    await expect(page.locator("#header [data-go=settings]")).toBeVisible();
+    await expect(page.locator("#header #language")).toHaveCount(0);
     await expect(page.locator("main")).not.toContainText("undefined");
     expect(
       await page.evaluate(
@@ -68,12 +97,12 @@ for (const [lang, label] of [
     await page.reload();
     await expect(page.locator(".character-row")).toContainText(label);
     await expect(page.locator(".character-row .character-name")).toHaveText(
-      { ja: "カケル", ko: "카케루", zh: "翔", en: "Kakeru" }[lang],
+      { ja: "キロ", ko: "키로", zh: "奇洛", en: "Kiro" }[lang],
     );
     expect(errors).toEqual([]);
   });
 }
-test("diary context, sleep growth, persisted history, image, delete, and backup", async ({
+test("diary context, sleep growth, date-based journals, image, and delete", async ({
   page,
 }) => {
   await start(page, "en");
@@ -82,7 +111,19 @@ test("diary context, sleep growth, persisted history, image, delete, and backup"
   await page.locator("#diary-date").dispatchEvent("change");
   await page.locator("#diary-text").fill("Yesterday I worked on a challenge.");
   await page.locator("#diary-form button[type=submit]").click();
-  await expect(page.locator("main")).toContainText("Yesterday I worked");
+  await expect(page.locator("#toast")).toContainText("Saved");
+  // Saving keeps the diary page open on that date; moving a day and back reloads it.
+  await expect(page.locator("#diary-text")).toHaveValue(
+    "Yesterday I worked on a challenge.",
+  );
+  await expect(page.locator("[data-action=delete-entry]")).toBeVisible();
+  await page.locator("[data-shift='1']").click();
+  await expect(page.locator("#diary-date")).toHaveValue(today());
+  await expect(page.locator("#diary-text")).toHaveValue("");
+  await page.locator("[data-shift='-1']").click();
+  await expect(page.locator("#diary-text")).toHaveValue(
+    "Yesterday I worked on a challenge.",
+  );
   await page.locator("nav [data-go=record]").click();
   await page
     .locator("#dream-text")
@@ -103,11 +144,15 @@ test("diary context, sleep growth, persisted history, image, delete, and backup"
   ).toHaveCount(5);
   await page.reload();
   await expect(page.locator(".score")).toContainText("5");
-  await page.locator("nav [data-go=history]").click();
-  await page.locator("#search").fill("mountain");
-  await expect(page.locator(".entry")).toHaveCount(1);
-  await page.locator(".entry").click();
-  await page.locator("[data-action=edit]").click();
+  // The dream page opens today's saved dream directly; the recent list also finds it.
+  await page.locator("nav [data-go=record]").click();
+  await expect(page.locator("#dream-text")).toHaveValue(
+    "I faced a challenge and climbed a mountain.",
+  );
+  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
+    1,
+  );
+  await expect(page.locator(".recent-entries")).toContainText("mountain");
   await page.locator("summary").filter({ hasText: "handwritten" }).click();
   await page.locator("#photo-file").setInputFiles({
     name: "note.png",
@@ -120,19 +165,27 @@ test("diary context, sleep growth, persisted history, image, delete, and backup"
   await expect(page.locator(".photo")).toBeVisible();
   await page.locator("#dream-form button[type=submit]").click();
   await expect(page.locator(".photo")).toBeVisible();
-  await page.locator("nav [data-go=settings]").click();
-  const download = page.waitForEvent("download");
-  await page.locator("[data-action=export]").click();
-  expect((await download).suggestedFilename()).toMatch(/yumetan-.*json/);
+  await page.locator("#header [data-go=settings]").click();
+  // Developer-only sections (AI server, backup) are gone from Settings.
+  await expect(page.locator("#settings-form, #import-file")).toHaveCount(0);
+  await expect(page.locator("[data-action=export]")).toHaveCount(0);
   await page.locator("#alarm-time").fill("06:30");
   await page.locator("#alarm-form button").click();
   await expect(page.locator("#alarm-status")).toContainText("will not ring");
-  await page.locator("nav [data-go=history]").click();
-  await page.locator("#history-filter").selectOption("dream");
-  await page.locator(".entry").click();
+  await page.locator("nav [data-go=record]").click();
+  await expect(page.locator("#dream-text")).toHaveValue(
+    "I faced a challenge and climbed a mountain.",
+  );
   page.once("dialog", (d) => d.accept());
-  await page.locator("[data-action=delete]").click();
-  await expect(page.locator(".entry")).toHaveCount(1);
+  await page.locator("[data-action=delete-entry]").click();
+  await expect(page.locator("#dream-text")).toHaveValue("");
+  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
+    0,
+  );
+  await page.locator("nav [data-go=diary]").click();
+  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
+    1,
+  );
 });
 test("partial questionnaire survives refresh and back navigation", async ({
   page,
@@ -151,31 +204,43 @@ test("partial questionnaire survives refresh and back navigation", async ({
     "true",
   );
 });
-test("AI failures retain unsaved dream; malformed imports do not alter records", async ({
+test("AI failures retain the unsaved dream; free members get a local reflection and an upgrade hint", async ({
   page,
 }) => {
+  await paidMember(page);
   await start(page, "en");
-  await page.locator("nav [data-go=settings]").click();
-  await page.locator("#engine").check();
-  await page.locator("#settings-form button[type=submit]").click();
   await page.route("**/api/reflect", (r) =>
     r.fulfill({ status: 503, body: "{}" }),
   );
   await page.locator("nav [data-go=record]").click();
+  await expect(page.locator("[data-action=analyze]")).toHaveText(
+    "Read with AI",
+  );
   await page.locator("#dream-text").fill("Do not lose this dream");
   await page.locator("[data-action=analyze]").click();
   await expect(page.locator("#dream-text")).toHaveValue(
     "Do not lose this dream",
   );
   await expect(page.locator("#toast")).toContainText("preserved");
-  page.once("dialog", (d) => d.accept());
-  await page.locator("nav [data-go=settings]").click();
-  await page.locator("#import-file").setInputFiles({
-    name: "bad.json",
-    mimeType: "application/json",
-    buffer: Buffer.from('{"dreams":[{}]}'),
+});
+test("free members never call GPT: reflection stays local with an upgrade hint", async ({
+  page,
+}) => {
+  await start(page, "en");
+  let calls = 0;
+  await page.route("**/api/reflect", (r) => {
+    calls++;
+    return r.fulfill({ status: 403, json: { code: "paidRequired" } });
   });
-  await expect(page.locator("#toast")).toContainText("Could not import");
+  await page.locator("nav [data-go=record]").click();
+  await expect(page.locator("[data-action=analyze]")).toHaveText("Reflect");
+  await page.locator("#dream-text").fill("A challenge on a mountain");
+  await page.locator("[data-action=analyze]").click();
+  await expect(page.locator(".reading-card")).toContainText(
+    "These themes appear in your dream",
+  );
+  await expect(page.locator(".reading-upsell")).toContainText("Sign in");
+  expect(calls).toBe(0);
 });
 test.describe("offline cache", () => {
   test.use({ serviceWorkers: "allow" });
@@ -215,9 +280,14 @@ test.describe("offline cache", () => {
           ),
       )
       .toBe(true);
-    await page.locator("nav [data-go=settings]").click();
-    await page.locator("#character-form input[value=animal]").check();
-    await page.locator("#character-form button[type=submit]").click();
+    await page.locator("#header [data-go=settings]").click();
+    // Free plan: animals are the only selectable collection while offline too.
+    await expect(
+      page.locator("#character-form input[value=human]"),
+    ).toBeDisabled();
+    await expect(
+      page.locator("#character-form input[value=animal]"),
+    ).toBeChecked();
     await page.reload();
     await page.locator("[data-action=catalog]").click();
     await expect(
@@ -259,13 +329,17 @@ test("storage failure preserves draft and never reports success", async ({
   );
 });
 
-test("AI reflection and OCR preserve language and require review before saving", async ({
+test("AI reading shows state of mind and fortune, sends recent diaries, and OCR requires review", async ({
   page,
 }) => {
+  await paidMember(page);
   await start(page, "en");
-  await page.locator("nav [data-go=settings]").click();
-  await page.locator("#engine").check();
-  await page.locator("#settings-form button[type=submit]").click();
+  await page.locator("nav [data-go=diary]").click();
+  await page.locator("#diary-date").fill(yesterday());
+  await page.locator("#diary-date").dispatchEvent("change");
+  await page.locator("#diary-text").fill("A busy day before the dream.");
+  await page.locator("#diary-form button[type=submit]").click();
+  await expect(page.locator("#toast")).toContainText("Saved");
   let reflectionRequest;
   await page.route("**/api/reflect", async (route) => {
     reflectionRequest = route.request().postDataJSON();
@@ -277,6 +351,13 @@ test("AI reflection and OCR preserve language and require review before saving",
           summary: "Dream summary",
           reply: "A gentle reflection.",
           mental_state_hint: "A possible association.",
+          mood_weather: "partly_cloudy",
+          mood_label: "Quietly hopeful",
+          mental_state: "The climb suggests steady focus.",
+          fortune_overview: "A day for small wins.",
+          fortune_mood: "Calm with a spark of curiosity.",
+          lucky_hint: "Lucky color: sky blue.",
+          advice: "Finish one small task early.",
         },
       },
     });
@@ -302,16 +383,36 @@ test("AI reflection and OCR preserve language and require review before saving",
   await expect(page.locator("#toast")).toContainText("Review and correct");
   await page.locator("[data-action=analyze]").click();
   await expect(page.locator("main")).toContainText("A gentle reflection.");
+  await expect(page.locator(".reading-card")).toContainText("Quietly hopeful");
+  await expect(page.locator(".reading-card")).toContainText("Partly cloudy");
+  await expect(page.locator(".reading-card")).toContainText(
+    "A day for small wins.",
+  );
+  await expect(page.locator(".reading-card")).toContainText(
+    "Lucky color: sky blue.",
+  );
+  await expect(page.locator(".reading-card")).toContainText("not a medical");
   expect(reflectionRequest.language).toBe("en");
+  expect(reflectionRequest.recentDiaries).toEqual([
+    { date: yesterday(), text: "A busy day before the dream." },
+  ]);
+  expect(reflectionRequest.diary.text).toBe("A busy day before the dream.");
+  expect(reflectionRequest.dreamType).toBe("challenge");
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(
     "sk-test-fixture",
   );
   expect(reflectionRequest.typeTags).toContain("challenge");
+  // The reading is stored with the dream and survives reload.
+  await page.locator("#dream-form button[type=submit]").click();
+  await expect(page.locator(".reading-card")).toContainText("Quietly hopeful");
+  await page.reload();
+  await page.locator("nav [data-go=record]").click();
+  await expect(page.locator(".reading-card")).toContainText(
+    "A day for small wins.",
+  );
+  await page.locator("#header [data-go=settings]").click();
   await page.locator("#language").selectOption("ko");
   await expect(page.locator("html")).toHaveAttribute("lang", "ko");
-  await expect(page.locator("#dream-text")).toHaveValue(
-    "My challenge\nRecognized notebook text [?]",
-  );
 });
 
 test("account switching isolates journals and reload restores the active scope", async ({
@@ -347,13 +448,18 @@ test("account switching isolates journals and reload restores the active scope",
   await page.locator("nav [data-go=record]").click();
   await page.locator("#dream-text").fill("Private dream of first account");
   await page.locator("#dream-form button[type=submit]").click();
-  await page.locator("nav [data-go=settings]").click();
+  await page.locator("#header [data-go=settings]").click();
   await page.locator("[data-action=signout]").click();
-  await page.locator("nav [data-go=history]").click();
-  await expect(page.locator(".entry")).toHaveCount(0);
+  await page.locator("nav [data-go=record]").click();
+  await expect(page.locator("#dream-text")).toHaveValue("");
+  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
+    0,
+  );
   await page.reload();
-  await page.locator("nav [data-go=history]").click();
-  await expect(page.locator(".entry")).toHaveCount(0);
+  await page.locator("nav [data-go=record]").click();
+  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
+    0,
+  );
   await expect(page.locator("body")).not.toContainText(
     "Private dream of first account",
   );
@@ -446,14 +552,16 @@ test("legacy main v4 profile, diary, and dream migrate without repeating onboard
   );
   await page.goto("/");
   await expect(page.locator(".character-row .character-name")).toHaveText(
-    "Kakeru",
+    "Kiro",
   );
   await expect(page.locator(".character-row")).toContainText("The Challenger");
-  await page.locator("nav [data-go=history]").click();
-  await expect(page.locator(".entry")).toHaveCount(2);
-  await page.locator(".entry").filter({ hasText: "A dream from main" }).click();
-  await page.locator("[data-action=edit]").click();
+  await page.locator("nav [data-go=record]").click();
+  await expect(page.locator("#dream-text")).toHaveValue("A dream from main");
   await expect(page.locator("main")).toContainText("Previous diary from main");
+  await page.locator("nav [data-go=diary]").click();
+  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
+    1,
+  );
 });
 
 test("iOS notification schedules and cancels without claiming to be a Clock alarm", async ({
@@ -475,7 +583,7 @@ test("iOS notification schedules and cancels without claiming to be a Clock alar
     };
   });
   await start(page, "en");
-  await page.locator("nav [data-go=settings]").click();
+  await page.locator("#header [data-go=settings]").click();
   await page.locator("#alarm-time").fill("06:45");
   await page.locator("[data-action=notify-wake]").click();
   expect(
@@ -515,12 +623,15 @@ test("all sixteen illustrations and localized stories render without overflow", 
     ).size,
   ).toBe(16);
   for (const [lang, first, last] of [
-    ["ja", "レン", "カナタ"],
-    ["ko", "렌", "카나타"],
-    ["zh", "莲", "彼方"],
-    ["en", "Ren", "Kanata"],
+    ["ja", "ルノ", "ココ"],
+    ["ko", "루노", "코코"],
+    ["zh", "露诺", "可可"],
+    ["en", "Luno", "Coco"],
   ]) {
+    await page.locator("#header [data-go=settings]").click();
     await page.locator("#language").selectOption(lang);
+    await page.locator("nav [data-go=home]").click();
+    await page.locator("[data-action=catalog]").click();
     await expect(
       page.locator(".catalog-character .character-name").first(),
     ).toHaveText(first);
@@ -536,7 +647,10 @@ test("all sixteen illustrations and localized stories render without overflow", 
       ),
     ).toBe(true);
   }
+  await page.locator("#header [data-go=settings]").click();
   await page.locator("#language").selectOption("ja");
+  await page.locator("nav [data-go=home]").click();
+  await page.locator("[data-action=catalog]").click();
   await page.screenshot({
     path: "test-results/characters-mobile.png",
     fullPage: true,
@@ -557,14 +671,15 @@ test("missing artwork preserves identity and unmeasured sleep shows no level sta
     page.locator(".character-row .character-fallback"),
   ).toBeVisible();
   await expect(page.locator(".character-row .character-name")).toHaveText(
-    "Kakeru",
+    "Kiro",
   );
   await expect(page.locator(".character-stars")).toHaveCount(0);
 });
 
-test("character collections switch both ways without changing journals, type or sleep", async ({
+test("paid members switch collections both ways without changing journals, type or sleep", async ({
   page,
 }) => {
+  await paidMember(page);
   await start(page, "en");
   await page.locator("nav [data-go=record]").click();
   await page.locator("#dream-text").fill("A challenge in the mountains");
@@ -574,13 +689,13 @@ test("character collections switch both ways without changing journals, type or 
   await page.locator("#rested").selectOption("5");
   await page.locator("#dream-form button[type=submit]").click();
   const saved = await page.evaluate(() =>
-    localStorage.getItem("yumetan.v4.local"),
+    localStorage.getItem("yumetan.v4.member"),
   );
   for (const [set, hero, first, last] of [
-    ["animal", "Kiro", "Luno", "Coco"],
     ["human", "Kakeru", "Ren", "Kanata"],
+    ["animal", "Kiro", "Luno", "Coco"],
   ]) {
-    await page.locator("nav [data-go=settings]").click();
+    await page.locator("#header [data-go=settings]").click();
     await page.locator("#character-form input[value=" + set + "]").check();
     await page.locator("#character-form button[type=submit]").click();
     await expect(page.locator("#toast")).toContainText("Saved");
@@ -596,7 +711,7 @@ test("character collections switch both ways without changing journals, type or 
       page.locator(".character-row .character-stars .lit"),
     ).toHaveCount(5);
     const current = await page.evaluate(() =>
-      JSON.parse(localStorage.getItem("yumetan.v4.local")),
+      JSON.parse(localStorage.getItem("yumetan.v4.member")),
     );
     const before = JSON.parse(saved);
     expect(current.records).toEqual(before.records);
@@ -626,18 +741,18 @@ test("character collections switch both ways without changing journals, type or 
 test("appearance save preserves other settings drafts and failed saves do not switch the active collection", async ({
   page,
 }) => {
+  await paidMember(page);
   await start(page, "en");
-  await page.locator("nav [data-go=settings]").click();
-  await page.locator("#api-url").fill("https://api.example.test");
-  await page.locator("#character-form input[value=animal]").check();
+  await page.locator("#header [data-go=settings]").click();
+  await page.locator("#alarm-time").fill("06:15");
+  await page.locator("#character-form input[value=human]").check();
   await page.locator("#character-form button[type=submit]").click();
-  await expect(page.locator("#api-url")).toHaveValue(
-    "https://api.example.test",
-  );
+  await expect(page.locator("#toast")).toContainText("Saved");
+  await expect(page.locator("#alarm-time")).toHaveValue("06:15");
   page.once("dialog", (dialog) => dialog.dismiss());
   await page.locator("nav [data-go=home]").click();
-  await expect(page.locator("#api-url")).toBeVisible();
-  await page.locator("#settings-form button[type=submit]").click();
+  await expect(page.locator("#alarm-time")).toBeVisible();
+  await page.locator("#alarm-form button[type=submit]").click();
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
@@ -645,12 +760,37 @@ test("appearance save preserves other settings drafts and failed saves do not sw
       return original.call(this, key, value);
     };
   });
-  await page.locator("#character-form input[value=human]").check();
+  await page.locator("#character-form input[value=animal]").check();
   await page.locator("#character-form button[type=submit]").click();
   await expect(page.locator("#toast")).not.toHaveText("Saved");
   page.once("dialog", (dialog) => dialog.accept());
   await page.locator("nav [data-go=home]").click();
   await expect(page.locator(".character-row .character-name")).toHaveText(
-    "Kiro",
+    "Kakeru",
   );
+});
+test("the floating tab bar switches pages by dragging the highlight", async ({
+  page,
+}) => {
+  await start(page, "en");
+  await page.locator("nav [data-go=diary]").click();
+  await expect(page.locator("#diary-text")).toBeVisible();
+  const track = await page.locator("nav .nav-track").boundingBox();
+  const y = track.y + track.height / 2;
+  await page.mouse.move(track.x + track.width * 0.62, y);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++)
+    await page.mouse.move(track.x + track.width * (0.62 - 0.05 * i), y);
+  await page.mouse.up();
+  await expect(page.locator("[data-action=catalog]")).toBeVisible();
+  await expect(page.locator("nav [data-go=home]")).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await page.mouse.move(track.x + track.width * 0.12, y);
+  await page.mouse.down();
+  for (let i = 1; i <= 8; i++)
+    await page.mouse.move(track.x + track.width * (0.12 + 0.04 * i), y);
+  await page.mouse.up();
+  await expect(page.locator("#dream-text")).toBeVisible();
 });

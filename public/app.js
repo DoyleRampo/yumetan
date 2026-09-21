@@ -14,6 +14,7 @@ import {
   DEFAULT_CHARACTER_SET,
   CHARACTER_SETS,
   normalizeCharacterSet,
+  allowedCharacterSet,
   characterSetById,
   characterById as getCharacter,
 } from "./core/characters.js";
@@ -42,7 +43,6 @@ import {
   write,
   normalizeRecord,
   normalizeProfile,
-  parseBackup,
   mergeRecords,
 } from "./core/storage.js";
 import { reflect } from "./core/reflection.js";
@@ -56,16 +56,17 @@ const esc = (value) =>
       ],
   );
 const id = () => crypto.randomUUID();
+const APP_VERSION = "4.5.0";
 const cap = window.Capacitor,
   native = cap?.isNativePlatform?.(),
   plugins = cap?.Plugins || {};
 let state = { version: 4, profile: null, records: [], deleted: [] },
   options = {
     language: "ja",
-    engine: "local",
     apiBase: "",
     code: "",
     characterSet: DEFAULT_CHARACTER_SET,
+    planCache: null,
   };
 let storageKey = "yumetan.v4.local",
   page = "home",
@@ -89,8 +90,26 @@ let authChanging = false,
   syncAgain = false;
 const at = (key) => authText(key, language());
 const language = () => options.language;
-const characterById = (id) => getCharacter(id, options.characterSet);
 const ct = (key) => communityText(key, language());
+const signedIn = () => Boolean(cloud?.state.enabled && !cloud.isAnonymous());
+// The plan used for display-only perks (character collections, AI buttons).
+// Quotas still follow the server-verified plan; the cache only bridges offline
+// moments for a user the server already confirmed as paid on this account.
+function displayPlan() {
+  const live = social.plan();
+  if (live !== "free") return live;
+  const cached = options.planCache;
+  return signedIn() &&
+    cached &&
+    cached.uid === cloud.uid() &&
+    ["starter", "standard"].includes(cached.plan) &&
+    Number(cached.paidUntil) > Date.now()
+    ? cached.plan
+    : "free";
+}
+const effectiveSet = () =>
+  allowedCharacterSet(options.characterSet, displayPlan());
+const characterById = (id) => getCharacter(id, effectiveSet());
 const purchases = createPurchases({
   cap,
   plugins,
@@ -119,7 +138,7 @@ const social = createCommunity({
   signedIn: () => Boolean(cloud?.state.enabled && !cloud.isAnonymous()),
   nickname: () => state.profile?.nickname || "Dreamer",
   character: (type, set) =>
-    type ? getCharacter(type, set) : { setId: options.characterSet },
+    type ? getCharacter(type, set) : { setId: effectiveSet() },
   currentType: () => currentType()?.id || "observer",
   isNative: () => Boolean(native),
 });
@@ -166,12 +185,7 @@ const currentType = () =>
   state.profile?.typeAnswers
     ? classify(state.profile.typeAnswers, state.records)
     : null;
-function avatar(
-  type,
-  level = null,
-  mini = false,
-  setId = options.characterSet,
-) {
+function avatar(type, level = null, mini = false, setId = effectiveSet()) {
   const item = typeById(type?.id) || TYPES[0],
     character = getCharacter(item.id, setId);
   const measured = Number.isInteger(level) && level >= 1 && level <= 5;
@@ -196,53 +210,102 @@ $("#app").addEventListener(
   true,
 );
 
+// Line icons for the floating tab bar and the header. Stroke inherits currentColor.
+const icon = (paths) =>
+  `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+const ICONS = {
+  home: icon('<path d="M3.5 11.2 12 4l8.5 7.2"/><path d="M5.5 10v10h13V10"/>'),
+  record: icon(
+    '<path d="M19.5 14.2A7.5 7.5 0 0 1 9.8 4.5a7.5 7.5 0 1 0 9.7 9.7z"/><path d="M17.5 3.5v3M16 5h3"/>',
+  ),
+  diary: icon(
+    '<path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14.5 3.5V8H19"/><path d="M9 12.5h6M9 16h6"/>',
+  ),
+  community: icon(
+    '<circle cx="9" cy="8.5" r="3.3"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9.5" r="2.4"/><path d="M15.5 14.6a4.6 4.6 0 0 1 5.5 4.6"/>',
+  ),
+  settings: icon(
+    '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  ),
+};
+// Tab order also defines the swipe order on the floating bar.
+const NAV = ["home", "record", "diary", "community"];
+const navLabel = (p) => (p === "community" ? ct("community") : t(p));
 function header() {
   document.documentElement.lang = language();
   document.title = `${t("brand")} / Yumetan`;
+  const ready = Boolean(state.profile?.typeAnswers);
   $("#header").innerHTML =
-    `<button class="brand" data-go="home">☾ ${esc(t("brand"))}<small>DREAM & GROW</small></button><label><span class="sr-only">${t("language")}</span><select id="language" class="lang">${LANGUAGES.map((l) => `<option value="${l}" ${l === language() ? "selected" : ""}>${languageNames[l]}</option>`).join("")}</select></label>`;
-  $("#nav").hidden =
-    !state.profile?.typeAnswers || ["quiz", "result", "onboard"].includes(page);
-  $("#nav").setAttribute("aria-label", t("brand"));
-  $("#nav").innerHTML = [
-    ["home", "☾"],
-    ["record", "✎"],
-    ["diary", "▤"],
-    ["history", "▦"],
-    ["community", "☁"],
-    ["settings", "⚙"],
-  ]
-    .map(
-      ([p, s]) =>
-        `<button data-go="${p}" ${page === p ? 'aria-current="page"' : ""}><span aria-hidden="true">${s}</span>${t(p)}</button>`,
-    )
-    .join("");
-  $("#language").onchange = async (e) => {
-    if (
-      ["settings", "share", "community-post"].includes(page) &&
-      dirty &&
-      !confirm(t("unsaved"))
-    ) {
-      e.target.value = language();
-      return;
-    }
-    capture();
-    options.language = e.target.value;
-    t = translator(language());
-    try {
-      await write("yumetan.v4.options", options);
-      if (state.profile)
-        await commit({
-          ...state,
-          profile: { ...state.profile, language: language() },
-        });
-      render();
-      await syncCloud();
-    } catch {
-      toast(t("storageError"));
-    }
-  };
+    `<button class="brand" data-go="home">☾ ${esc(t("brand"))}<small>DREAM & GROW</small></button>` +
+    (ready
+      ? `<button type="button" class="icon-btn" data-go="settings" aria-label="${esc(t("settings"))}" ${page === "settings" ? 'aria-current="page"' : ""}>${ICONS.settings}</button>`
+      : "");
+  const nav = $("#nav");
+  nav.hidden = !ready || ["quiz", "result", "onboard"].includes(page);
+  nav.setAttribute("aria-label", t("brand"));
+  const active = NAV.indexOf(page);
+  nav.dataset.active = active;
+  nav.style.setProperty("--nav-index", Math.max(0, active));
+  nav.style.setProperty("--nav-count", NAV.length);
+  nav.innerHTML = `<div class="nav-track"><span class="nav-indicator" aria-hidden="true"></span>${NAV.map(
+    (p) =>
+      `<button type="button" data-go="${p}" aria-label="${esc(navLabel(p))}" title="${esc(navLabel(p))}" ${page === p ? 'aria-current="page"' : ""}>${ICONS[p]}</button>`,
+  ).join("")}</div>`;
 }
+// Drag the highlight along the bar to switch tabs, Instagram-style. Vertical
+// movement is left to the page, and a real drag never doubles as a tap.
+function bindNavSwipe() {
+  const nav = $("#nav");
+  let drag = null,
+    dragged = false;
+  nav.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
+  });
+  nav.addEventListener("pointermove", (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x,
+      dy = e.clientY - drag.y;
+    if (!drag.moved) {
+      if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy)) return;
+      drag.moved = true;
+      nav.classList.add("dragging");
+      try {
+        nav.setPointerCapture(e.pointerId);
+      } catch {}
+    }
+    nav.style.setProperty("--drag", `${dx}px`);
+  });
+  const finish = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { moved, x } = drag;
+    drag = null;
+    nav.classList.remove("dragging");
+    nav.style.removeProperty("--drag");
+    if (!moved || e.type === "pointercancel") return;
+    dragged = true;
+    setTimeout(() => (dragged = false), 0);
+    const track = nav.querySelector(".nav-track");
+    if (!track) return;
+    const slot = track.getBoundingClientRect().width / NAV.length,
+      from = Math.max(0, NAV.indexOf(page)),
+      target = Math.min(
+        NAV.length - 1,
+        Math.max(0, Math.round(from + (e.clientX - x) / slot)),
+      );
+    if (NAV.indexOf(page) !== target) navigate(NAV[target]);
+  };
+  nav.addEventListener("pointerup", finish);
+  nav.addEventListener("pointercancel", finish);
+  nav.addEventListener(
+    "click",
+    (e) => {
+      if (dragged) e.stopPropagation();
+    },
+    true,
+  );
+}
+bindNavSwipe();
 function render() {
   header();
   const views = {
@@ -254,7 +317,6 @@ function render() {
     "type-detail": typeDetailView,
     record: recordView,
     diary: diaryView,
-    history: historyView,
     detail: detailView,
     settings: settingsView,
     community: () => social.view("community"),
@@ -267,6 +329,7 @@ function render() {
   $("#app").innerHTML = (views[page] || homeView)();
   wrapJapaneseLabels($("#app"), language());
   bindForms();
+  bindLanguage();
   social.bind();
   document.querySelectorAll("[data-catalog-group]").forEach(
     (el) =>
@@ -317,7 +380,7 @@ function profileView() {
   return `<div class="narrow"><p class="eyebrow">WELCOME TO YOUR DREAM WORLD</p><h1>${t("welcome")}</h1><p class="muted">${t("profileHint")}</p>${!state.profile ? `<details class="onboard-account"><summary>${t("accountOptional")}</summary>${accountView(true)}</details>` : ""}<form id="profile-form" class="card">
  ${input("nickname", "nickname", p.nickname, "text", 'required maxlength="20" autocomplete="nickname"')}
  <label class="field"><span>${t("age")}</span><select id="ageGroup" class="input">${["10", "20", "30", "40", "50", "60"].map((a) => `<option value="${a === "60" ? "60代以上" : a + "代"}" ${p.ageGroup === (a === "60" ? "60代以上" : a + "代") ? "selected" : ""}>${t("age" + a)}</option>`).join("")}</select></label>
- <p class="help">${t("language")}: ${languageNames[language()]}</p><button class="btn primary full" type="submit">${t(state.profile?.typeAnswers ? "save" : "startQuiz")}</button></form><details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
+ ${languageField()}<button class="btn primary full" type="submit">${t(state.profile?.typeAnswers ? "save" : "startQuiz")}</button></form><details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
 }
 function quizView() {
   const q = TYPES[quizIndex];
@@ -352,7 +415,7 @@ function homeView() {
 
 function catalogView() {
   const active = currentType()?.id;
-  return `<div class="row between page-heading"><div><p class="eyebrow">${localized(characterSetById(options.characterSet).names, language())}</p><h1>${t("catalog")}</h1></div>${button("home", "home", "small ghost")}</div><p class="help">${t("catalogHint")}</p>
+  return `<div class="row between page-heading"><div><p class="eyebrow">${localized(characterSetById(effectiveSet()).names, language())}</p><h1>${t("catalog")}</h1></div>${button("home", "home", "small ghost")}</div><p class="help">${t("catalogHint")}</p>
   <div class="catalog-filters" role="group" aria-label="${t("catalog")}">${[{ id: "all", names: [t("catalogAll"), t("catalogAll"), t("catalogAll"), t("catalogAll")] }, ...GROUPS].map((g) => `<button class="btn small ghost" data-catalog-group="${g.id}" aria-pressed="${catalogGroup === g.id}">${language() === "ja" ? name(g).replace("タイプ", "") : name(g)}</button>`).join("")}</div>
   <div class="catalog-table">${GROUPS.filter(
     (g) => catalogGroup === "all" || catalogGroup === g.id,
@@ -376,11 +439,11 @@ function typeDetailView() {
     typeById(selectedType) || typeById(currentType()?.id) || TYPES[0];
   return `<div class="narrow">${button("catalog", "catalog", "small ghost")}<div class="card type-detail" style="--accent:${group(type).color}">${avatar(type)}<div><span class="tag-label">${name(group(type))}</span><h1 class="character-name">${name(characterById(type.id))}</h1><p>${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p>${characterStory(type)}</div></div></div>`;
 }
-function freshDream() {
+function freshDream(date = localDate()) {
   return {
     id: id(),
     kind: "dream",
-    date: localDate(),
+    date,
     text: "",
     typeTags: [],
     sleep: null,
@@ -388,6 +451,55 @@ function freshDream() {
     analysis: null,
     createdAt: new Date().toISOString(),
   };
+}
+const dreamsOn = (date) =>
+  state.records
+    .filter((r) => r.kind === "dream" && r.date === date)
+    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+// The dream page shows whatever is already saved for a date; a new draft only
+// starts when that date is empty or the user asks for another dream.
+function dreamDraft(date, recordId = null) {
+  const saved = dreamsOn(date),
+    existing = recordId ? saved.find((r) => r.id === recordId) : saved[0];
+  return existing ? structuredClone(existing) : freshDream(date);
+}
+function diaryDraft(date) {
+  const existing = state.records.find(
+    (r) => r.kind === "diary" && r.date === date,
+  );
+  return { kind: "diary", date, id: existing?.id, text: existing?.text || "" };
+}
+const shiftDate = (date, days) => {
+  const d = new Date(`${date}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return localDate(d);
+};
+// Compact date row: previous / native picker / next. The label stays for screen readers.
+function dateRow(label, key, date) {
+  return `<div class="date-row"><button type="button" class="icon-btn small" data-shift="-1" aria-label="${esc(t("previousDay"))}">‹</button><label class="date-field"><span class="sr-only">${esc(t(label))}</span><input class="input date-input" id="${key}" name="${key}" type="date" value="${esc(date)}" required max="${localDate()}"></label><button type="button" class="icon-btn small" data-shift="1" aria-label="${esc(t("nextDay"))}" ${date >= localDate() ? "disabled" : ""}>›</button></div>`;
+}
+function languageField() {
+  return `<label class="field"><span>${t("language")}</span><select id="language" class="input">${LANGUAGES.map((l) => `<option value="${l}" ${l === language() ? "selected" : ""}>${languageNames[l]}</option>`).join("")}</select></label>`;
+}
+function recentList(kind) {
+  const list = [...state.records]
+    .filter((r) => r.kind === kind)
+    .sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) ||
+        Date.parse(b.createdAt) - Date.parse(a.createdAt),
+    )
+    .slice(0, 30);
+  return `<details class="card recent-entries"><summary>${t(kind === "diary" ? "recentDiaries" : "recentDreams")}</summary>${
+    list.length
+      ? `<div class="list">${list
+          .map(
+            (r) =>
+              `<button type="button" class="entry" data-open-entry="${esc(r.id)}"><time>${esc(dateText(r.date))}</time><strong>${esc((r.text || r.analysis?.title || t("sleep")).slice(0, 60))}</strong>${r.kind === "dream" && r.typeTags?.length ? `<p class="help">${r.typeTags.map(typeById).filter(Boolean).map(name).join(" · ")}</p>` : ""}</button>`,
+          )
+          .join("")}</div>`
+      : `<p class="empty">${t("empty")}</p>`
+  }</details>`;
 }
 function themes(selected) {
   return GROUPS.map(
@@ -403,84 +515,102 @@ function themes(selected) {
   ).join("");
 }
 function recordView() {
-  draft ||= freshDream();
+  draft ||= dreamDraft(localDate());
   const d = draft,
-    previous = previousDiary(state.records, d.date);
-  return `<div class="narrow"><p class="eyebrow">DREAM JOURNAL</p><h1>${t("recordTitle")}</h1><p class="help record-meta">${t("recordPrivate")} · ${ct("dreamLimit")}: ${state.records.filter((r) => r.kind === "dream" && r.date === d.date).length} / ${PLANS[social.plan()].dreams}</p><form id="dream-form">
- <div class="card">${input("date", "dream-date", d.date, "date", `required max="${localDate()}"`)}${area("dreamText", "dream-text", d.text, t("dreamPlaceholder"))}<div class="record-tools">${button("voice", "voice", "small ghost")}<details ${d.photo ? "open" : ""}><summary>${t("photo")}</summary><p class="help">${t("photoHint")}</p><label class="field"><span>${t("photo")}</span><input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp"></label>${d.photo ? `<img class="photo" src="${esc(d.photo)}" alt="${t("photoAlt")}"><div class="row">${button("recognize", "recognize", "small")}${button("removePhoto", "remove-photo", "small ghost")}</div>` : ""}</details></div></div>
+    previous = previousDiary(state.records, d.date),
+    saved = dreamsOn(d.date),
+    isSaved = saved.some((r) => r.id === d.id),
+    plan = displayPlan(),
+    canAdd = canSaveRecord(
+      state.records,
+      { kind: "dream", date: d.date, id: "new" },
+      social.plan(),
+    );
+  const chips = saved.length
+    ? `<div class="day-entries" role="group" aria-label="${esc(t("dayEntries"))}">${saved
+        .map(
+          (r, i) =>
+            `<button type="button" class="tag" data-open-entry="${esc(r.id)}" aria-pressed="${r.id === d.id}">${i + 1}. ${esc((r.text || r.analysis?.title || t("sleep")).slice(0, 14))}</button>`,
+        )
+        .join(
+          "",
+        )}${canAdd ? `<button type="button" class="tag" data-action="new-dream" aria-pressed="${!isSaved}">＋ ${t("newDream")}</button>` : ""}</div>`
+    : "";
+  return `<div class="narrow"><p class="eyebrow">DREAM JOURNAL</p><h1>${t("recordTitle")}</h1><p class="help record-meta">${t("dreamJournalHint")} ${ct("dreamLimit")}: ${saved.length} / ${PLANS[social.plan()].dreams}</p><form id="dream-form">
+ <div class="card">${dateRow("date", "dream-date", d.date)}${chips}${isSaved ? `<p class="help saved-note">${t("savedEntry")} · ${esc(dateText(d.date))}</p>` : ""}${area("dreamText", "dream-text", d.text, t("dreamPlaceholder"))}<div class="record-tools">${button("voice", "voice", "small ghost")}<details ${d.photo ? "open" : ""}><summary>${t("photo")}</summary><p class="help">${t("photoHint")}</p><label class="field"><span>${t("photo")}</span><input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp"></label>${d.photo ? `<img class="photo" src="${esc(d.photo)}" alt="${t("photoAlt")}"><div class="row">${button("recognize", "recognize", "small")}${button("removePhoto", "remove-photo", "small ghost")}</div>` : ""}</details></div></div>
  <details class="card theme-picker" ${d.typeTags.length ? "open" : ""}><summary>${t("tags")}</summary><p class="help">${t("tagHint")}</p>${themes(d.typeTags)}</details>
  <div class="card"><h2>${t("sleep")}</h2><label class="check"><input type="checkbox" id="include-sleep" ${d.sleep ? "checked" : ""}><span>${t("sleepOptional")}</span></label><div id="sleep-fields" ${d.sleep ? "" : "hidden"}><div class="grid">${input("hours", "hours", d.sleep?.hours ?? "", "number", 'min="0" max="24" step="0.25"')}${input("awakenings", "awakenings", d.sleep?.awakenings ?? "", "number", 'min="0" max="30" step="1"')}</div><label class="field"><span>${t("rested")}</span><select class="input" id="rested"><option value="">—</option>${[1, 2, 3, 4, 5].map((v) => `<option value="${v}" ${d.sleep?.rested === v ? "selected" : ""}>${v}</option>`).join("")}</select></label><label class="check"><input type="checkbox" id="nightmare" ${d.sleep?.nightmare ? "checked" : ""}><span>${t("nightmare")}</span></label></div><p class="help">${t("sleepNote")}</p></div>
- <div class="row">${button("analyze", "analyze", "ghost")}<button type="submit" class="btn primary">${t("save")}</button></div>
+ <div class="row">${button(plan === "free" ? "analyze" : "analyzeAI", "analyze", "ghost")}<button type="submit" class="btn primary">${t("save")}</button>${isSaved ? button("delete", "delete-entry", "danger ghost small") : ""}</div>
  <details class="previous-diary"><summary>${t("previousDiary")}</summary><p class="help">${previous ? esc(previous.text.slice(0, 500)) : t("noDiary")}</p></details>
- ${d.analysis ? analysisCard(d) : ""}</form></div>`;
+ ${d.analysis ? analysisCard(d) : ""}</form>${recentList("dream")}</div>`;
 }
+const WEATHER = {
+  sunny: ["☀️", "weatherSunny"],
+  partly_cloudy: ["⛅", "weatherPartlyCloudy"],
+  cloudy: ["☁️", "weatherCloudy"],
+  rainy: ["🌧️", "weatherRainy"],
+  stormy: ["⛈️", "weatherStormy"],
+};
 function analysisCard(d) {
   const prev = previousDiary(state.records, d.date),
-    tags = d.typeTags || [];
-  const sameLanguage = d.analysis?.language === language();
+    tags = d.typeTags || [],
+    a = d.analysis || {},
+    ai = a.engine === "ai" && a.language === language(),
+    rich = ai && a.mental_state,
+    weather = WEATHER[a.mood_weather] || null;
   const common = reflect({
     ...d,
     records: state.records,
     language: language(),
   }).sharedThemes;
-  return `<div class="card" style="margin-top:22px"><h2>${t("reflection")}</h2><div class="tags">${tags
+  const upsell =
+    !ai && displayPlan() === "free"
+      ? `<div class="reading-upsell"><p class="help">${t(signedIn() ? "readingUpsell" : "readingLogin")}</p><button type="button" class="btn small ghost" data-go="${signedIn() ? "plans" : "settings"}">${t(signedIn() ? "viewPlans" : "signIn")}</button></div>`
+      : "";
+  const body = rich
+    ? `<section class="reading-section"><h3>${t("mentalState")}</h3><p class="mood-line">${weather ? `<span class="mood-icon" aria-hidden="true">${weather[0]}</span>` : ""}<strong>${esc(a.mood_label)}</strong>${weather ? `<small>${t(weather[1])}</small>` : ""}</p><p class="prose">${esc(a.mental_state)}</p></section>
+    <section class="reading-section fortune"><h3>${t("fortune")}</h3><p class="prose">${esc(a.fortune_overview)}</p><dl class="fortune-list"><div><dt>${t("fortuneMood")}</dt><dd>${esc(a.fortune_mood)}</dd></div><div><dt>${t("luckyHint")}</dt><dd>${esc(a.lucky_hint)}</dd></div><div><dt>${t("adviceToday")}</dt><dd>${esc(a.advice)}</dd></div></dl></section>
+    <p class="prose">${esc(a.reply)}</p>`
+    : `<p class="prose">${ai ? esc(a.reply || a.summary) : t(tags.length ? "reflectionText" : "noTheme")}</p>${upsell}`;
+  return `<div class="card reading-card"><h2>${t(ai ? "reading" : "reflection")}</h2><div class="tags">${tags
     .map(typeById)
     .filter(Boolean)
     .map((type) => `<span class="tag-label">${name(type)}</span>`)
     .join(
       "",
-    )}</div><p class="prose">${d.analysis?.engine === "ai" && sameLanguage ? esc(d.analysis.reply || d.analysis.summary) : t(tags.length ? "reflectionText" : "noTheme")}</p>${prev ? `<h3>${t("previousDiary")} · ${esc(dateText(prev.date))}</h3><p class="prose">${esc(prev.text)}</p><p class="help">${t("diaryContext")}</p>${common.length ? `<p>${t("sharedThemes")}: ${common.map(typeById).map(name).join(" · ")}</p>` : ""}` : `<p class="help">${t("noDiary")}</p>`}${d.sleep ? `<p>${t("level")}: ${sleepScore(d.sleep, state.profile?.ageGroup)?.level ?? "—"} / 5</p>` : ""}${button("speak", "speak", "small ghost")}</div>`;
+    )}</div>${body}${prev ? `<h3>${t("previousDiary")} · ${esc(dateText(prev.date))}</h3><p class="prose">${esc(prev.text)}</p><p class="help">${t("diaryContext")}</p>${common.length ? `<p>${t("sharedThemes")}: ${common.map(typeById).map(name).join(" · ")}</p>` : ""}` : `<p class="help">${t("noDiary")}</p>`}${d.sleep ? `<p>${t("level")}: ${sleepScore(d.sleep, state.profile?.ageGroup)?.level ?? "—"} / 5</p>` : ""}${ai ? `<p class="help">${t("readingNote")}</p>` : ""}${button("speak", "speak", "small ghost")}</div>`;
 }
 function diaryView() {
-  draft ||= {
-    kind: "diary",
-    date: localDate(),
-    text:
-      state.records.find((r) => r.kind === "diary" && r.date === localDate())
-        ?.text || "",
-  };
-  return `<div class="narrow"><p class="eyebrow">A PAGE OF TODAY</p><h1>${t("diaryTitle")}</h1><p class="muted">${t("diaryHint")}</p><form id="diary-form" class="card">${input("diaryDate", "diary-date", draft.date, "date", `required max="${localDate()}"`)}${area("diaryText", "diary-text", draft.text)}<button type="submit" class="btn primary full">${t("save")}</button></form></div>`;
-}
-function historyView() {
-  return `<h1>${t("history")}</h1><div class="row"><label class="field" style="flex:1"><span class="sr-only">${t("search")}</span><input id="search" class="input" placeholder="${t("search")}"></label><label class="field"><span class="sr-only">${t("all")}</span><select class="input" id="history-filter"><option value="all">${t("all")}</option><option value="dream">${t("dreams")}</option><option value="diary">${t("diaries")}</option></select></label></div><div id="entries" class="list">${entries()}</div>`;
-}
-function entries(query = "", filter = "all") {
-  const list = [...state.records]
-    .filter(
-      (r) =>
-        (filter === "all" || r.kind === filter) &&
-        `${r.text} ${r.analysis?.title || ""}`
-          .toLocaleLowerCase()
-          .includes(query.toLocaleLowerCase()),
-    )
-    .sort(
-      (a, b) =>
-        b.date.localeCompare(a.date) ||
-        Date.parse(b.createdAt) - Date.parse(a.createdAt),
-    );
-  return list.length
-    ? list
-        .map(
-          (r) =>
-            `<button class="entry" data-entry="${esc(r.id)}"><time>${esc(dateText(r.date))} · ${t(r.kind === "diary" ? "diary" : "dreams")}</time><strong>${esc((r.text || r.analysis?.title || t("sleep")).slice(0, 90))}</strong><p class="help">${(r.typeTags || []).map(typeById).filter(Boolean).map(name).join(" · ")}</p></button>`,
-        )
-        .join("")
-    : `<p class="empty">${t("empty")}</p>`;
+  draft ||= diaryDraft(localDate());
+  const isSaved = Boolean(draft.id);
+  return `<div class="narrow"><p class="eyebrow">A PAGE OF THE DAY</p><h1>${t("diaryTitle")}</h1><p class="muted">${t("diaryHint")}</p><form id="diary-form" class="card">${dateRow("diaryDate", "diary-date", draft.date)}${isSaved ? `<p class="help saved-note">${t("savedEntry")} · ${esc(dateText(draft.date))}</p>` : ""}${area("diaryText", "diary-text", draft.text)}<div class="row"><button type="submit" class="btn primary">${t("save")}</button>${isSaved ? button("delete", "delete-entry", "danger ghost small") : ""}</div></form>${recentList("diary")}</div>`;
 }
 function detailView() {
   const r = state.records.find((r) => r.id === selectedId);
   if (!r) return `<p>${t("empty")}</p>`;
-  return `<div class="narrow"><p class="eyebrow">${esc(dateText(r.date))}</p><h1>${t("detail")}</h1><div class="card"><p class="prose">${esc(r.text)}</p>${r.photo ? `<img class="photo" src="${esc(r.photo)}" alt="${t("photoAlt")}">` : ""}${r.sleep ? `<p class="help">${t("hours")}: ${r.sleep.hours} · ${t("awakenings")}: ${r.sleep.awakenings} · ${t("rested")}: ${r.sleep.rested}</p>` : ""}</div>${r.kind === "dream" && r.analysis ? analysisCard(r) : ""}${r.kind === "dream" ? `<div class="card"><h2>${ct("share")}</h2><p class="help">${ct("privacyNote")}</p><button class="btn ghost" data-go="share">${ct("share")}</button></div>` : ""}<div class="row">${button("edit", "edit", "primary")}${button("delete", "delete", "danger ghost")}${button("history", "history", "ghost")}</div></div>`;
+  return `<div class="narrow"><p class="eyebrow">${esc(dateText(r.date))}</p><h1>${t("detail")}</h1><div class="card"><p class="prose">${esc(r.text)}</p>${r.photo ? `<img class="photo" src="${esc(r.photo)}" alt="${t("photoAlt")}">` : ""}${r.sleep ? `<p class="help">${t("hours")}: ${r.sleep.hours} · ${t("awakenings")}: ${r.sleep.awakenings} · ${t("rested")}: ${r.sleep.rested}</p>` : ""}</div>${r.kind === "dream" && r.analysis ? analysisCard(r) : ""}${r.kind === "dream" ? `<div class="card"><h2>${ct("share")}</h2><p class="help">${ct("privacyNote")}</p><button class="btn ghost" data-go="share">${ct("share")}</button></div>` : ""}<div class="row">${button("edit", "edit", "primary")}${button("delete", "delete", "danger ghost")}${button("back", "back-to-journal", "ghost")}</div></div>`;
 }
+// Settings follow the usual mobile order: who you are, what you pay for, how
+// the app looks, reminders, account, and finally the small print.
 function settingsView() {
-  const cloudOn = cloud?.state.enabled,
-    signed = cloudOn && !cloud.isAnonymous();
-  return `<div class="narrow"><h1>${t("settings")}</h1><div class="card"><h2>${ct("plans")}</h2><button class="btn primary" data-go="plans">${ct("plans")}</button></div><div class="card"><h2>${t("profile")}</h2><p>${esc(state.profile?.nickname)} · ${languageNames[language()]}</p><div class="row">${button("edit", "profile", "ghost")}${button("retake", "retake", "ghost")}</div><p class="help">${t("privacy")}</p></div>
- <form id="character-form" class="card"><fieldset class="character-set-field"><legend>${t("characterSet")}</legend><p class="help">${t("characterSetHint")}</p><div class="character-set-options">${CHARACTER_SETS.map((set) => `<label class="character-set-option"><input type="radio" name="character-set" value="${set.id}" ${options.characterSet === set.id ? "checked" : ""}><span class="character-set-label">${localized(set.label, language())}</span>${avatar(typeById(currentType()?.id), null, false, set.id)}<span>${localized(set.names, language())}</span></label>`).join("")}</div></fieldset><button type="submit" class="btn primary">${t("save")}</button></form>
- <form id="settings-form" class="card"><h2>AI</h2><label class="check"><input type="checkbox" id="engine" ${options.engine === "ai" ? "checked" : ""}><span>${t("ai")}</span></label><p class="help">${ct("planAIHint")}</p>${input("apiUrl", "api-url", options.apiBase, "url", 'placeholder="https://…"')}<div class="row"><button type="submit" class="btn primary">${t("save")}</button>${button("testConnection", "health", "ghost")}</div></form>
+  const type = typeById(currentType()?.id) || TYPES[0],
+    plan = displayPlan(),
+    planName = localized(PLANS[plan].names, language());
+  return `<div class="narrow settings-page"><h1>${t("settings")}</h1>
+ <section class="card profile-card">${avatar(type, null, true)}<div><h2 class="character-name">${esc(state.profile?.nickname)}</h2><p class="help">${esc(state.profile?.ageGroup || "")} · ${esc(name(characterById(type.id)))} · ${esc(name(type))}</p><span class="tag-label">${esc(planName)}</span><div class="row">${button("edit", "profile", "small ghost")}${button("retake", "retake", "small ghost")}</div></div></section>
+ <section class="card"><h2>${ct("plans")}</h2><p>${t("currentPlanLabel")}: <strong>${esc(planName)}</strong> · <span class="help">${ct(plan + "Summary")}</span></p><button class="btn primary" data-go="plans">${t("viewPlans")}</button></section>
+ <section class="card"><h2>${t("appearance")}</h2>${languageField()}<p class="help">${t("privacy")}</p></section>
+ <form id="character-form" class="card"><fieldset class="character-set-field"><legend>${t("characterSet")}</legend><p class="help">${t("characterSetHint")}</p><div class="character-set-options">${CHARACTER_SETS.map(
+   (set) => {
+     const locked = set.paid && plan === "free";
+     return `<label class="character-set-option ${locked ? "locked" : ""}"><input type="radio" name="character-set" value="${set.id}" ${effectiveSet() === set.id ? "checked" : ""} ${locked ? "disabled" : ""}><span class="character-set-label">${localized(set.label, language())}</span>${avatar(type, null, false, set.id)}<span>${localized(set.names, language())}</span>${locked ? `<span class="lock-note">🔒 ${t("paidOnly")}</span>` : ""}</label>`;
+   },
+ ).join(
+   "",
+ )}</div></fieldset><button type="submit" class="btn primary">${t("save")}</button></form>
  <form id="alarm-form" class="card"><h2>${t("alarm")}</h2>${input("alarmTime", "alarm-time", options.alarmTime || "07:00", "time", "required")}<p class="help">${t(native && cap.getPlatform() === "android" ? "alarmHint" : "alarmManual")}</p><button type="submit" class="btn primary">${t(native && cap.getPlatform() === "android" ? "alarmOpen" : "save")}</button><p id="alarm-status" class="status" role="status"></p>${native && cap.getPlatform() === "ios" ? `<p class="help">${t("notifyHint")}</p><div class="row">${button("notifyWake", "notify-wake", "ghost")}${button("cancelWake", "cancel-wake", "ghost")}</div>` : ""}</form>
- <div class="card"><h2>${t("backup")}</h2><p class="help">${t("localOnly")}</p>${button("export", "export", "ghost")}<label class="field" style="margin-top:20px"><span>${t("import")}</span><input type="file" id="import-file" accept="application/json,.json"></label><p class="help">${t("importHint")}</p></div>
- ${accountView()}</div>`;
+ ${accountView()}
+ <section class="card about-card"><h2>${t("about")}</h2><p class="help">${t("typeNote")}</p><p class="help">${ct("planAIHint")}</p><p class="help">${t("version")} ${APP_VERSION}</p></section></div>`;
 }
 function accountView(onboard = false) {
   const enabled = cloud?.state.enabled,
@@ -516,7 +646,68 @@ function applyAccountPreferences() {
   options.characterSet = normalizeCharacterSet(
     state.profile?.characterSet || DEFAULT_CHARACTER_SET,
   );
-  options.engine = state.profile?.engine === "ai" ? "ai" : "local";
+}
+// Refresh the server-verified plan and remember it for this account so a paid
+// member keeps their character collection while offline.
+async function refreshPlan() {
+  if (!signedIn()) return;
+  try {
+    const account = await social.refreshAccount();
+    options = {
+      ...options,
+      planCache: {
+        uid: cloud.uid(),
+        plan: account?.plan || "free",
+        paidUntil: Number(account?.paidUntil) || 0,
+      },
+    };
+    await write("yumetan.v4.options", options);
+  } catch {}
+}
+// The language select lives on the first screen and in Settings; both apply at once.
+function bindLanguage() {
+  const select = $("#language");
+  if (!select) return;
+  select.onchange = async (e) => {
+    if (
+      ["settings", "share", "community-post"].includes(page) &&
+      dirty &&
+      !confirm(t("unsaved"))
+    ) {
+      e.target.value = language();
+      return;
+    }
+    capture();
+    options.language = e.target.value;
+    t = translator(language());
+    try {
+      await write("yumetan.v4.options", options);
+      if (state.profile)
+        await commit({
+          ...state,
+          profile: { ...state.profile, language: language() },
+        });
+      render();
+      await syncCloud();
+    } catch {
+      toast(t("storageError"));
+    }
+  };
+}
+// Switch the dream page to a date (or a specific saved dream on that date).
+function openDream(date, recordId = null) {
+  if (dirty && !confirm(t("unsaved"))) return false;
+  draft = dreamDraft(date, recordId);
+  dirty = false;
+  render();
+  return true;
+}
+function openDiary(date) {
+  if (dirty && !confirm(t("unsaved"))) return false;
+  draft = diaryDraft(date);
+  dirty = false;
+  render();
+  return true;
 }
 function watchAccount() {
   stopCloudWatch?.();
@@ -569,6 +760,8 @@ function bindForms() {
     .querySelectorAll("input,textarea,select")
     .forEach((el) =>
       el.addEventListener("input", () => {
+        // Switching language or date opens another view; it is not unsaved text.
+        if (["language", "dream-date", "diary-date"].includes(el.id)) return;
         if (
           [
             "record",
@@ -624,9 +817,32 @@ function bindForms() {
   }
   if ($("#dream-date"))
     $("#dream-date").onchange = () => {
-      capture();
-      if (validDate(draft.date)) render();
+      const date = $("#dream-date").value;
+      if (!validDate(date) || date > localDate()) return;
+      if (date === draft.date) return;
+      if (!openDream(date)) $("#dream-date").value = draft.date;
     };
+  document.querySelectorAll("[data-shift]").forEach((el) => {
+    el.onclick = () => {
+      const date = shiftDate(draft.date, Number(el.dataset.shift));
+      if (date > localDate()) return;
+      if (page === "record") openDream(date);
+      else openDiary(date);
+    };
+  });
+  document.querySelectorAll("[data-open-entry]").forEach((el) => {
+    el.onclick = () => {
+      const r = state.records.find((r) => r.id === el.dataset.openEntry);
+      if (!r) return;
+      if (page === "record") {
+        openDream(r.date, r.id);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else if (page === "diary") {
+        openDiary(r.date);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    };
+  });
   if ($("#photo-file"))
     $("#photo-file").onchange = (e) =>
       run(async () => {
@@ -645,21 +861,9 @@ function bindForms() {
   if ($("#diary-date"))
     $("#diary-date").onchange = () => {
       const date = $("#diary-date").value;
-      if (!validDate(date)) return;
-      const text = $("#diary-text").value;
-      if (dirty && text && !confirm(t("unsaved"))) {
-        $("#diary-date").value = draft.date;
-        return;
-      }
-      draft = {
-        kind: "diary",
-        date,
-        text:
-          state.records.find((r) => r.kind === "diary" && r.date === date)
-            ?.text || "",
-      };
-      dirty = false;
-      render();
+      if (!validDate(date) || date > localDate()) return;
+      if (date === draft.date) return;
+      if (!openDiary(date)) $("#diary-date").value = draft.date;
     };
   if ($("#character-form"))
     $("#character-form").onsubmit = (e) => {
@@ -667,8 +871,9 @@ function bindForms() {
       run(async () => {
         const next = {
           ...options,
-          characterSet: normalizeCharacterSet(
-            $("#character-form input:checked").value,
+          characterSet: allowedCharacterSet(
+            normalizeCharacterSet($("#character-form input:checked").value),
+            displayPlan(),
           ),
         };
         await write("yumetan.v4.options", next);
@@ -683,27 +888,11 @@ function bindForms() {
         toast(t("saved"));
       });
     };
-  if ($("#settings-form"))
-    $("#settings-form").onsubmit = (e) => {
-      e.preventDefault();
-      run(saveOptions);
-    };
   if ($("#alarm-form"))
     $("#alarm-form").onsubmit = (e) => {
       e.preventDefault();
       run(setAlarm);
     };
-  if ($("#import-file"))
-    $("#import-file").onchange = (e) =>
-      run(() => importFile(e.target.files[0]));
-  if ($("#search"))
-    for (const selector of ["#search", "#history-filter"])
-      $(selector).oninput = () => {
-        $("#entries").innerHTML = entries(
-          $("#search").value,
-          $("#history-filter").value,
-        );
-      };
   if ($("#account-form"))
     $("#account-form").onsubmit = (e) => {
       e.preventDefault();
@@ -728,7 +917,7 @@ async function run(fn) {
 function disableActionButtons() {
   document
     .querySelectorAll(
-      "#app button, #app input, #app textarea, #app select, #language, #nav button, #header button",
+      "#app button, #app input, #app textarea, #app select, #nav button, #header button",
     )
     .forEach((el) => {
       if (!el.disabled) {
@@ -754,7 +943,7 @@ async function analyzeDraft() {
     records: state.records,
     language: language(),
   });
-  if (options.engine === "ai") {
+  if (displayPlan() !== "free") {
     const { analysis } = await api("/api/reflect", {
       text: draft.text,
       typeTags: result.tags,
@@ -762,6 +951,9 @@ async function analyzeDraft() {
       diary: result.diary
         ? { date: result.diary.date, text: result.diary.text }
         : null,
+      recentDiaries: recentDiaries(draft.date),
+      sleep: validateSleep(draft.sleep) ? draft.sleep : null,
+      dreamType: currentType()?.id || null,
     });
     draft.analysis = {
       ...analysis,
@@ -772,6 +964,15 @@ async function analyzeDraft() {
   } else draft.analysis = result.analysis;
   draft.typeTags = result.tags;
   render();
+}
+// Up to seven diary pages before the wake-up date, newest first, trimmed so the
+// whole request stays inside the server's input budget.
+function recentDiaries(date) {
+  return state.records
+    .filter((r) => r.kind === "diary" && r.date < date && r.text.trim())
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 7)
+    .map((r) => ({ date: r.date, text: r.text.slice(0, 1500) }));
 }
 async function saveDream() {
   capture();
@@ -836,10 +1037,31 @@ async function saveDiary() {
   });
   dirty = false;
   selectedId = saved.id;
-  processing = false;
-  navigate("detail", true);
+  draft = diaryDraft(saved.date);
+  render();
   toast(t("saved"));
   await syncCloud();
+}
+// Delete the saved dream or diary currently open on its page, then stay on that date.
+async function deleteOpenEntry() {
+  const record = state.records.find(
+    (r) => r.id === draft?.id && r.kind === draft.kind,
+  );
+  if (!record || !confirm(t("deleteConfirm"))) return;
+  await removeRecord(record);
+  draft =
+    record.kind === "diary" ? diaryDraft(record.date) : dreamDraft(record.date);
+  dirty = false;
+  render();
+  await syncCloud();
+}
+async function removeRecord(record) {
+  if (record.kind === "dream") await social.makeRecordPrivate(record.id);
+  await commit({
+    ...state,
+    records: state.records.filter((r) => r.id !== record.id),
+    deleted: [...state.deleted, record.id],
+  });
 }
 async function saveQuizDraft() {
   await write(`${storageKey}.quiz`, { answers: quizAnswers, index: quizIndex });
@@ -865,34 +1087,6 @@ function settingsFormSaved(selector) {
   const form = $(selector);
   if (form) form.dataset.dirty = "false";
   dirty = Boolean($('#app form[data-dirty="true"]'));
-}
-async function saveOptions() {
-  const url = $("#api-url").value.trim().replace(/\/$/, "");
-  if (url) {
-    const parsed = new URL(url);
-    if (
-      parsed.protocol !== "https:" &&
-      !(
-        parsed.protocol === "http:" &&
-        ["localhost", "127.0.0.1"].includes(parsed.hostname)
-      )
-    )
-      throw new Error(t("networkError"));
-  }
-  options = {
-    ...options,
-    engine: $("#engine").checked ? "ai" : "local",
-    apiBase: url,
-  };
-  await write("yumetan.v4.options", options);
-  if (state.profile)
-    await commit({
-      ...state,
-      profile: { ...state.profile, engine: options.engine },
-    });
-  await syncCloud();
-  settingsFormSaved("#settings-form");
-  toast(t("saved"));
 }
 async function api(path, body) {
   const base = (
@@ -973,7 +1167,7 @@ async function loadPhoto(file) {
 }
 async function recognize() {
   capture();
-  if (options.engine !== "ai") throw new Error(t("aiRequired"));
+  if (displayPlan() === "free") throw new Error(t("aiRequired"));
   disableActionButtons();
   const data = await api("/api/handwriting", { image: draft.photo });
   draft.text = [draft.text, data.text].filter(Boolean).join("\n");
@@ -1027,57 +1221,6 @@ async function wakeNotification(cancel = false) {
     ],
   });
   toast(t("notifyHint"));
-}
-async function exportData() {
-  const blob = new Blob(
-    [
-      JSON.stringify(
-        {
-          app: "yumetan",
-          version: 4,
-          exportedAt: new Date().toISOString(),
-          records: state.records,
-          profile: state.profile,
-        },
-        null,
-        2,
-      ),
-    ],
-    { type: "application/json" },
-  );
-  const url = URL.createObjectURL(blob),
-    link = document.createElement("a");
-  link.href = url;
-  link.download = `yumetan-${localDate()}.json`;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-async function importFile(file) {
-  let parsed;
-  try {
-    if (!file || file.size > 30 * 1024 * 1024) throw new Error();
-    parsed = parseBackup(JSON.parse(await file.text()));
-  } catch {
-    throw new Error(t("importError"));
-  }
-  const existing = new Set(state.records.map((r) => r.id)),
-    records = [
-      ...state.records,
-      ...parsed.records.filter((r) => !existing.has(r.id)),
-    ];
-  await commit({
-    ...state,
-    records,
-    profile: state.profile
-      ? {
-          ...state.profile,
-          typeAnswers: state.profile.typeAnswers || parsed.typeAnswers,
-        }
-      : parsed.profile,
-  });
-  toast(t("saved"));
-  render();
-  await syncCloud();
 }
 function syncCloud() {
   if (syncTask) {
@@ -1285,7 +1428,7 @@ async function switchAccount() {
   quizAnswers =
     progress?.answers?.length === 16 ? progress.answers : Array(16).fill(null);
   quizIndex = Math.max(0, Math.min(15, progress?.index || 0));
-  await social.refreshAccount().catch(() => {});
+  await refreshPlan();
   await syncCloud();
 }
 async function resumeNativeLogin() {
@@ -1389,9 +1532,10 @@ function stopVoice() {
 async function speak() {
   const record =
     page === "record" ? draft : state.records.find((r) => r.id === selectedId);
+  const a = record?.analysis;
   const text =
-    record?.analysis?.engine === "ai" && record.analysis.language === language()
-      ? record.analysis.reply
+    a?.engine === "ai" && a.language === language()
+      ? [a.mental_state, a.fortune_overview, a.reply].filter(Boolean).join(" ")
       : t(record?.typeTags?.length ? "reflectionText" : "noTheme");
   if (native && plugins.TextToSpeech)
     await plugins.TextToSpeech.speak({ text, lang: locales[language()] });
@@ -1406,8 +1550,22 @@ const actions = {
   home: () => navigate("home"),
   record: () => navigate("record"),
   diary: () => navigate("diary"),
-  history: () => navigate("history"),
   catalog: () => navigate("catalog"),
+  "new-dream": () => {
+    if (!openDream(draft.date, "__new__")) return;
+    $("#dream-text")?.focus();
+  },
+  "delete-entry": deleteOpenEntry,
+  "back-to-journal": () => {
+    const r = state.records.find((r) => r.id === selectedId);
+    processing = false;
+    navigate(r?.kind === "diary" ? "diary" : "record");
+    if (r) {
+      draft =
+        r.kind === "diary" ? diaryDraft(r.date) : dreamDraft(r.date, r.id);
+      render();
+    }
+  },
   profile: () => navigate("onboard"),
   begin: () => navigate("home", true),
   alarm: () => {
@@ -1446,14 +1604,8 @@ const actions = {
   },
   voice: startVoice,
   speak,
-  health: async () => {
-    await saveOptions();
-    const data = await api("/api/health");
-    toast(t(data.aiConfigured ? "aiReady" : "aiMissing"));
-  },
   "notify-wake": () => wakeNotification(),
   "cancel-wake": () => wakeNotification(true),
-  export: exportData,
   sync: syncCloud,
   guest: () => {
     $("#nickname")?.focus();
@@ -1478,16 +1630,16 @@ const actions = {
     render();
   },
   delete: async () => {
-    if (!confirm(t("deleteConfirm"))) return;
     const record = state.records.find((r) => r.id === selectedId);
-    if (record?.kind === "dream") await social.makeRecordPrivate(record.id);
-    await commit({
-      ...state,
-      records: state.records.filter((r) => r.id !== selectedId),
-      deleted: [...state.deleted, selectedId],
-    });
+    if (!record || !confirm(t("deleteConfirm"))) return;
+    await removeRecord(record);
     processing = false;
-    navigate("history", true);
+    navigate(record.kind === "diary" ? "diary" : "record", true);
+    draft =
+      record.kind === "diary"
+        ? diaryDraft(record.date)
+        : dreamDraft(record.date);
+    render();
     await syncCloud();
   },
 };
@@ -1534,13 +1686,14 @@ document.addEventListener("click", (event) => {
           "home",
           "record",
           "diary",
-          "history",
           "catalog",
           "profile",
           "begin",
           "alarm",
           "edit",
           "quiz-back",
+          "new-dream",
+          "back-to-journal",
         ].includes(el.dataset.action)
       )
         action();
@@ -1633,8 +1786,7 @@ async function boot() {
       });
       watchAccount();
     }
-    if (cloud && !cloud.isAnonymous())
-      await social.refreshAccount().catch(() => {});
+    if (cloud && !cloud.isAnonymous()) await refreshPlan();
     if (state.profile?.typeAnswers && location.hash === "#plans")
       page = "plans";
     render();

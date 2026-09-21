@@ -1,5 +1,21 @@
 import { TYPES, LANGUAGES } from "./types.js";
 import { localDate, validDate, validateSleep } from "./sleep.js";
+// GPT reading fields beyond the original four; kept short in every record.
+export const READING_FIELDS = [
+  "mood_label",
+  "mental_state",
+  "fortune_overview",
+  "fortune_mood",
+  "lucky_hint",
+  "advice",
+];
+export const MOOD_WEATHER = [
+  "sunny",
+  "partly_cloudy",
+  "cloudy",
+  "rainy",
+  "stormy",
+];
 const preferences = globalThis.Capacitor?.Plugins?.Preferences;
 export async function read(key, fallback = null) {
   const raw = preferences
@@ -126,6 +142,15 @@ export function normalizeRecord(raw) {
             mental_state_hint: String(
               raw.analysis.mental_state_hint || "",
             ).slice(0, 2000),
+            ...Object.fromEntries(
+              READING_FIELDS.map((key) => [
+                key,
+                String(raw.analysis[key] || "").slice(0, 2000),
+              ]),
+            ),
+            mood_weather: MOOD_WEATHER.includes(raw.analysis.mood_weather)
+              ? raw.analysis.mood_weather
+              : "",
             engine: raw.analysis.engine === "ai" ? "ai" : "local",
             language: LANGUAGES.includes(raw.analysis.language)
               ? raw.analysis.language

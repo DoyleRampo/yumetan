@@ -125,16 +125,13 @@ test("Free keeps one dream and one editable diary per date; plans and paid feed 
   await page.locator("nav [data-go=record]").click();
   await page.locator("#dream-text").fill("First dream");
   await page.locator("#dream-form button[type=submit]").click();
+  // The dream page reopens today's saved dream; Free offers no second slot.
   await page.locator("nav [data-go=record]").click();
-  await page.locator("#dream-text").fill("Second dream");
-  await page.locator("#dream-form button[type=submit]").click();
-  await expect(page.locator("#toast")).toContainText("dream limit");
-  await expect(page.locator("#dream-text")).toHaveValue("Second dream");
-  page.once("dialog", (d) => d.accept());
-  await page.locator("nav [data-go=history]").click();
-  await expect(page.locator(".entry")).toHaveCount(1);
-  await page.locator(".entry").click();
-  await page.locator("[data-action=edit]").click();
+  await expect(page.locator("#dream-text")).toHaveValue("First dream");
+  await expect(page.locator("[data-action=new-dream]")).toHaveCount(0);
+  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
+    1,
+  );
   await page.locator("#dream-text").fill("Edited first dream");
   await page.locator("#dream-form button[type=submit]").click();
   await expect(page.locator("main")).toContainText("Edited first dream");
@@ -147,7 +144,10 @@ test("Free keeps one dream and one editable diary per date; plans and paid feed 
   await expect(page.locator("main")).toContainText("¥4,900");
   await expect(page.locator("main")).toContainText("¥9,800");
   for (const lang of ["ja", "ko", "zh", "en"]) {
+    await page.locator("#header [data-go=settings]").click();
     await page.locator("#language").selectOption(lang);
+    await page.locator("[data-go=plans]").click();
+    await expect(page.locator(".plan-comparison thead th")).toHaveCount(3);
     await expect(page.locator("main")).not.toContainText("undefined");
     expect(
       await page.evaluate(
@@ -220,8 +220,11 @@ test("sharing needs explicit consent; only public copy is sent and expired owner
   expect(JSON.stringify(rows)).not.toContain("Private original dream");
   s.store.data.set("memberships/bob", { plan: "free" });
   await page.reload();
-  await page.locator("nav [data-go=history]").click();
-  await page.locator(".entry").click();
+  await page.locator("nav [data-go=record]").click();
+  await expect(page.locator("#dream-text")).toHaveValue(
+    "Private original dream",
+  );
+  await page.locator("#dream-form button[type=submit]").click();
   await page.locator("[data-go=share]").click();
   await expect(page.locator("[data-social=unpublish]")).toBeVisible();
   await expect(page.locator("#share-form")).toHaveCount(0);
@@ -231,12 +234,9 @@ test("sharing needs explicit consent; only public copy is sent and expired owner
     false,
   );
 });
-test("saving with AI enabled never spends a GPT call", async ({ page }) => {
-  await local(page);
+test("saving as a paid member never spends a GPT call", async ({ page }) => {
+  await fixture(page);
   await boot(page);
-  await page.locator("nav [data-go=settings]").click();
-  await page.locator("#engine").check();
-  await page.locator("#settings-form button[type=submit]").click();
   let calls = 0;
   await page.route("**/api/reflect", (r) => {
     calls++;

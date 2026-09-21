@@ -69,10 +69,10 @@ export const communityMessages = {
     "AI did not finish. Your text is preserved. Retrying uses another allowance.",
   ],
   aiTextTooLong: [
-    "AIに送る夢と前日の日記を短くしてください。記録自体は保存できます。",
-    "AI에 보낼 꿈과 전날 일기를 줄여 주세요. 기록은 저장할 수 있어요.",
-    "请缩短发送给AI的梦境和前一天日记。仍可保存记录。",
-    "Shorten the dream and previous-day diary for AI. You can still save the journal.",
+    "AIに送る夢や日記が長すぎます。短くしてください。記録自体は保存できます。",
+    "AI에 보낼 꿈이나 일기가 너무 길어요. 줄여 주세요. 기록은 저장할 수 있어요.",
+    "发送给AI的梦境或日记过长，请缩短。仍可保存记录。",
+    "The dream or diaries are too long for AI. Shorten them; you can still save the journal.",
   ],
   quotaReached: [
     "利用上限に達しました。プランと残り回数を確認してください。",
@@ -370,10 +370,10 @@ export const communityMessages = {
     "Posts allow 4,000 characters and comments 500. Content you publish is sent to OpenAI for safety checking.",
   ],
   planAIHint: [
-    "AIを使うと夢・前日の日記、文字認識時は画像をサーバーとOpenAIへ送信します。有料プランの利用枠を使います。保存だけなら端末内で処理します。",
-    "AI 사용 시 꿈과 전날 일기, 문자 인식 시 이미지를 서버와 OpenAI로 보내요. 유료 플랜 한도를 사용해요. 저장만 하면 기기 내에서 처리해요.",
-    "使用AI会将梦境、前一天日记或待识别图片发送至服务器及OpenAI，消耗付费套餐额度。仅保存时在本地处理。",
-    "AI sends your dream and previous-day diary, or handwriting image, to the server and OpenAI and uses your paid allowance. Saving alone runs locally.",
+    "AIで読み解くと夢・最近の日記、文字認識時は画像をサーバーとOpenAIへ送信します。有料プランの利用枠を使います。保存だけなら端末内で処理します。",
+    "AI로 살펴보면 꿈과 최근 일기, 문자 인식 시 이미지를 서버와 OpenAI로 보내요. 유료 플랜 한도를 사용해요. 저장만 하면 기기 내에서 처리해요.",
+    "使用AI解读会将梦境、最近的日记或待识别图片发送至服务器及OpenAI，消耗付费套餐额度。仅保存时在本地处理。",
+    "AI readings send your dream and recent diaries, or a handwriting image, to the server and OpenAI and use your paid allowance. Saving alone runs locally.",
   ],
   billingReturn: [
     "購入はApp Store / Google Playで処理され、完了後にプランが有効になります。別の端末で購入済みなら「購入を復元」を押してください。",

@@ -239,7 +239,7 @@ test("GPT uses bounded structured output, no storage; free and over-budget calls
   assert.equal(args.store, false);
   assert.equal(args.model, "gpt-5.6-luna-2026-07-09");
   assert.equal(args.reasoning_effort, "none");
-  assert.equal(args.max_completion_tokens, 800);
+  assert.equal(args.max_completion_tokens, 1400);
   assert.equal(args.response_format.json_schema.strict, true);
   store.data.set("usage/a_m_2026-09", { aiCost: 499999 });
   await assert.rejects(ai.call(req), (e) => e.code === "aiBudgetReached");

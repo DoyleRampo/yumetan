@@ -107,20 +107,23 @@ test("login restores account on a new device; logout isolates data and LINE choo
     await page.locator(".onboard-account > summary").click();
     await page.locator(`[data-auth-provider=${provider}]`).click();
     await expect(page.locator("main")).toContainText("アカウントA");
-    await page.locator("nav [data-go=history]").click();
-    await expect(page.locator(".entry")).toContainText("Aだけの夢");
-    await page.locator(".entry").click();
+    await page.locator("nav [data-go=record]").click();
+    await page.locator("#dream-date").fill("2026-09-15");
+    await page.locator("#dream-date").dispatchEvent("change");
+    await expect(page.locator("#dream-text")).toHaveValue("Aだけの夢");
     await expect(page.locator(".photo")).toHaveAttribute("src", /data:image/);
   }
-  await first.locator("nav [data-go=settings]").click();
+  await first.locator("#header [data-go=settings]").click();
   await first.locator("[data-action=signout]").click();
   await expect(first.locator("#nickname")).toBeVisible();
   await expect(first.locator("main")).not.toContainText("Aだけの夢");
   await first.locator(".onboard-account > summary").click();
   await first.locator("[data-auth-provider=line]").click();
   await expect(first.locator("main")).toContainText("アカウントB");
-  await first.locator("nav [data-go=history]").click();
-  await expect(first.locator(".entry")).toHaveCount(0);
+  await first.locator("nav [data-go=record]").click();
+  await expect(first.locator(".recent-entries [data-open-entry]")).toHaveCount(
+    0,
+  );
   await c1.close();
   await c2.close();
 });
@@ -147,14 +150,16 @@ test("guest records import only after consent; account linking and cancellation 
   ]);
   await setup(page, db);
   await page.goto("/");
-  await expect(page.locator("nav [data-go=settings]")).toBeVisible();
-  await page.locator("nav [data-go=settings]").click();
+  await expect(page.locator("#header [data-go=settings]")).toBeVisible();
+  await page.locator("#header [data-go=settings]").click();
   page.once("dialog", (d) => d.accept());
   await page.locator("[data-auth-provider=google]").click();
   await expect(page.locator("main")).toContainText("会員");
-  await page.locator("nav [data-go=history]").click();
-  await expect(page.locator(".entry")).toHaveCount(2);
-  await page.locator("nav [data-go=settings]").click();
+  await page.locator("nav [data-go=record]").click();
+  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
+    2,
+  );
+  await page.locator("#header [data-go=settings]").click();
   page.once("dialog", (d) => d.accept());
   await page.locator("[data-auth-provider=apple]").click();
   expect(
@@ -164,8 +169,10 @@ test("guest records import only after consent; account linking and cancellation 
   page.once("dialog", (d) => d.accept());
   await page.locator("[data-auth-provider=line]").click();
   await expect(page.locator("#toast")).toContainText("キャンセル");
-  await page.locator("nav [data-go=history]").click();
-  await expect(page.locator(".entry")).toHaveCount(2);
+  await page.locator("nav [data-go=record]").click();
+  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
+    2,
+  );
 });
 test("declining guest import leaves both accounts intact", async ({ page }) => {
   const db = new Map([
@@ -181,16 +188,18 @@ test("declining guest import leaves both accounts intact", async ({ page }) => {
   ]);
   await setup(page, db);
   await page.goto("/");
-  await page.locator("nav [data-go=settings]").click();
+  await page.locator("#header [data-go=settings]").click();
   page.once("dialog", (d) => d.dismiss());
   await page.locator("[data-auth-provider=apple]").click();
-  await page.locator("nav [data-go=history]").click();
-  await expect(page.locator(".entry")).toHaveCount(0);
+  await page.locator("nav [data-go=record]").click();
+  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
+    0,
+  );
   expect(db.get("guest-1").records).toHaveLength(1);
   expect(db.get("member-a").records).toHaveLength(0);
-  await page.locator("nav [data-go=settings]").click();
+  await page.locator("#header [data-go=settings]").click();
   page.once("dialog", (d) => d.accept());
   await page.locator("[data-action=import-guest]").click();
-  await page.locator("nav [data-go=history]").click();
-  await expect(page.locator(".entry")).toContainText("ゲストの夢");
+  await page.locator("nav [data-go=record]").click();
+  await expect(page.locator(".recent-entries")).toContainText("ゲストの夢");
 });

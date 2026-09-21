@@ -201,6 +201,44 @@ test("API validates locale, image format, and the exact previous diary date", ()
   assert.throws(() =>
     reflectionInput({ ...input, diary: { date: "2026-09-13", text: "wrong" } }),
   );
+  // Recent diaries: at most seven, before the wake-up date, unique dates, bounded text.
+  const recent = reflectionInput({
+    ...input,
+    recentDiaries: [
+      { date: "2026-09-10", text: "older" },
+      { date: "2026-09-14", text: "newer" },
+    ],
+    sleep: { hours: 6.5, awakenings: 0, rested: 3, nightmare: true },
+    dreamType: "chase",
+  });
+  assert.deepEqual(
+    recent.recentDiaries.map((d) => d.date),
+    ["2026-09-14", "2026-09-10"],
+  );
+  assert.equal(recent.sleep.nightmare, true);
+  assert.equal(recent.dreamType, "chase");
+  for (const bad of [
+    [{ date: "2026-09-15", text: "same day" }],
+    [{ date: "2026-09-16", text: "future" }],
+    [
+      { date: "2026-09-14", text: "a" },
+      { date: "2026-09-14", text: "b" },
+    ],
+    [{ date: "2026-09-14", text: "x".repeat(2001) }],
+    Array.from({ length: 8 }, (_, i) => ({
+      date: `2026-09-0${i + 1}`,
+      text: "too many",
+    })),
+    "not a list",
+  ])
+    assert.throws(() => reflectionInput({ ...input, recentDiaries: bad }));
+  assert.throws(() =>
+    reflectionInput({
+      ...input,
+      sleep: { hours: 30, awakenings: 0, rested: 3 },
+    }),
+  );
+  assert.throws(() => reflectionInput({ ...input, dreamType: "unicorn" }));
   assert.throws(() =>
     handwritingInput({
       language: "en",
@@ -236,6 +274,13 @@ test("AI routes propagate requested language, context, and multimodal content us
                 summary: "Summary",
                 reply: "Reply",
                 mental_state_hint: "Hint",
+                mood_weather: "sunny",
+                mood_label: "Calm",
+                mental_state: "State",
+                fortune_overview: "Outlook",
+                fortune_mood: "Mood",
+                lucky_hint: "Lucky",
+                advice: "Advice",
               },
         );
       },
@@ -249,13 +294,24 @@ test("AI routes propagate requested language, context, and multimodal content us
         text: "Dream",
         date: "2026-09-15",
         diary: { date: "2026-09-14", text: "Yesterday" },
+        recentDiaries: [
+          { date: "2026-09-12", text: "Two days before" },
+          { date: "2026-09-14", text: "Yesterday" },
+        ],
+        sleep: { hours: 7, awakenings: 1, rested: 4, nightmare: false },
+        dreamType: "challenge",
       },
     },
     { json: (value) => (payload = value) },
   );
   assert.ok(calls[0].system[0].text.includes("Korean"));
+  assert.ok(calls[0].system[0].text.includes("fortune"));
   assert.ok(calls[0].messages[0].content.includes("Yesterday"));
+  assert.ok(calls[0].messages[0].content.includes("Two days before"));
+  assert.ok(calls[0].messages[0].content.includes('"rested":4'));
   assert.equal(payload.analysis.reply, "Reply");
+  assert.equal(payload.analysis.fortune_overview, "Outlook");
+  assert.equal(payload.analysis.mood_weather, "sunny");
   await routes.get("/api/handwriting")(
     { body: { language: "ja", image: "data:image/jpeg;base64,/9j/" } },
     { json: (value) => (payload = value) },
@@ -312,12 +368,19 @@ test("character collection defaults and fallbacks retain all stable type IDs and
     CHARACTER_SETS,
     DEFAULT_CHARACTER_SET,
     normalizeCharacterSet,
+    allowedCharacterSet,
     characterById,
   } = await import("../public/core/characters.js");
-  assert.equal(DEFAULT_CHARACTER_SET, "human");
-  assert.equal(normalizeCharacterSet(undefined), "human");
-  assert.equal(normalizeCharacterSet("unknown"), "human");
-  assert.equal(normalizeCharacterSet("animal"), "animal");
+  assert.equal(DEFAULT_CHARACTER_SET, "animal");
+  assert.equal(normalizeCharacterSet(undefined), "animal");
+  assert.equal(normalizeCharacterSet("unknown"), "animal");
+  assert.equal(normalizeCharacterSet("human"), "human");
+  // Human characters are a paid perk: the free plan always falls back to animals.
+  assert.equal(allowedCharacterSet("human", "free"), "animal");
+  assert.equal(allowedCharacterSet("human", "starter"), "human");
+  assert.equal(allowedCharacterSet("human", "standard"), "human");
+  assert.equal(allowedCharacterSet("animal", "free"), "animal");
+  assert.equal(allowedCharacterSet("unknown", "starter"), "animal");
   for (const set of CHARACTER_SETS) {
     assert.deepEqual(
       Object.keys(set.characters),
@@ -336,7 +399,7 @@ test("character collection defaults and fallbacks retain all stable type IDs and
       }
     }
   }
-  assert.equal(characterById("challenge").names[3], "Kakeru");
-  assert.equal(characterById("challenge", "animal").names[3], "Kiro");
+  assert.equal(characterById("challenge").names[3], "Kiro");
+  assert.equal(characterById("challenge", "human").names[3], "Kakeru");
   assert.equal(characterById("missing").id, "chase");
 });

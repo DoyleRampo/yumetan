@@ -32,7 +32,9 @@ export function createAI({
             )
           : m.content,
       }));
-      const outputLimit = kind === "handwriting" ? 1600 : 800;
+      // Readings return eleven short fields (mental state + daily fortune), so they
+      // get a larger completion window than the old four-field reflection.
+      const outputLimit = kind === "handwriting" ? 1600 : 1400;
       const text = JSON.stringify({
         system,
         schema: jsonSchema,
