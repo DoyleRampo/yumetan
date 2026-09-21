@@ -3,7 +3,7 @@
   "appName": "ユメタン",
   "webDir": "dist",
   "ios": {
-    "contentInset": "always",
+    "contentInset": "never",
     "backgroundColor": "#0f1222"
   },
   "android": {
@@ -11,6 +11,10 @@
     "allowMixedContent": false
   },
   "plugins": {
-    "SplashScreen": { "launchShowDuration": 800, "backgroundColor": "#0f1222", "launchAutoHide": true }
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#0f1222",
+      "launchAutoHide": true
+    }
   }
 }

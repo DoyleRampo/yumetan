@@ -7,6 +7,29 @@ export const languageNames = {
 };
 // Every UI message has an explicit translation. User-authored journal text is preserved.
 export const messages = {
+  unsavedTitle: [
+    "編集中の内容があります",
+    "작성 중인 내용이 있어요",
+    "有未保存的内容",
+    "Unsaved changes",
+  ],
+  keepEditing: ["編集を続ける", "계속 작성", "继续编辑", "Keep editing"],
+  discardMove: ["破棄して移動", "버리고 이동", "放弃并离开", "Discard & leave"],
+  chooseDate: ["日付を選ぶ", "날짜 선택", "选择日期", "Choose a date"],
+  previousMonth: ["前の月", "이전 달", "上个月", "Previous month"],
+  nextMonth: ["次の月", "다음 달", "下个月", "Next month"],
+  cancel: ["キャンセル", "취소", "取消", "Cancel"],
+  close: ["閉じる", "닫기", "关闭", "Close"],
+  dreamDays: ["夢の記録", "꿈 기록", "梦境记录", "Dream journal"],
+  diaryDays: ["日記の記録", "일기 기록", "日记记录", "Diary journal"],
+  emptyDay: [
+    "この日の記録はありません",
+    "이 날의 기록이 없어요",
+    "当天没有记录",
+    "No entries for this day",
+  ],
+  today: ["今日", "오늘", "今天", "Today"],
+
   catalogHint: [
     "キャラクターをタップして、詳しく。",
     "캐릭터를 눌러 자세히 보세요.",

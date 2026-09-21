@@ -4,7 +4,7 @@ export function wrapJapaneseLabels(root, language) {
   if (language !== "ja" || typeof Intl.Segmenter !== "function") return;
   const segmenter = new Intl.Segmenter("ja", { granularity: "word" });
   const targets = root.querySelectorAll(
-    "h1, h2, h3, .btn, .tag, summary, .field > span, .check > span, .tag-label, .plan-name, .plan-comparison th, .catalog-group td",
+    "h1, h2, h3, .btn, .tag, summary, .field > span, .check > span, .tag-label, .plan-name, .plan-comparison th, .catalog-group td, p:not(.prose):not(.entry p), .muted",
   );
   for (const target of targets) {
     const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);

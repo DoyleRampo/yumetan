@@ -1,3 +1,4 @@
+import { chooseDate, savedDreamDetails } from "./helpers/journal.js";
 import { test, expect } from "@playwright/test";
 import { MemoryStore } from "../helpers/memory-store.mjs";
 import { createAccess } from "../../server/access.js";
@@ -125,15 +126,16 @@ test("Free keeps one dream and one editable diary per date; plans and paid feed 
   await page.locator("nav [data-go=record]").click();
   await page.locator("#dream-text").fill("First dream");
   await page.locator("#dream-form button[type=submit]").click();
-  // The dream page reopens today's saved dream; Free offers no second slot.
+  // Saving clears the editor; an existing dream can still be edited.
   await page.locator("nav [data-go=record]").click();
+  await savedDreamDetails(page);
+  await page.locator("[data-action=edit]").click();
   await expect(page.locator("#dream-text")).toHaveValue("First dream");
   await expect(page.locator("[data-action=new-dream]")).toHaveCount(0);
-  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
-    1,
-  );
+
   await page.locator("#dream-text").fill("Edited first dream");
   await page.locator("#dream-form button[type=submit]").click();
+  await savedDreamDetails(page);
   await expect(page.locator("main")).toContainText("Edited first dream");
   await page.locator("nav [data-go=community]").click();
   await expect(page.locator(".paywall")).toContainText("paid plan");
@@ -203,6 +205,7 @@ test("sharing needs explicit consent; only public copy is sent and expired owner
   await page.locator("nav [data-go=record]").click();
   await page.locator("#dream-text").fill("Private original dream");
   await page.locator("#dream-form button[type=submit]").click();
+  await savedDreamDetails(page);
   expect((await s.store.list("communityPosts")).length).toBe(0);
   await page.locator("[data-go=share]").click();
   await expect(page.locator("#share-form")).toBeVisible();
@@ -221,10 +224,8 @@ test("sharing needs explicit consent; only public copy is sent and expired owner
   s.store.data.set("memberships/bob", { plan: "free" });
   await page.reload();
   await page.locator("nav [data-go=record]").click();
-  await expect(page.locator("#dream-text")).toHaveValue(
-    "Private original dream",
-  );
-  await page.locator("#dream-form button[type=submit]").click();
+  await savedDreamDetails(page);
+  await expect(page.locator("main")).toContainText("Private original dream");
   await page.locator("[data-go=share]").click();
   await expect(page.locator("[data-social=unpublish]")).toBeVisible();
   await expect(page.locator("#share-form")).toHaveCount(0);
@@ -245,6 +246,7 @@ test("saving as a paid member never spends a GPT call", async ({ page }) => {
   await page.locator("nav [data-go=record]").click();
   await page.locator("#dream-text").fill("Save locally");
   await page.locator("#dream-form button[type=submit]").click();
+  await savedDreamDetails(page);
   await expect(page.locator("main")).toContainText("Save locally");
   expect(calls).toBe(0);
 });

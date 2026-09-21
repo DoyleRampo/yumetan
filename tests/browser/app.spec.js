@@ -1,3 +1,4 @@
+import { chooseDate, savedDreamDetails } from "./helpers/journal.js";
 import { test, expect } from "@playwright/test";
 const today = () =>
   new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
@@ -107,8 +108,7 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
 }) => {
   await start(page, "en");
   await page.locator("nav [data-go=diary]").click();
-  await page.locator("#diary-date").fill(yesterday());
-  await page.locator("#diary-date").dispatchEvent("change");
+  await chooseDate(page, "diary-date", yesterday());
   await page.locator("#diary-text").fill("Yesterday I worked on a challenge.");
   await page.locator("#diary-form button[type=submit]").click();
   await expect(page.locator("#toast")).toContainText("Saved");
@@ -133,6 +133,7 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
   await page.locator("#awakenings").fill("0");
   await page.locator("#rested").selectOption("5");
   await page.locator("#dream-form button[type=submit]").click();
+  await savedDreamDetails(page);
   await expect(page.locator("main")).toContainText(
     "Yesterday I worked on a challenge.",
   );
@@ -140,7 +141,7 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
   await expect(page.locator("main")).not.toContainText("Sleep level");
   // The entry page has a "← previous page" link; the edge swipe does the same.
   await expect(page.locator(".back-link")).toHaveText("← Dream journal");
-  await page.locator(".back-link").click();
+  await page.locator("[data-action=edit]").click();
   await expect(page.locator("#dream-text")).toHaveValue(
     "I faced a challenge and climbed a mountain.",
   );
@@ -159,15 +160,14 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
   await expect(page.locator("[data-action=catalog]")).toBeVisible();
   await page.reload();
   await expect(page.locator(".score")).toContainText("Lv.1");
-  // The dream page opens today's saved dream directly; the recent list also finds it.
+  // Fresh recording starts blank; saved entries open through the dated journal.
   await page.locator("nav [data-go=record]").click();
+  await savedDreamDetails(page);
+  await page.locator("[data-action=edit]").click();
   await expect(page.locator("#dream-text")).toHaveValue(
     "I faced a challenge and climbed a mountain.",
   );
-  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
-    1,
-  );
-  await expect(page.locator(".recent-entries")).toContainText("mountain");
+
   await page.locator("summary").filter({ hasText: "handwritten" }).click();
   await page.locator("#photo-file").setInputFiles({
     name: "note.png",
@@ -179,6 +179,7 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
   });
   await expect(page.locator(".photo")).toBeVisible();
   await page.locator("#dream-form button[type=submit]").click();
+  await savedDreamDetails(page);
   await expect(page.locator(".photo")).toBeVisible();
   await page.locator("#header [data-go=settings]").click();
   // Developer-only sections (AI server, backup) and the alarm are gone from Settings.
@@ -187,19 +188,19 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
   await expect(page.locator("#alarm-form")).toHaveCount(0);
   await expect(page.locator(".back-link")).toHaveCount(0);
   await page.locator("nav [data-go=record]").click();
+  await savedDreamDetails(page);
+  await page.locator("[data-action=edit]").click();
   await expect(page.locator("#dream-text")).toHaveValue(
     "I faced a challenge and climbed a mountain.",
   );
   page.once("dialog", (d) => d.accept());
   await page.locator("[data-action=delete-entry]").click();
   await expect(page.locator("#dream-text")).toHaveValue("");
-  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
-    0,
-  );
+  await page.locator("[data-open-days=dream]").click();
+  await expect(page.locator(".day-record")).toHaveCount(0);
   await page.locator("nav [data-go=diary]").click();
-  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
-    1,
-  );
+  await page.locator("[data-open-days=diary]").click();
+  await expect(page.locator(".day-record")).toHaveCount(1);
 });
 test("partial questionnaire survives refresh and back navigation", async ({
   page,
@@ -281,6 +282,7 @@ test.describe("offline cache", () => {
     await page.locator("nav [data-go=record]").click();
     await page.locator("#dream-text").fill("An offline dream");
     await page.locator("#dream-form button[type=submit]").click();
+    await savedDreamDetails(page);
     await expect(page.locator("main")).toContainText("An offline dream");
     await page.locator("nav [data-go=home]").click();
     await page.locator("[data-action=catalog]").click();
@@ -349,8 +351,7 @@ test("AI reading shows state of mind and fortune, sends recent diaries, and OCR 
   await paidMember(page);
   await start(page, "en");
   await page.locator("nav [data-go=diary]").click();
-  await page.locator("#diary-date").fill(yesterday());
-  await page.locator("#diary-date").dispatchEvent("change");
+  await chooseDate(page, "diary-date", yesterday());
   await page.locator("#diary-text").fill("A busy day before the dream.");
   await page.locator("#diary-form button[type=submit]").click();
   await expect(page.locator("#toast")).toContainText("Saved");
@@ -418,9 +419,11 @@ test("AI reading shows state of mind and fortune, sends recent diaries, and OCR 
   expect(reflectionRequest.typeTags).toContain("challenge");
   // The reading is stored with the dream and survives reload.
   await page.locator("#dream-form button[type=submit]").click();
+  await savedDreamDetails(page);
   await expect(page.locator(".reading-card")).toContainText("Quietly hopeful");
   await page.reload();
   await page.locator("nav [data-go=record]").click();
+  await savedDreamDetails(page);
   await expect(page.locator(".reading-card")).toContainText(
     "A day for small wins.",
   );
@@ -466,14 +469,12 @@ test("account switching isolates journals and reload restores the active scope",
   await page.locator("[data-action=signout]").click();
   await page.locator("nav [data-go=record]").click();
   await expect(page.locator("#dream-text")).toHaveValue("");
-  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
-    0,
-  );
+  await page.locator("[data-open-days=dream]").click();
+  await expect(page.locator(".day-record")).toHaveCount(0);
   await page.reload();
   await page.locator("nav [data-go=record]").click();
-  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
-    0,
-  );
+  await page.locator("[data-open-days=dream]").click();
+  await expect(page.locator(".day-record")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(
     "Private dream of first account",
   );
@@ -570,12 +571,13 @@ test("legacy main v4 profile, diary, and dream migrate without repeating onboard
   );
   await expect(page.locator(".character-row")).toContainText("The Challenger");
   await page.locator("nav [data-go=record]").click();
-  await expect(page.locator("#dream-text")).toHaveValue("A dream from main");
+  await savedDreamDetails(page);
+  await expect(page.locator("main")).toContainText("A dream from main");
+  await page.locator("[data-action=edit]").click();
   await expect(page.locator("main")).toContainText("Previous diary from main");
   await page.locator("nav [data-go=diary]").click();
-  await expect(page.locator(".recent-entries [data-open-entry]")).toHaveCount(
-    1,
-  );
+  await page.locator("[data-open-days=diary]").click();
+  await expect(page.locator(".day-record")).toHaveCount(1);
 });
 
 test("all sixteen illustrations and localized stories render without overflow", async ({
@@ -737,8 +739,8 @@ test("failed appearance saves do not switch the active collection", async ({
   await page.locator("#character-form input[value=animal]").check();
   await page.locator("#character-form button[type=submit]").click();
   await expect(page.locator("#toast")).not.toHaveText("Saved");
-  page.once("dialog", (dialog) => dialog.accept());
   await page.locator("nav [data-go=home]").click();
+  await page.locator("[data-dialog-discard]").click();
   await expect(page.locator(".character-row .character-name")).toHaveText(
     "Kakeru",
   );
@@ -753,6 +755,7 @@ test("the floating tab bar switches pages by dragging the highlight", async ({
   const y = track.y + track.height / 2;
   await page.mouse.move(track.x + track.width * 0.62, y);
   await page.mouse.down();
+  await expect(page.locator("#nav")).toHaveClass(/nav-scrubbing/);
   for (let i = 1; i <= 10; i++)
     await page.mouse.move(track.x + track.width * (0.62 - 0.05 * i), y);
   await page.mouse.up();
@@ -763,8 +766,9 @@ test("the floating tab bar switches pages by dragging the highlight", async ({
   );
   await page.mouse.move(track.x + track.width * 0.12, y);
   await page.mouse.down();
+  await expect(page.locator("#nav")).toHaveClass(/nav-scrubbing/);
   for (let i = 1; i <= 8; i++)
-    await page.mouse.move(track.x + track.width * (0.12 + 0.04 * i), y);
+    await page.mouse.move(track.x + track.width * (0.12 + 0.03 * i), y);
   await page.mouse.up();
   await expect(page.locator("#dream-text")).toBeVisible();
 });
@@ -779,6 +783,7 @@ test("the dream level climbs with logged dreams and swiping in from the left edg
     if (i) await page.locator("[data-action=new-dream]").click();
     await page.locator("#dream-text").fill(`Dream number ${i + 1}`);
     await page.locator("#dream-form button[type=submit]").click();
+    await savedDreamDetails(page);
     await expect(page.locator("main")).toContainText(`Dream number ${i + 1}`);
   }
   await expect(page.locator("#toast")).toContainText("level went up");

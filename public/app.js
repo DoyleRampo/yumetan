@@ -1,3 +1,9 @@
+import {
+  confirmDiscard,
+  pickDate,
+  bindSlideNavigation,
+  shiftDay,
+} from "./core/interface.js";
 import { wrapJapaneseLabels } from "./core/ui-text.js";
 import { TYPE_FEATURES } from "./core/type-features.js";
 import { authText, authError } from "./core/auth-i18n.js";
@@ -35,7 +41,6 @@ import {
   localDate,
   validDate,
   previousDiary,
-  adviceKeys,
   validateSleep,
 } from "./core/sleep.js";
 import { dreamLevel } from "./core/level.js";
@@ -59,7 +64,7 @@ const esc = (value) =>
       ],
   );
 const id = () => crypto.randomUUID();
-const APP_VERSION = "4.5.2";
+const APP_VERSION = "4.6.0";
 const cap = window.Capacitor,
   native = cap?.isNativePlatform?.(),
   plugins = cap?.Plugins || {};
@@ -73,6 +78,7 @@ let state = { version: 4, profile: null, records: [], deleted: [] },
   };
 let storageKey = "yumetan.v4.local",
   page = "home",
+  journalDate = localDate(),
   selectedId = null,
   catalogGroup = "all",
   selectedType = null,
@@ -239,76 +245,25 @@ function header() {
   document.title = `${t("brand")} / Yumetan`;
   const ready = Boolean(state.profile?.typeAnswers);
   $("#header").innerHTML =
-    `<button class="brand" data-go="home">☾ ${esc(t("brand"))}<small>DREAM & GROW</small></button>` +
+    `<button class="brand" data-go="home">☾ ${esc(t("brand"))}</button>` +
     (ready
       ? `<button type="button" class="icon-btn" data-go="settings" aria-label="${esc(t("settings"))}" ${page === "settings" ? 'aria-current="page"' : ""}>${ICONS.settings}</button>`
       : "");
   const nav = $("#nav");
   nav.hidden = !ready || ["quiz", "result", "onboard"].includes(page);
   nav.setAttribute("aria-label", t("brand"));
-  const active = NAV.indexOf(page);
+  const activePage =
+    { "dream-days": "record", "diary-days": "diary" }[page] || page;
+  const active = NAV.indexOf(activePage);
   nav.dataset.active = active;
   nav.style.setProperty("--nav-index", Math.max(0, active));
   nav.style.setProperty("--nav-count", NAV.length);
   nav.innerHTML = `<div class="nav-track"><span class="nav-indicator" aria-hidden="true"></span>${NAV.map(
     (p) =>
-      `<button type="button" data-go="${p}" aria-label="${esc(navLabel(p))}" title="${esc(navLabel(p))}" ${page === p ? 'aria-current="page"' : ""}>${ICONS[p]}</button>`,
+      `<button type="button" data-go="${p}" aria-label="${esc(navLabel(p))}" title="${esc(navLabel(p))}" ${activePage === p ? 'aria-current="page"' : ""}>${ICONS[p]}</button>`,
   ).join("")}</div>`;
 }
-// Drag the highlight along the bar to switch tabs, Instagram-style. Vertical
-// movement is left to the page, and a real drag never doubles as a tap.
-function bindNavSwipe() {
-  const nav = $("#nav");
-  let drag = null,
-    dragged = false;
-  nav.addEventListener("pointerdown", (e) => {
-    if (e.pointerType === "mouse" && e.button !== 0) return;
-    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
-  });
-  nav.addEventListener("pointermove", (e) => {
-    if (!drag || e.pointerId !== drag.id) return;
-    const dx = e.clientX - drag.x,
-      dy = e.clientY - drag.y;
-    if (!drag.moved) {
-      if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy)) return;
-      drag.moved = true;
-      nav.classList.add("dragging");
-      try {
-        nav.setPointerCapture(e.pointerId);
-      } catch {}
-    }
-    nav.style.setProperty("--drag", `${dx}px`);
-  });
-  const finish = (e) => {
-    if (!drag || e.pointerId !== drag.id) return;
-    const { moved, x } = drag;
-    drag = null;
-    nav.classList.remove("dragging");
-    nav.style.removeProperty("--drag");
-    if (!moved || e.type === "pointercancel") return;
-    dragged = true;
-    setTimeout(() => (dragged = false), 0);
-    const track = nav.querySelector(".nav-track");
-    if (!track) return;
-    const slot = track.getBoundingClientRect().width / NAV.length,
-      from = Math.max(0, NAV.indexOf(page)),
-      target = Math.min(
-        NAV.length - 1,
-        Math.max(0, Math.round(from + (e.clientX - x) / slot)),
-      );
-    if (NAV.indexOf(page) !== target) navigate(NAV[target]);
-  };
-  nav.addEventListener("pointerup", finish);
-  nav.addEventListener("pointercancel", finish);
-  nav.addEventListener(
-    "click",
-    (e) => {
-      if (dragged) e.stopPropagation();
-    },
-    true,
-  );
-}
-bindNavSwipe();
+bindSlideNavigation($("#nav"), navigate);
 // Swiping in from the left edge goes back one page, like the iOS back gesture.
 function bindEdgeSwipe() {
   let start = null;
@@ -343,8 +298,41 @@ function bindEdgeSwipe() {
   });
 }
 bindEdgeSwipe();
+let fitFrame;
+function updateHomeFit() {
+  cancelAnimationFrame(fitFrame);
+  fitFrame = requestAnimationFrame(() => {
+    document.body.classList.remove("home-dense", "home-reflow");
+    if (page !== "home") return;
+    const fits = () =>
+      [
+        ...document.querySelectorAll(
+          ".home-dashboard > *, .home-dashboard .btn, .home-dashboard .score, .home-dashboard .character-art",
+        ),
+      ].every((el) => {
+        const r = el.getBoundingClientRect(),
+          main = $("#app").getBoundingClientRect();
+        return (
+          r.top >= main.top - 1 &&
+          r.bottom <= main.bottom + 1 &&
+          r.right <= innerWidth + 1 &&
+          r.left >= -1 &&
+          (!el.closest(".character-row") ||
+            el === el.closest(".character-row") ||
+            (r.top >=
+              el.closest(".character-row").getBoundingClientRect().top &&
+              r.bottom <=
+                el.closest(".character-row").getBoundingClientRect().bottom))
+        );
+      }) && $("#app").scrollHeight <= $("#app").clientHeight + 1;
+    if (!fits()) document.body.classList.add("home-dense");
+    if (!fits()) document.body.classList.add("home-reflow");
+  });
+}
+window.addEventListener("resize", updateHomeFit);
 function render() {
   header();
+  document.body.dataset.screen = page;
   const views = {
     home: homeView,
     onboard: profileView,
@@ -354,6 +342,8 @@ function render() {
     "type-detail": typeDetailView,
     record: recordView,
     diary: diaryView,
+    "dream-days": () => journalView("dream"),
+    "diary-days": () => journalView("diary"),
     detail: detailView,
     settings: settingsView,
     community: () => social.view("community"),
@@ -368,6 +358,7 @@ function render() {
       ? `<button type="button" class="back-link" data-action="back">← ${esc(pageTitle(backTarget()) || t("back"))}</button>`
       : "") + (views[page] || homeView)();
   wrapJapaneseLabels($("#app"), language());
+  updateHomeFit();
   bindForms();
   bindLanguage();
   social.bind();
@@ -395,6 +386,8 @@ function render() {
 // PARENTS covers a page opened directly (reload, deep link).
 const ROOTS = [...NAV, "settings"];
 const PARENTS = {
+  "dream-days": "record",
+  "diary-days": "diary",
   catalog: "home",
   "type-detail": "catalog",
   detail: "record",
@@ -407,6 +400,8 @@ const PARENTS = {
 let navStack = [];
 function pageTitle(p) {
   return {
+    "dream-days": t("dreamDays"),
+    "diary-days": t("diaryDays"),
     home: t("home"),
     record: t("recordTitle"),
     diary: t("diaryTitle"),
@@ -435,14 +430,14 @@ function backTarget() {
   }
   return PARENTS[page] || "home";
 }
-function goBack() {
+async function goBack() {
   if (!hasBack()) return;
   const target = backTarget(),
     record =
       page === "detail" ? state.records.find((r) => r.id === selectedId) : null;
-  navStack.pop();
   processing = false;
-  navigate(target, false, true);
+  if (!(await navigate(target, false, true))) return;
+  navStack.pop();
   // Returning to a journal from an entry reopens that entry's date.
   if (record && page === target && ["record", "diary"].includes(target)) {
     draft =
@@ -452,9 +447,10 @@ function goBack() {
     render();
   }
 }
-function navigate(next, force = false, back = false) {
-  if (processing && !force) return;
-  if (!force && dirty && !confirm(t("unsaved"))) return;
+async function navigate(next, force = false, back = false) {
+  if (next === page && !force) return true;
+  if (processing && !force) return false;
+  if (!force && dirty && !(await confirmDiscard(t))) return false;
   stopVoice();
   social.leave();
   dirty = false;
@@ -482,7 +478,9 @@ function navigate(next, force = false, back = false) {
       page,
       state.records.find((r) => r.id === selectedId),
     );
+  return true;
 }
+
 function profileView() {
   const p = draft || state.profile || {};
   return `<div class="narrow"><p class="eyebrow">WELCOME TO YOUR DREAM WORLD</p><h1>${t("welcome")}</h1><p class="muted">${t("profileHint")}</p>${!state.profile ? `<details class="onboard-account"><summary>${t("accountOptional")}</summary>${accountView(true)}</details>` : ""}<form id="profile-form" class="card">
@@ -501,28 +499,17 @@ function resultView() {
     type = typeById(result.id);
   return `<div class="narrow center"><p class="eyebrow">YOUR DREAM, YOUR CHARACTER</p><h1>${t("yourType")}</h1><div class="card accent" style="--accent:${group(type).color}">${avatar(type)}<span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)}</p>${characterStory(type)}${result.tied ? `<p class="help">${t("tie")}</p>` : ""}</div><p>${t("characterHint")}</p>${button("begin", "begin", "primary full")}<details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
 }
-function adviceCard() {
-  const latest = [...state.records]
-    .filter((r) => r.date <= localDate() && validateSleep(r.sleep))
-    .sort(
-      (a, b) =>
-        b.date.localeCompare(a.date) ||
-        Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
-    )[0];
-  const keys = adviceKeys(latest?.sleep, state.profile?.ageGroup);
-  return `<div class="card"><p class="eyebrow">A GENTLE NIGHT</p><h2>${t("advice")}</h2><ul class="advice-list">${keys.map((k) => `<li>${t(k === "nightmare" ? "nightmareAdvice" : k)}</li>`).join("")}</ul><details><summary>${t("sources")}</summary><p class="help">${t("ruleText")}</p><a href="https://www.nhlbi.nih.gov/health/sleep-deprivation/healthy-sleep-habits" target="_blank" rel="noopener">NIH / NHLBI · Healthy Sleep Habits</a></details></div>`;
-}
 function homeView() {
   const result = currentType(),
     type = typeById(result?.id) || TYPES[0],
     value = dreamLevel(state.records);
-  return `<section class="home-dashboard"><section class="hero"><div><p class="eyebrow">${esc(dateText(localDate()))} · ${esc(state.profile?.nickname)}</p><h1>${t("hero")}</h1><div class="row">${button("record", "record", "primary")}${button("diary", "diary", "ghost")}</div></div></section>
+  return `<section class="home-dashboard"><section class="hero"><div><p class="eyebrow">${esc(dateText(localDate()))} · ${esc(state.profile?.nickname)}</p><h1>${t("hero").replace(/\n/g, ["ja", "zh"].includes(language()) ? "" : " ")}</h1><div class="row">${button("record", "record", "primary")}${button("diary", "diary", "ghost")}</div></div></section>
  <div class="card accent character-row" style="--accent:${group(type).color}"><button type="button" class="character-link" data-type-detail="${type.id}" aria-label="${esc(name(characterById(type.id)))} · ${esc(t("more"))}">${avatar(type, value.stars, true)}</button><div><span class="tag-label">${name(group(type))}</span><button type="button" class="character-link" data-type-detail="${type.id}"><h2 class="character-name">${name(characterById(type.id))}</h2></button><p class="help">${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p>${button("catalog", "catalog", "small ghost")}</div></div>
  <div class="home-insights"><div class="card level-card"><div class="row between"><h2>${t("level")}</h2><div class="score">Lv.<b>${value.level}</b></div></div><div class="level-gauge" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value.progress}" aria-label="${esc(t("level"))}"><i style="width:${value.progress}%"></i></div><p class="help level-next">${esc(
    t("nextLevel")
      .replace("{n}", value.remaining)
      .replace("{l}", value.level + 1),
- )} · ${t("dreamsLogged")}: ${value.count}</p></div><details class="card home-advice"><summary>${t("advice")}</summary><p class="help">${t("levelHint")}</p>${adviceCard()}</details></div></section>`;
+ )} · ${t("dreamsLogged")}: ${value.count}</p></div></div></section>`;
 }
 
 function catalogView() {
@@ -586,32 +573,33 @@ const shiftDate = (date, days) => {
   d.setDate(d.getDate() + days);
   return localDate(d);
 };
-// Compact date row: previous / native picker / next. The label stays for screen readers.
+function dateField(label, id, value) {
+  return `<div class="field"><span id="${id}-label">${t(label)}</span><input type="hidden" id="${id}" value="${esc(value)}"><button type="button" class="date-trigger input" data-date-field="${id}" aria-labelledby="${id}-label ${id}-value" aria-haspopup="dialog"><span id="${id}-value">${esc(dateText(value))}</span><span aria-hidden="true">▦</span></button></div>`;
+}
 function dateRow(label, key, date) {
-  return `<div class="date-row"><button type="button" class="icon-btn small" data-shift="-1" aria-label="${esc(t("previousDay"))}">‹</button><label class="date-field"><span class="sr-only">${esc(t(label))}</span><input class="input date-input" id="${key}" name="${key}" type="date" value="${esc(date)}" required max="${localDate()}"></label><button type="button" class="icon-btn small" data-shift="1" aria-label="${esc(t("nextDay"))}" ${date >= localDate() ? "disabled" : ""}>›</button></div>`;
+  return `<div class="date-row"><button type="button" class="icon-btn small" data-shift="-1" aria-label="${esc(t("previousDay"))}">◀︎</button>${dateField(label, key, date)}<button type="button" class="icon-btn small" data-shift="1" aria-label="${esc(t("nextDay"))}" ${date >= localDate() ? "disabled" : ""}>▶︎</button></div>`;
 }
 function languageField() {
   return `<label class="field"><span>${t("language")}</span><select id="language" class="input">${LANGUAGES.map((l) => `<option value="${l}" ${l === language() ? "selected" : ""}>${languageNames[l]}</option>`).join("")}</select></label>`;
 }
-function recentList(kind) {
-  const list = [...state.records]
-    .filter((r) => r.kind === kind)
-    .sort(
-      (a, b) =>
-        b.date.localeCompare(a.date) ||
-        Date.parse(b.createdAt) - Date.parse(a.createdAt),
-    )
-    .slice(0, 30);
-  return `<details class="card recent-entries"><summary>${t(kind === "diary" ? "recentDiaries" : "recentDreams")}</summary>${
-    list.length
-      ? `<div class="list">${list
-          .map(
-            (r) =>
-              `<button type="button" class="entry" data-open-entry="${esc(r.id)}"><time>${esc(dateText(r.date))}</time><strong>${esc((r.text || r.analysis?.title || t("sleep")).slice(0, 60))}</strong>${r.kind === "dream" && r.typeTags?.length ? `<p class="help">${r.typeTags.map(typeById).filter(Boolean).map(name).join(" · ")}</p>` : ""}</button>`,
-          )
-          .join("")}</div>`
-      : `<p class="empty">${t("empty")}</p>`
-  }</details>`;
+function recentLink(kind) {
+  return `<button type="button" class="recent-link" data-open-days="${kind}"><span>${t(kind === "dream" ? "recentDreams" : "recentDiaries")}</span><span aria-hidden="true">›</span></button>`;
+}
+function journalView(kind) {
+  const records = state.records
+    .filter((r) => r.kind === kind && r.date === journalDate)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  return `<section class="narrow day-journal"><div class="row between page-heading"><h1>${t(kind === "dream" ? "dreamDays" : "diaryDays")}</h1></div><div class="day-navigation"><button type="button" class="btn ghost icon-button" data-day-step="-1" aria-label="${t("previousDay")}">◀︎</button><button type="button" class="date-trigger" data-journal-calendar aria-haspopup="dialog">${esc(dateText(journalDate))}<span aria-hidden="true">▦</span></button><button type="button" class="btn ghost icon-button" data-day-step="1" aria-label="${t("nextDay")}" ${journalDate >= localDate() ? "disabled" : ""}>▶︎</button></div><div class="day-records" aria-live="polite">${records.length ? records.map((r) => `<article class="card day-record"><p class="prose">${esc(r.text || t("sleep"))}</p>${r.photo ? `<img class="photo" src="${esc(r.photo)}" alt="${t("photoAlt")}">` : ""}${r.sleep ? `<p class="help">${t("hours")}: ${r.sleep.hours}</p>` : ""}<button class="btn ghost" data-entry="${esc(r.id)}">${t("more")}</button></article>`).join("") : `<p class="empty">${t("emptyDay")}</p>`}</div></section>`;
+}
+async function openJournal(kind) {
+  if (dirty && !(await confirmDiscard(t))) return;
+  journalDate =
+    state.records
+      .filter((r) => r.kind === kind && r.date <= localDate())
+      .map((r) => r.date)
+      .sort()
+      .at(-1) || localDate();
+  await navigate(kind === "dream" ? "dream-days" : "diary-days", true);
 }
 function themes(selected) {
   return GROUPS.map(
@@ -627,7 +615,7 @@ function themes(selected) {
   ).join("");
 }
 function recordView() {
-  draft ||= dreamDraft(localDate());
+  draft ||= freshDream();
   const d = draft,
     previous = previousDiary(state.records, d.date),
     saved = dreamsOn(d.date),
@@ -654,7 +642,7 @@ function recordView() {
  <div class="card"><h2>${t("sleep")}</h2><label class="check"><input type="checkbox" id="include-sleep" ${d.sleep ? "checked" : ""}><span>${t("sleepOptional")}</span></label><div id="sleep-fields" ${d.sleep ? "" : "hidden"}><div class="grid">${input("hours", "hours", d.sleep?.hours ?? "", "number", 'min="0" max="24" step="0.25"')}${input("awakenings", "awakenings", d.sleep?.awakenings ?? "", "number", 'min="0" max="30" step="1"')}</div><label class="field"><span>${t("rested")}</span><select class="input" id="rested"><option value="">—</option>${[1, 2, 3, 4, 5].map((v) => `<option value="${v}" ${d.sleep?.rested === v ? "selected" : ""}>${v}</option>`).join("")}</select></label><label class="check"><input type="checkbox" id="nightmare" ${d.sleep?.nightmare ? "checked" : ""}><span>${t("nightmare")}</span></label></div><p class="help">${t("sleepNote")}</p></div>
  <div class="row">${button(plan === "free" ? "analyze" : "analyzeAI", "analyze", "ghost")}<button type="submit" class="btn primary">${t("save")}</button>${isSaved ? button("delete", "delete-entry", "danger ghost small") : ""}</div>
  <details class="previous-diary"><summary>${t("previousDiary")}</summary><p class="help">${previous ? esc(previous.text.slice(0, 500)) : t("noDiary")}</p></details>
- ${d.analysis ? analysisCard(d) : ""}</form>${recentList("dream")}</div>`;
+ ${d.analysis ? analysisCard(d) : ""}</form>${recentLink("dream")}</div>`;
 }
 const WEATHER = {
   sunny: ["☀️", "weatherSunny"],
@@ -695,7 +683,7 @@ function analysisCard(d) {
 function diaryView() {
   draft ||= diaryDraft(localDate());
   const isSaved = Boolean(draft.id);
-  return `<div class="narrow"><p class="eyebrow">A PAGE OF THE DAY</p><h1>${t("diaryTitle")}</h1><p class="muted">${t("diaryHint")}</p><form id="diary-form" class="card">${dateRow("diaryDate", "diary-date", draft.date)}${isSaved ? `<p class="help saved-note">${t("savedEntry")} · ${esc(dateText(draft.date))}</p>` : ""}${area("diaryText", "diary-text", draft.text)}<div class="row"><button type="submit" class="btn primary">${t("save")}</button>${isSaved ? button("delete", "delete-entry", "danger ghost small") : ""}</div></form>${recentList("diary")}</div>`;
+  return `<div class="narrow"><p class="eyebrow">A PAGE OF THE DAY</p><h1>${t("diaryTitle")}</h1><p class="muted">${t("diaryHint")}</p><form id="diary-form" class="card">${dateRow("diaryDate", "diary-date", draft.date)}${isSaved ? `<p class="help saved-note">${t("savedEntry")} · ${esc(dateText(draft.date))}</p>` : ""}${area("diaryText", "diary-text", draft.text)}<div class="row"><button type="submit" class="btn primary">${t("save")}</button>${isSaved ? button("delete", "delete-entry", "danger ghost small") : ""}</div></form>${recentLink("diary")}</div>`;
 }
 function detailView() {
   const r = state.records.find((r) => r.id === selectedId);
@@ -783,7 +771,7 @@ function bindLanguage() {
     if (
       ["settings", "share", "community-post"].includes(page) &&
       dirty &&
-      !confirm(t("unsaved"))
+      !(await confirmDiscard(t))
     ) {
       e.target.value = language();
       return;
@@ -806,15 +794,16 @@ function bindLanguage() {
   };
 }
 // Switch the dream page to a date (or a specific saved dream on that date).
-function openDream(date, recordId = null) {
-  if (dirty && !confirm(t("unsaved"))) return false;
-  draft = dreamDraft(date, recordId);
+async function openDream(date, recordId = null) {
+  if (dirty && !(await confirmDiscard(t))) return false;
+  if (recordId) draft = dreamDraft(date, recordId);
+  else draft = freshDream(date);
   dirty = false;
   render();
   return true;
 }
-function openDiary(date) {
-  if (dirty && !confirm(t("unsaved"))) return false;
+async function openDiary(date) {
+  if (dirty && !(await confirmDiscard(t))) return false;
   draft = diaryDraft(date);
   dirty = false;
   render();
@@ -926,19 +915,70 @@ function bindForms() {
       toggle();
     };
   }
-  if ($("#dream-date"))
-    $("#dream-date").onchange = () => {
-      const date = $("#dream-date").value;
-      if (!validDate(date) || date > localDate()) return;
-      if (date === draft.date) return;
-      if (!openDream(date)) $("#dream-date").value = draft.date;
+  document.querySelectorAll("[data-date-field]").forEach((el) => {
+    el.onclick = async () => {
+      const date = await pickDate({
+        value: draft.date,
+        trigger: el,
+        max: localDate(),
+        locale: locales[language()],
+        t,
+        marked: state.records
+          .filter((r) => r.kind === (page === "record" ? "dream" : "diary"))
+          .map((r) => r.date),
+      });
+      if (date && date !== draft.date) {
+        if (page === "record") {
+          capture();
+          draft.date = date;
+          draft.analysis = null;
+          dirty = true;
+          render();
+        } else await openDiary(date);
+      }
+    };
+  });
+  document
+    .querySelectorAll("[data-open-days]")
+    .forEach((el) => (el.onclick = () => openJournal(el.dataset.openDays)));
+  document.querySelectorAll("[data-day-step]").forEach(
+    (el) =>
+      (el.onclick = () => {
+        const date = shiftDay(journalDate, Number(el.dataset.dayStep));
+        if (date <= localDate()) {
+          journalDate = date;
+          render();
+        }
+      }),
+  );
+  if ($("[data-journal-calendar]"))
+    $("[data-journal-calendar]").onclick = async () => {
+      const date = await pickDate({
+        value: journalDate,
+        trigger: $("[data-journal-calendar]"),
+        max: localDate(),
+        locale: locales[language()],
+        t,
+        marked: state.records
+          .filter((r) => r.kind === (page === "dream-days" ? "dream" : "diary"))
+          .map((r) => r.date),
+      });
+      if (date) {
+        journalDate = date;
+        render();
+      }
     };
   document.querySelectorAll("[data-shift]").forEach((el) => {
     el.onclick = () => {
       const date = shiftDate(draft.date, Number(el.dataset.shift));
       if (date > localDate()) return;
-      if (page === "record") openDream(date);
-      else openDiary(date);
+      if (page === "record") {
+        capture();
+        draft.date = date;
+        draft.analysis = null;
+        dirty = true;
+        render();
+      } else openDiary(date);
     };
   });
   document.querySelectorAll("[data-open-entry]").forEach((el) => {
@@ -968,13 +1008,6 @@ function bindForms() {
     $("#diary-form").onsubmit = (e) => {
       e.preventDefault();
       run(saveDiary);
-    };
-  if ($("#diary-date"))
-    $("#diary-date").onchange = () => {
-      const date = $("#diary-date").value;
-      if (!validDate(date) || date > localDate()) return;
-      if (date === draft.date) return;
-      if (!openDiary(date)) $("#diary-date").value = draft.date;
     };
   if ($("#character-form"))
     $("#character-form").onsubmit = (e) => {
@@ -1108,7 +1141,7 @@ async function saveDream() {
   dirty = false;
   selectedId = saved.id;
   processing = false;
-  navigate("detail", true);
+  await navigate("record", true);
   const after = dreamLevel(state.records).level;
   toast(
     t(
@@ -1635,8 +1668,8 @@ const actions = {
   record: () => navigate("record"),
   diary: () => navigate("diary"),
   catalog: () => navigate("catalog"),
-  "new-dream": () => {
-    if (!openDream(draft.date, "__new__")) return;
+  "new-dream": async () => {
+    if (!(await openDream(draft.date, "__new__"))) return;
     $("#dream-text")?.focus();
   },
   "delete-entry": deleteOpenEntry,
@@ -1680,8 +1713,8 @@ const actions = {
     $("#nickname")?.focus();
     $("#profile-form")?.scrollIntoView({ behavior: "smooth" });
   },
-  "auth-retry": () => {
-    if (!dirty || confirm(t("unsaved"))) location.reload();
+  "auth-retry": async () => {
+    if (!dirty || (await confirmDiscard(t))) location.reload();
   },
   "import-guest": async () => {
     if (pendingGuestKey)
@@ -1691,10 +1724,10 @@ const actions = {
   signup: () => account("signup"),
   signout: () => account("signout"),
   "reset-password": () => account("reset"),
-  edit: () => {
+  edit: async () => {
     const r = state.records.find((r) => r.id === selectedId);
     processing = false;
-    navigate(r.kind === "diary" ? "diary" : "record");
+    if (!(await navigate(r.kind === "diary" ? "diary" : "record"))) return;
     draft = structuredClone(r);
     render();
   },
