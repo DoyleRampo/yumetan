@@ -131,3 +131,29 @@ export async function lineNativeLogin({ cloud, link, base, config }) {
     });
   return cloud.signInToken(value.token);
 }
+
+// Sign in with Apple through the system sheet (iOS AppleLogin plugin).
+export function appleNativeAvailable() {
+  return Boolean(window.Capacitor?.Plugins?.AppleLogin);
+}
+export async function appleNativeLogin({ cloud, link, upgrade }) {
+  let result;
+  try {
+    result = await window.Capacitor.Plugins.AppleLogin.login();
+  } catch (error) {
+    throw Object.assign(new Error(error?.code || "auth/popup-closed-by-user"), {
+      code: error?.code || "auth/popup-closed-by-user",
+    });
+  }
+  const displayName = [result.givenName, result.familyName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  return cloud.signInCredential("apple", {
+    idToken: result.identityToken,
+    rawNonce: result.rawNonce,
+    link,
+    upgrade,
+    displayName,
+  });
+}

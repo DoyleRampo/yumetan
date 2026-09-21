@@ -4,7 +4,10 @@ import { createHash } from "node:crypto";
 import { createAuthBridge } from "../server/auth-bridge.js";
 import { MemoryStore } from "./helpers/memory-store.mjs";
 import { createCloudClient } from "../public/core/cloud-client.js";
-import { providerLogin } from "../public/core/auth-providers.js";
+import {
+  providerLogin,
+  credentialLogin,
+} from "../public/core/auth-providers.js";
 import { importGuest } from "../public/core/account-sync.js";
 import { normalizeRecord } from "../public/core/storage.js";
 const profile = (nickname, updatedAt = "2026-09-17T00:00:00Z") => ({
@@ -284,4 +287,72 @@ test("all providers use Firebase SDK; only guests may fall back from linking to 
   await assert.rejects(
     providerLogin(A, { currentUser: {} }, "google", { link: true }),
   );
+});
+
+test("native Apple credentials sign in, upgrade a guest, and never silently link a used identity", async () => {
+  const calls = [];
+  class Provider {
+    constructor(id) {
+      this.id = id;
+    }
+    credential(input) {
+      return { provider: this.id, ...input };
+    }
+    static credentialFromError() {
+      return { provider: "apple.com", fromError: true };
+    }
+  }
+  const A = {
+    OAuthProvider: Provider,
+    signInWithCredential: async (_, credential) => {
+      calls.push(["signIn", credential]);
+      return { user: { uid: "apple-user" } };
+    },
+    linkWithCredential: async (user, credential) => {
+      calls.push(["link", credential]);
+      if (user.uid === "guest-used")
+        throw { code: "auth/credential-already-in-use" };
+      return { user: { uid: user.uid } };
+    },
+  };
+  const input = { idToken: "jwt", rawNonce: "nonce" };
+  assert.equal(
+    (await credentialLogin(A, {}, "apple", input)).user.uid,
+    "apple-user",
+  );
+  assert.deepEqual(calls[0], [
+    "signIn",
+    { provider: "apple.com", idToken: "jwt", rawNonce: "nonce" },
+  ]);
+  assert.equal(
+    (
+      await credentialLogin(A, { currentUser: { uid: "guest" } }, "apple", {
+        ...input,
+        upgrade: true,
+      })
+    ).user.uid,
+    "guest",
+  );
+  const conflict = await credentialLogin(
+    A,
+    { currentUser: { uid: "guest-used" } },
+    "apple",
+    { ...input, upgrade: true },
+  );
+  assert.equal(conflict.user.uid, "apple-user");
+  assert.deepEqual(calls.at(-1), [
+    "signIn",
+    { provider: "apple.com", fromError: true },
+  ]);
+  await assert.rejects(
+    credentialLogin(A, { currentUser: { uid: "guest-used" } }, "apple", {
+      ...input,
+      link: true,
+    }),
+    { code: "auth/credential-already-in-use" },
+  );
+  await assert.rejects(credentialLogin(A, {}, "apple", {}), {
+    code: "authFailed",
+  });
+  await assert.rejects(credentialLogin(A, {}, "nope", input));
 });

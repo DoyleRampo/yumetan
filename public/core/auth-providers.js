@@ -46,3 +46,36 @@ export async function providerLogin(
       : A.signInWithPopup(auth, provider);
   }
 }
+
+// Native sign-in (Sign in with Apple on iOS): the OS hands us an ID token and
+// the raw nonce, and Firebase verifies them without any browser round trip.
+export async function credentialLogin(
+  A,
+  auth,
+  name,
+  { idToken, rawNonce, link = false, upgrade = false } = {},
+) {
+  if (!AUTH_PROVIDERS[name]) throw new Error("auth/invalid-provider-id");
+  if (!idToken)
+    throw Object.assign(new Error("authFailed"), { code: "authFailed" });
+  const credential = new A.OAuthProvider(AUTH_PROVIDERS[name]).credential({
+    idToken,
+    rawNonce,
+  });
+  if (!link && !upgrade) return A.signInWithCredential(auth, credential);
+  try {
+    return await A.linkWithCredential(auth.currentUser, credential);
+  } catch (error) {
+    if (
+      link ||
+      !["auth/credential-already-in-use", "auth/email-already-in-use"].includes(
+        error.code,
+      )
+    )
+      throw error;
+    return A.signInWithCredential(
+      auth,
+      A.OAuthProvider.credentialFromError(error) || credential,
+    );
+  }
+}

@@ -1,4 +1,4 @@
-import { providerLogin } from "./auth-providers.js";
+import { providerLogin, credentialLogin } from "./auth-providers.js";
 import { mergeAccount, newerProfile } from "./account-sync.js";
 import { normalizeRecord, legacyAnswers } from "./storage.js";
 export function createCloudClient({ A, fs, auth, db }) {
@@ -40,6 +40,15 @@ export function createCloudClient({ A, fs, auth, db }) {
     async signInProvider(name, opts) {
       const res = await providerLogin(A, auth, name, opts);
       state.user = res.user;
+      return res.user;
+    },
+    async signInCredential(name, opts) {
+      const res = await credentialLogin(A, auth, name, opts);
+      state.user = res.user;
+      if (opts?.displayName && !res.user.displayName && A.updateProfile)
+        await A.updateProfile(res.user, {
+          displayName: opts.displayName,
+        }).catch(() => {});
       return res.user;
     },
     async signInToken(token) {

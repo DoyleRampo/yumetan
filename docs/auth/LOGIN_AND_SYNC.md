@@ -46,7 +46,18 @@
 
 公式: [Googleログイン](https://firebase.google.com/docs/auth/web/google-signin)、[匿名認証とアカウント連携](https://firebase.google.com/docs/auth/web/anonymous-auth)、[プロバイダ連携](https://firebase.google.com/docs/auth/web/account-linking)。
 
-### Apple
+### Apple（iOSアプリ: システムのサインインシート）
+
+iOSアプリでは `AuthenticationServices` の標準シートで Sign in with Apple を行い、返ってきた ID トークンと nonce で Firebase に直接ログインします（`AppleLogin` プラグイン、`ios/App/App/SceneDelegate.swift`）。ブラウザも Services ID も使いません。ゲストからのログインは Firebase のリンクで UID を維持し、既に使われている Apple ID なら「取り込み確認」に進みます。
+
+必要な設定:
+
+1. Apple Developer → Identifiers → App ID `com.doyle.yumetan` の **Sign in with Apple** を有効化。
+2. `ios/App/App/App.entitlements`（`com.apple.developer.applesignin`）をプロジェクトに追加済み。Capability を追加した後は **App Store 用プロビジョニングプロファイルを作り直し**、GitHub Secret `IOS_PROVISIONING_PROFILE` を更新する（古いプロファイルには entitlement が無く、CI の署名で失敗します）。
+3. Firebase Console → Authentication → Sign-in method → **Apple** を有効化。iOS だけなら Services ID・Team ID・Key ID・秘密鍵の欄は空でよい。
+4. Firebase のプロジェクト設定でバンドル ID `com.doyle.yumetan` の iOS アプリを登録しておく（Firebase はトークンの対象 ID をこのバンドル ID で照合します）。
+
+### Apple（Web / Android: ブラウザ経由）
 
 1. Apple DeveloperでSign in with Appleを有効にしたApp IDと、Web認証用Services IDを用意。
 2. ドメインとReturn URLを登録。現在のFirebase設定ならReturn URLは `https://yumetan-a31f0.firebaseapp.com/__/auth/handler`。

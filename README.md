@@ -26,8 +26,9 @@ npm start
 
 **APIキーなしで起動し、端末内のルールで利用できます。** 画面・結果・助言はすべて4言語の静的カタログにあります。本人が書いた夢・日記や過去のAI出力の原文を自動翻訳することはありません。言語を切り替えた場合、異なる言語で生成済みのAI出力に代えて、選択言語のローカル振り返りを表示します。
 
-## v4.5.2: iOSのLINEログインをLINEアプリ直接遷移に
+## v4.5.2: iOSのLINE・Appleログインをネイティブに
 
+- iOSアプリの「Appleで続ける」はシステムのサインインシートで完結し、IDトークンでFirebaseへ直接ログインします（Services ID・Web不要）。
 - iOSアプリの「LINEで続ける」はLINE SDKでLINEアプリを開き、戻るとログイン完了。`POST /api/auth/line` がLINEのIDトークンを検証してFirebaseカスタムトークンを発行します。設定は [docs/auth/LOGIN_AND_SYNC.md](docs/auth/LOGIN_AND_SYNC.md) を参照。
 
 ## v4.5.1: 戻る導線・夢レベル

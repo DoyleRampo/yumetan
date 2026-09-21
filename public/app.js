@@ -8,6 +8,8 @@ import {
   cancelNativeAuth,
   lineNativeAvailable,
   lineNativeLogin,
+  appleNativeAvailable,
+  appleNativeLogin,
 } from "./core/native-auth.js";
 import { createCommunity, communityText } from "./community.js";
 import { createPurchases } from "./core/purchases.js";
@@ -1396,8 +1398,19 @@ async function account(mode, provider = null) {
         upgrade: cloud.isAnonymous() && !!cloud.uid(),
         language: language(),
       });
-    // LINE opens the LINE app directly when the native plugin and channel are set up.
+    // Apple uses the system sign-in sheet; LINE opens the LINE app directly.
     if (
+      mode === "provider" &&
+      native &&
+      provider === "apple" &&
+      appleNativeAvailable()
+    )
+      login = appleNativeLogin({
+        cloud,
+        link,
+        upgrade: cloud.isAnonymous() && !!cloud.uid(),
+      });
+    else if (
       mode === "provider" &&
       native &&
       provider === "line" &&

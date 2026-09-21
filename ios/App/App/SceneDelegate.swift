@@ -1,6 +1,8 @@
 import UIKit
 import Capacitor
 import LineSDK
+import AuthenticationServices
+import CryptoKit
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
@@ -93,9 +95,74 @@ public class LineLoginPlugin: CAPPlugin, CAPBridgedPlugin {
         LoginManager.shared.logout { _ in call.resolve() }
     }
 }
+// Sign in with Apple through the system sheet. The identity token and the raw
+// nonce go to the JavaScript side, which signs in to Firebase with them.
+@objc(AppleLoginPlugin)
+public class AppleLoginPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    public let identifier = "AppleLoginPlugin"
+    public let jsName = "AppleLogin"
+    public let pluginMethods: [CAPPluginMethod] = [CAPPluginMethod(name: "login", returnType: CAPPluginReturnPromise)]
+    private var pending: CAPPluginCall?
+    private var rawNonce = ""
+    private var controller: ASAuthorizationController?
+
+    @objc func login(_ call: CAPPluginCall) {
+        pending?.reject("Replaced by a newer sign-in request", "auth/cancelled-popup-request")
+        pending = call
+        rawNonce = AppleLoginPlugin.randomNonce()
+        let hashed = SHA256.hash(data: Data(rawNonce.utf8)).map { String(format: "%02x", $0) }.joined()
+        DispatchQueue.main.async {
+            let request = ASAuthorizationAppleIDProvider().createRequest()
+            request.requestedScopes = [.fullName, .email]
+            request.nonce = hashed
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            controller.delegate = self
+            controller.presentationContextProvider = self
+            self.controller = controller
+            controller.performRequests()
+        }
+    }
+
+    public func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        defer { pending = nil; self.controller = nil }
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let tokenData = credential.identityToken,
+              let identityToken = String(data: tokenData, encoding: .utf8) else {
+            pending?.reject("Apple did not return an identity token", "authFailed"); return
+        }
+        pending?.resolve([
+            "identityToken": identityToken,
+            "rawNonce": rawNonce,
+            "user": credential.user,
+            "email": credential.email ?? "",
+            "givenName": credential.fullName?.givenName ?? "",
+            "familyName": credential.fullName?.familyName ?? ""
+        ])
+    }
+
+    public func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        defer { pending = nil; self.controller = nil }
+        let cancelled = (error as? ASAuthorizationError)?.code == .canceled
+        pending?.reject(error.localizedDescription, cancelled ? "auth/popup-closed-by-user" : "authFailed")
+    }
+
+    public func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        return bridge?.viewController?.view.window ?? UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }.first ?? ASPresentationAnchor()
+    }
+
+    private static func randomNonce(length: Int = 32) -> String {
+        let charset = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._")
+        var bytes = [UInt8](repeating: 0, count: length)
+        let status = SecRandomCopyBytes(kSecRandomDefault, length, &bytes)
+        if status != errSecSuccess { bytes = (0..<length).map { _ in UInt8.random(in: 0...255) } }
+        return String(bytes.map { charset[Int($0) % charset.count] })
+    }
+}
 class YumetanBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(AuthBrowserPlugin())
         bridge?.registerPluginInstance(LineLoginPlugin())
+        bridge?.registerPluginInstance(AppleLoginPlugin())
     }
 }
