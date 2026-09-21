@@ -240,3 +240,23 @@ for (const language of ["ja", "en", "ko", "zh"])
         .evaluate((el) => getComputedStyle(el).fontFamily),
     ).toContain("sans-serif");
   });
+test("very short screens and enlarged text retain reachable home controls", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 360 });
+  await ready(page);
+  await expect(page.locator("body")).toHaveClass(/home-reflow/);
+  for (const zoom of ["1", "2"]) {
+    await page.evaluate((zoom) => {
+      document.documentElement.style.zoom = zoom;
+      window.dispatchEvent(new Event("resize"));
+    }, zoom);
+    await expect(page.locator("body")).toHaveClass(/home-reflow/);
+    const box = await page.locator("nav").boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(321);
+    expect(box.y + box.height).toBeLessThanOrEqual(361);
+    await page.locator("[data-action=catalog]").scrollIntoViewIfNeeded();
+    await expect(page.locator("[data-action=catalog]")).toBeInViewport();
+  }
+});

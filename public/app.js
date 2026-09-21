@@ -64,7 +64,7 @@ const esc = (value) =>
       ],
   );
 const id = () => crypto.randomUUID();
-const APP_VERSION = "4.6.0";
+const APP_VERSION = "4.6.1";
 const cap = window.Capacitor,
   native = cap?.isNativePlatform?.(),
   plugins = cap?.Plugins || {};

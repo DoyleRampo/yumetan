@@ -616,3 +616,8 @@ body[data-screen="home"] #nav {
   font-size: var(--text-help);
   line-height: 1.6;
 }
+body[data-screen="home"].home-reflow #nav {
+  left: 50%;
+  bottom: calc(8px + var(--safe-bottom));
+  padding: 0;
+}
