@@ -141,7 +141,7 @@ test("Free keeps one dream and one editable diary per date; plans and paid feed 
   await page.locator("nav [data-go=community]").click();
   await expect(page.locator(".paywall")).toContainText("paid plan");
   await page.locator("[data-social=plans]").first().click();
-  await expect(page.locator(".plan-card")).toHaveCount(3);
+  await expect(page.locator(".plan-comparison thead th")).toHaveCount(3);
   await expect(page.locator("main")).toContainText("¥490");
   await page.locator("[data-social=yearly]").click();
   await expect(page.locator("main")).toContainText("¥4,900");

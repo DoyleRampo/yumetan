@@ -220,9 +220,9 @@ test.describe("offline cache", () => {
     await page.locator("#character-form button[type=submit]").click();
     await page.reload();
     await page.locator("[data-action=catalog]").click();
-    await expect(page.locator(".type-card .character-name").first()).toHaveText(
-      "Luno",
-    );
+    await expect(
+      page.locator(".catalog-character .character-name").first(),
+    ).toHaveText("Luno");
     await expect
       .poll(() =>
         page
@@ -497,7 +497,7 @@ test("all sixteen illustrations and localized stories render without overflow", 
 }) => {
   await start(page, "ja");
   await page.locator("[data-action=catalog]").click();
-  await expect(page.locator(".type-card")).toHaveCount(16);
+  await expect(page.locator(".catalog-character")).toHaveCount(16);
   await expect
     .poll(() =>
       page
@@ -521,14 +521,15 @@ test("all sixteen illustrations and localized stories render without overflow", 
     ["en", "Ren", "Kanata"],
   ]) {
     await page.locator("#language").selectOption(lang);
-    await expect(page.locator(".type-card .character-name").first()).toHaveText(
-      first,
-    );
-    await expect(page.locator(".type-card .character-name").last()).toHaveText(
-      last,
-    );
-    await page.locator(".character-details summary").first().click();
+    await expect(
+      page.locator(".catalog-character .character-name").first(),
+    ).toHaveText(first);
+    await expect(
+      page.locator(".catalog-character .character-name").last(),
+    ).toHaveText(last);
+    await page.locator("[data-type-detail]").first().click();
     await expect(page.locator(".character-story").first()).toBeVisible();
+    await page.locator("[data-action=catalog]").click();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -603,13 +604,13 @@ test("character collections switch both ways without changing journals, type or 
     expect(current.profile.typeAnswers).toEqual(before.profile.typeAnswers);
     expect(current.profile.characterSet).toBe(set);
     await page.locator("[data-action=catalog]").click();
-    await expect(page.locator(".type-card .character-name").first()).toHaveText(
-      first,
-    );
-    await expect(page.locator(".type-card .character-name").last()).toHaveText(
-      last,
-    );
-    await expect(page.locator(".type-card")).toHaveCount(16);
+    await expect(
+      page.locator(".catalog-character .character-name").first(),
+    ).toHaveText(first);
+    await expect(
+      page.locator(".catalog-character .character-name").last(),
+    ).toHaveText(last);
+    await expect(page.locator(".catalog-character")).toHaveCount(16);
     await expect
       .poll(() =>
         page

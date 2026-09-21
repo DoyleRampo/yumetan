@@ -1,3 +1,5 @@
+import { wrapJapaneseLabels } from "./core/ui-text.js";
+import { TYPE_FEATURES } from "./core/type-features.js";
 import { authText, authError } from "./core/auth-i18n.js";
 import { importGuest } from "./core/account-sync.js";
 import {
@@ -68,6 +70,8 @@ let state = { version: 4, profile: null, records: [], deleted: [] },
 let storageKey = "yumetan.v4.local",
   page = "home",
   selectedId = null,
+  catalogGroup = "all",
+  selectedType = null,
   draft = null,
   dirty = false,
   processing = false;
@@ -133,7 +137,7 @@ const button = (text, action, cls = "") =>
 const input = (label, key, value = "", type = "text", attrs = "") =>
   `<label class="field"><span>${esc(t(label))}</span><input class="input" id="${key}" name="${key}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
 const area = (label, key, value = "", placeholder = "") =>
-  `<label class="field"><span>${esc(t(label))}</span><textarea id="${key}" name="${key}" rows="6" maxlength="20000" placeholder="${esc(placeholder)}">${esc(value)}</textarea></label>`;
+  `<label class="field"><span>${esc(t(label))}</span><textarea id="${key}" name="${key}" rows="3" maxlength="20000" placeholder="${esc(placeholder)}">${esc(value)}</textarea></label>`;
 function toast(message) {
   $("#toast").textContent = message;
   $("#toast").classList.add("visible");
@@ -247,6 +251,7 @@ function render() {
     quiz: quizView,
     result: resultView,
     catalog: catalogView,
+    "type-detail": typeDetailView,
     record: recordView,
     diary: diaryView,
     history: historyView,
@@ -254,12 +259,32 @@ function render() {
     settings: settingsView,
     community: () => social.view("community"),
     plans: () => social.view("plans"),
+    "plan-details": () => social.view("plan-details"),
     share: () => social.view("share"),
     "community-post": () => social.view("community-post"),
   };
+  $("#app").dataset.page = page;
   $("#app").innerHTML = (views[page] || homeView)();
+  wrapJapaneseLabels($("#app"), language());
   bindForms();
   social.bind();
+  document.querySelectorAll("[data-catalog-group]").forEach(
+    (el) =>
+      (el.onclick = () => {
+        catalogGroup = el.dataset.catalogGroup;
+        render();
+        document
+          .querySelector(`[data-catalog-group="${catalogGroup}"]`)
+          ?.focus({ preventScroll: true });
+      }),
+  );
+  document.querySelectorAll("[data-type-detail]").forEach(
+    (el) =>
+      (el.onclick = () => {
+        selectedType = el.dataset.typeDetail;
+        navigate("type-detail");
+      }),
+  );
 }
 
 function navigate(next, force = false) {
@@ -281,7 +306,7 @@ function navigate(next, force = false) {
   render();
   window.scrollTo(0, 0);
   $("#app").focus({ preventScroll: true });
-  if (["community", "plans", "share"].includes(page))
+  if (["community", "plans", "plan-details", "share"].includes(page))
     social.enter(
       page,
       state.records.find((r) => r.id === selectedId),
@@ -289,25 +314,21 @@ function navigate(next, force = false) {
 }
 function profileView() {
   const p = draft || state.profile || {};
-  return `<div class="narrow"><p class="eyebrow">WELCOME TO YOUR DREAM WORLD</p><h1>${t("welcome")}</h1><p class="muted">${t("profileHint")}</p>${!state.profile ? accountView(true) : ""}<form id="profile-form" class="card">
+  return `<div class="narrow"><p class="eyebrow">WELCOME TO YOUR DREAM WORLD</p><h1>${t("welcome")}</h1><p class="muted">${t("profileHint")}</p>${!state.profile ? `<details class="onboard-account"><summary>${t("accountOptional")}</summary>${accountView(true)}</details>` : ""}<form id="profile-form" class="card">
  ${input("nickname", "nickname", p.nickname, "text", 'required maxlength="20" autocomplete="nickname"')}
  <label class="field"><span>${t("age")}</span><select id="ageGroup" class="input">${["10", "20", "30", "40", "50", "60"].map((a) => `<option value="${a === "60" ? "60代以上" : a + "代"}" ${p.ageGroup === (a === "60" ? "60代以上" : a + "代") ? "selected" : ""}>${t("age" + a)}</option>`).join("")}</select></label>
- <p class="help">${t("language")}: ${languageNames[language()]}</p><button class="btn primary full" type="submit">${t(state.profile?.typeAnswers ? "save" : "startQuiz")}</button></form><p class="help">${t("typeNote")}</p></div>`;
+ <p class="help">${t("language")}: ${languageNames[language()]}</p><button class="btn primary full" type="submit">${t(state.profile?.typeAnswers ? "save" : "startQuiz")}</button></form><details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
 }
 function quizView() {
   const q = TYPES[quizIndex];
   return `<div class="narrow"><p class="eyebrow">FIND YOUR DREAM TYPE</p><h1>${t("quiz")}</h1><p class="muted">${t("quizHint")}</p><div class="row between"><span>${quizIndex + 1} / 16</span><span>${Math.round(((quizIndex + 1) / 16) * 100)}%</span></div><progress class="progress" max="16" value="${quizIndex + 1}" aria-label="${t("quiz")}"></progress>
  <div class="card quiz-card"><h2>${localized(q.questions, language())}</h2><div class="quiz-answers">${[2, 1, 0].map((v, i) => `<button class="btn ${quizAnswers[quizIndex] === v ? "selected" : ""}" data-answer="${v}" aria-pressed="${quizAnswers[quizIndex] === v}">${t(["often", "sometimes", "rarely"][i])}</button>`).join("")}</div></div>
- <div class="row between">${button("back", "quiz-back", "ghost")}<button class="btn primary" data-action="quiz-next" ${quizAnswers[quizIndex] === null ? "disabled" : ""}>${t(quizIndex === 15 ? "result" : "next")}</button></div><p class="help">${t("typeNote")}</p></div>`;
+ <div class="row between">${button("back", "quiz-back", "ghost")}<button class="btn primary" data-action="quiz-next" ${quizAnswers[quizIndex] === null ? "disabled" : ""}>${t(quizIndex === 15 ? "result" : "next")}</button></div><details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
 }
 function resultView() {
   const result = pendingResult || currentType(),
     type = typeById(result.id);
-  return `<div class="narrow center"><p class="eyebrow">YOUR DREAM, YOUR CHARACTER</p><h1>${t("yourType")}</h1><div class="card accent" style="--accent:${group(type).color}">${avatar(type)}<span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)}</p>${characterStory(type)}${result.tied ? `<p class="help">${t("tie")}</p>` : ""}</div><p>${t("characterHint")}</p>${button("begin", "begin", "primary full")}<p class="help">${t("typeNote")}</p></div>`;
-}
-function levelCard() {
-  const value = growth(state.records, state.profile?.ageGroup);
-  return `<div class="card"><p class="eyebrow">SLEEP & GROW</p><h2>${t("level")}</h2><div class="score">${value.level ?? "—"} <small>/ 5</small></div><div class="level-bars">${Array.from({ length: 5 }, (_, i) => `<i class="${i < value.level ? "on" : ""}"></i>`).join("")}</div><p class="help">${value.days ? `${value.score} / 100 · ${value.days} / 7` : t("unmeasured")}</p><p class="help">${t("levelHint")}</p></div>`;
+  return `<div class="narrow center"><p class="eyebrow">YOUR DREAM, YOUR CHARACTER</p><h1>${t("yourType")}</h1><div class="card accent" style="--accent:${group(type).color}">${avatar(type)}<span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)}</p>${characterStory(type)}${result.tied ? `<p class="help">${t("tie")}</p>` : ""}</div><p>${t("characterHint")}</p>${button("begin", "begin", "primary full")}<details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
 }
 function adviceCard() {
   const latest = [...state.records]
@@ -324,24 +345,36 @@ function homeView() {
   const result = currentType(),
     type = typeById(result?.id) || TYPES[0],
     value = growth(state.records, state.profile?.ageGroup);
-  return `<section class="hero"><div><p class="eyebrow">${esc(dateText(localDate()))} · ${esc(state.profile?.nickname)}</p><h1>${t("hero")}</h1><p class="muted">${t("heroText")}</p><div class="row">${button("record", "record", "primary")}${button("diary", "diary", "ghost")}</div></div>${avatar(type, value.level)}</section>
- <div class="card accent character-row" style="--accent:${group(type).color}">${avatar(type, value.level, true)}<div><span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)} · ${localized(characterById(type.id).titles, language())}</p><p class="character-quote">${localized(characterById(type.id).quotes, language())}</p>${button("catalog", "catalog", "small ghost")}</div></div><div class="grid">${levelCard()}${adviceCard()}</div><div class="card" style="margin-top:22px"><div class="row between"><div><h3>${t("alarm")}</h3><span class="muted">${esc(options.alarmTime || "07:00")}</span></div>${button("alarm", "alarm", "ghost")}</div></div><p class="help">${t("typeNote")}</p>`;
+  return `<section class="home-dashboard"><section class="hero"><div><p class="eyebrow">${esc(dateText(localDate()))} · ${esc(state.profile?.nickname)}</p><h1>${t("hero")}</h1><div class="row">${button("record", "record", "primary")}${button("diary", "diary", "ghost")}</div></div></section>
+ <div class="card accent character-row" style="--accent:${group(type).color}">${avatar(type, value.level, true)}<div><span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p>${button("catalog", "catalog", "small ghost")}</div></div>
+ <div class="home-insights"><div class="card sleep-overview"><div><h2>${t("level")}</h2><div class="score">${value.level ?? "—"} <small>/ 5</small></div><p class="help">${value.days ? `${value.days} / 7 · ${value.score} / 100` : t("unmeasured")}</p></div><div class="alarm-shortcut"><span class="muted">${esc(options.alarmTime || "07:00")}</span>${button("alarm", "alarm", "small ghost")}</div></div><details class="card home-advice"><summary>${t("advice")}</summary><p class="help">${t("levelHint")}</p>${adviceCard()}</details></div></section>`;
 }
+
 function catalogView() {
   const active = currentType()?.id;
-  return `<p class="eyebrow">${characterSetById(options.characterSet).eyebrow}</p><h1>${localized(characterSetById(options.characterSet).names, language())}</h1><p>${t("catalog")}</p><p class="muted">${t("typeNote")}</p>${GROUPS.map(
-    (g) =>
-      `<h2 class="group-heading" style="--accent:${g.color}">${name(g)}</h2><div class="catalog">${TYPES.filter(
-        (x) => x.group === g.id,
-      )
-        .map(
-          (type) =>
-            `<div class="type-card ${type.id === active ? "active" : ""}" style="--accent:${g.color}">${avatar(type)}<h3 class="character-name">${name(characterById(type.id))}</h3><b>${name(type)}</b><p class="character-title">${localized(characterById(type.id).titles, language())}</p><details class="character-details"><summary>${localized(["物語を読む", "이야기 읽기", "阅读故事", "Read their story"], language())}</summary><p class="character-story">${localized(characterById(type.id).stories, language())}</p><blockquote class="character-quote">${localized(characterById(type.id).quotes, language())}</blockquote></details></div>`,
+  return `<div class="row between page-heading"><div><p class="eyebrow">${localized(characterSetById(options.characterSet).names, language())}</p><h1>${t("catalog")}</h1></div>${button("home", "home", "small ghost")}</div><p class="help">${t("catalogHint")}</p>
+  <div class="catalog-filters" role="group" aria-label="${t("catalog")}">${[{ id: "all", names: [t("catalogAll"), t("catalogAll"), t("catalogAll"), t("catalogAll")] }, ...GROUPS].map((g) => `<button class="btn small ghost" data-catalog-group="${g.id}" aria-pressed="${catalogGroup === g.id}">${language() === "ja" ? name(g).replace("タイプ", "") : name(g)}</button>`).join("")}</div>
+  <div class="catalog-table">${GROUPS.filter(
+    (g) => catalogGroup === "all" || catalogGroup === g.id,
+  )
+    .map(
+      (g) =>
+        `<section class="catalog-group"><h2 class="group-heading" style="--accent:${g.color}">${name(g)}</h2><table><caption class="sr-only">${name(g)} · ${t("typeFeature")}</caption><tbody>${TYPES.filter(
+          (type) => type.group === g.id,
         )
-        .join("")}</div>`,
-  ).join(
-    "",
-  )}<div class="row" style="margin-top:28px">${button("retake", "retake", "ghost")}${button("home", "home", "primary")}</div>`;
+          .map(
+            (type) =>
+              `<tr class="${type.id === active ? "active" : ""}" style="--accent:${g.color}"><th scope="row"><button type="button" class="catalog-character" data-type-detail="${type.id}">${avatar(type)}<span><strong class="character-name">${name(characterById(type.id))}</strong><small>${name(type)}</small></span></button></th><td>${localized(TYPE_FEATURES[type.id], language())}</td></tr>`,
+          )
+          .join("")}</tbody></table></section>`,
+    )
+    .join("")}</div>
+  <details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details><div class="row">${button("retake", "retake", "ghost")}</div>`;
+}
+function typeDetailView() {
+  const type =
+    typeById(selectedType) || typeById(currentType()?.id) || TYPES[0];
+  return `<div class="narrow">${button("catalog", "catalog", "small ghost")}<div class="card type-detail" style="--accent:${group(type).color}">${avatar(type)}<div><span class="tag-label">${name(group(type))}</span><h1 class="character-name">${name(characterById(type.id))}</h1><p>${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p>${characterStory(type)}</div></div></div>`;
 }
 function freshDream() {
   return {
@@ -373,12 +406,12 @@ function recordView() {
   draft ||= freshDream();
   const d = draft,
     previous = previousDiary(state.records, d.date);
-  return `<div class="narrow"><p class="eyebrow">DREAM JOURNAL</p><h1>${t("recordTitle")}</h1><p class="help">${ct("privacyNote")}</p><p class="help">${ct("dreamLimit")}: ${state.records.filter((r) => r.kind === "dream" && r.date === d.date).length} / ${PLANS[social.plan()].dreams}</p><form id="dream-form">
- <div class="card">${input("date", "dream-date", d.date, "date", `required max="${localDate()}"`)}${area("dreamText", "dream-text", d.text, t("dreamPlaceholder"))}<div class="row">${button("voice", "voice", "small ghost")}</div><details ${d.photo ? "open" : ""}><summary>${t("photo")}</summary><p class="help">${t("photoHint")}</p><label class="field"><span>${t("photo")}</span><input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp"></label>${d.photo ? `<img class="photo" src="${esc(d.photo)}" alt="${t("photoAlt")}"><div class="row">${button("recognize", "recognize", "small")}${button("removePhoto", "remove-photo", "small ghost")}</div>` : ""}</details></div>
- <div class="card"><h2>${t("tags")}</h2><p class="help">${t("tagHint")}</p>${themes(d.typeTags)}</div>
+  return `<div class="narrow"><p class="eyebrow">DREAM JOURNAL</p><h1>${t("recordTitle")}</h1><p class="help record-meta">${t("recordPrivate")} · ${ct("dreamLimit")}: ${state.records.filter((r) => r.kind === "dream" && r.date === d.date).length} / ${PLANS[social.plan()].dreams}</p><form id="dream-form">
+ <div class="card">${input("date", "dream-date", d.date, "date", `required max="${localDate()}"`)}${area("dreamText", "dream-text", d.text, t("dreamPlaceholder"))}<div class="record-tools">${button("voice", "voice", "small ghost")}<details ${d.photo ? "open" : ""}><summary>${t("photo")}</summary><p class="help">${t("photoHint")}</p><label class="field"><span>${t("photo")}</span><input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp"></label>${d.photo ? `<img class="photo" src="${esc(d.photo)}" alt="${t("photoAlt")}"><div class="row">${button("recognize", "recognize", "small")}${button("removePhoto", "remove-photo", "small ghost")}</div>` : ""}</details></div></div>
+ <details class="card theme-picker" ${d.typeTags.length ? "open" : ""}><summary>${t("tags")}</summary><p class="help">${t("tagHint")}</p>${themes(d.typeTags)}</details>
  <div class="card"><h2>${t("sleep")}</h2><label class="check"><input type="checkbox" id="include-sleep" ${d.sleep ? "checked" : ""}><span>${t("sleepOptional")}</span></label><div id="sleep-fields" ${d.sleep ? "" : "hidden"}><div class="grid">${input("hours", "hours", d.sleep?.hours ?? "", "number", 'min="0" max="24" step="0.25"')}${input("awakenings", "awakenings", d.sleep?.awakenings ?? "", "number", 'min="0" max="30" step="1"')}</div><label class="field"><span>${t("rested")}</span><select class="input" id="rested"><option value="">—</option>${[1, 2, 3, 4, 5].map((v) => `<option value="${v}" ${d.sleep?.rested === v ? "selected" : ""}>${v}</option>`).join("")}</select></label><label class="check"><input type="checkbox" id="nightmare" ${d.sleep?.nightmare ? "checked" : ""}><span>${t("nightmare")}</span></label></div><p class="help">${t("sleepNote")}</p></div>
- <div class="card"><h3>${t("previousDiary")}</h3><p class="help">${previous ? esc(previous.text.slice(0, 500)) : t("noDiary")}</p></div>
  <div class="row">${button("analyze", "analyze", "ghost")}<button type="submit" class="btn primary">${t("save")}</button></div>
+ <details class="previous-diary"><summary>${t("previousDiary")}</summary><p class="help">${previous ? esc(previous.text.slice(0, 500)) : t("noDiary")}</p></details>
  ${d.analysis ? analysisCard(d) : ""}</form></div>`;
 }
 function analysisCard(d) {

@@ -59,6 +59,7 @@ test("three social logins and guest are available before registration in four la
   await page.goto("/");
   for (const lang of ["ja", "en", "ko", "zh"]) {
     await page.locator("#language").selectOption(lang);
+    await page.locator(".onboard-account > summary").click();
     for (const provider of ["google", "apple", "line"])
       await expect(
         page.locator(`[data-auth-provider=${provider}]`),
@@ -103,6 +104,7 @@ test("login restores account on a new device; logout isolates data and LINE choo
     [second, "apple"],
   ]) {
     await page.goto("/");
+    await page.locator(".onboard-account > summary").click();
     await page.locator(`[data-auth-provider=${provider}]`).click();
     await expect(page.locator("main")).toContainText("アカウントA");
     await page.locator("nav [data-go=history]").click();
@@ -114,6 +116,7 @@ test("login restores account on a new device; logout isolates data and LINE choo
   await first.locator("[data-action=signout]").click();
   await expect(first.locator("#nickname")).toBeVisible();
   await expect(first.locator("main")).not.toContainText("Aだけの夢");
+  await first.locator(".onboard-account > summary").click();
   await first.locator("[data-auth-provider=line]").click();
   await expect(first.locator("main")).toContainText("アカウントB");
   await first.locator("nav [data-go=history]").click();

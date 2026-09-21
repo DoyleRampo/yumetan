@@ -1,0 +1,73 @@
+export const TYPE_FEATURES = {
+  chase: ["追われる夢", "쫓기는 꿈", "被追逐的梦", "Being chased"],
+  loss: [
+    "大切なものを失う夢",
+    "소중한 것을 잃는 꿈",
+    "失去珍贵之物",
+    "Losing something dear",
+  ],
+  bound: [
+    "体が動かない夢",
+    "움직일 수 없는 꿈",
+    "身体无法动弹",
+    "Unable to move",
+  ],
+  collapse: [
+    "世界が崩れる夢",
+    "세상이 무너지는 꿈",
+    "世界崩塌",
+    "A world falling apart",
+  ],
+  future: [
+    "未来を感じる夢",
+    "미래가 느껴지는 꿈",
+    "仿佛暗示未来",
+    "Hints of the future",
+  ],
+  intuition: [
+    "胸騒ぎがする夢",
+    "불안한 예감의 꿈",
+    "莫名的不安",
+    "Unexplained unease",
+  ],
+  symbol: [
+    "印象的な象徴が出る夢",
+    "상징이 나오는 꿈",
+    "鲜明的象征",
+    "Meaningful symbols",
+  ],
+  deja: ["見覚えのある夢", "낯익은 꿈", "似曾相识", "Strangely familiar"],
+  aware: [
+    "夢だと気づく夢",
+    "꿈임을 아는 꿈",
+    "意识到在做梦",
+    "Knowing it is a dream",
+  ],
+  lucid: [
+    "夢を操る夢",
+    "꿈을 조종하는 꿈",
+    "掌控梦境",
+    "Controlling the dream",
+  ],
+  observer: [
+    "夢を眺める夢",
+    "꿈을 지켜보는 꿈",
+    "旁观梦境",
+    "Watching the dream",
+  ],
+  challenge: ["何かに挑む夢", "도전하는 꿈", "迎接挑战", "Facing a challenge"],
+  place: ["同じ場所の夢", "같은 장소의 꿈", "重复的场景", "The same place"],
+  person: [
+    "同じ人が出る夢",
+    "같은 사람이 나오는 꿈",
+    "同一个人出现",
+    "The same person",
+  ],
+  story: ["同じ物語の夢", "같은 이야기의 꿈", "重复的故事", "The same story"],
+  emotion: [
+    "同じ感情になる夢",
+    "같은 감정의 꿈",
+    "重复的情绪",
+    "The same feeling",
+  ],
+};

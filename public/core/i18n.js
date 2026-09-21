@@ -7,6 +7,29 @@ export const languageNames = {
 };
 // Every UI message has an explicit translation. User-authored journal text is preserved.
 export const messages = {
+  catalogHint: [
+    "キャラクターをタップして、詳しく。",
+    "캐릭터를 눌러 자세히 보세요.",
+    "点按角色查看详情。",
+    "Tap a character to explore.",
+  ],
+  catalogAll: ["すべて", "전체", "全部", "All"],
+  more: ["詳しく見る", "자세히", "查看详情", "Details"],
+  typeAbout: ["タイプについて", "유형 안내", "关于类型", "About dream types"],
+  typeFeature: ["夢の特徴", "꿈 특징", "梦境特点", "Dream tendency"],
+  accountOptional: [
+    "ログイン（あとでもOK）",
+    "로그인 (나중에 가능)",
+    "登录（可稍后）",
+    "Sign in (optional)",
+  ],
+  recordPrivate: [
+    "自分だけの記録です。",
+    "나만의 기록이에요.",
+    "仅自己可见。",
+    "Only you can see this.",
+  ],
+
   community: ["みんなの夢", "모두의 꿈", "大家的梦", "Dream feed"],
   plans: ["プラン", "요금제", "套餐", "Plans"],
   brand: ["ユメタン", "유메탄", "梦笺", "Yumetan"],
@@ -21,7 +44,7 @@ export const messages = {
     "Character appearance",
   ],
   characterSetHint: [
-    "人間版と動物版をいつでも選べます。ログイン中は選択もアカウントに同期され、夢の記録・診断タイプ・睡眠レベルは変わりません。",
+    "人間・動物をいつでも切り替え。記録やレベルはそのまま。",
     "사람과 동물 캐릭터를 언제든 바꿀 수 있어요. 로그인 중에는 선택도 계정에 동기화되며 꿈 기록, 유형, 수면 레벨은 그대로예요.",
     "可随时切换人类或动物角色。登录后选择也会同步至账号，不影响梦境记录、类型或睡眠等级。",
     "Switch between human and animal characters anytime. When signed in, your choice syncs with your account; dreams, type, and sleep level stay the same.",
@@ -34,19 +57,19 @@ export const messages = {
     "Meet your dreams.\nGrow with them.",
   ],
   heroText: [
-    "16の夢タイプと、あなたの物語。昨夜の夢と眠りを、少しずつ残しましょう。",
+    "昨夜の夢を、ひとこと。",
     "16가지 꿈 유형과 당신의 이야기. 지난밤의 꿈과 잠을 조금씩 기록해요.",
     "16种梦境类型，属于你的故事。记录每一晚的梦与睡眠。",
     "16 dream types. One story that is yours. Keep a little of last night’s dream and sleep.",
   ],
   welcome: [
-    "あなたの夢の物語を、ここから。",
+    "夢の記録を、はじめよう。",
     "당신의 꿈 이야기가 시작돼요.",
     "你的梦境故事，从这里开始。",
     "Your dream story starts here.",
   ],
   profileHint: [
-    "プロフィールのあと、16問で夢の傾向を見つけます。アカウントはあとから設定できます。",
+    "呼び名を決めて、16問の診断へ。",
     "프로필 작성 후 16개 질문으로 꿈의 경향을 알아봐요. 계정은 나중에 설정할 수 있어요.",
     "填写资料后，回答16个问题探索梦境倾向。之后可在设置中创建账户。",
     "After your profile, 16 questions help you discover your dream tendencies. You can add an account later.",
@@ -73,7 +96,7 @@ export const messages = {
     "Your dream tendencies",
   ],
   quizHint: [
-    "正解はありません。ふだんの夢に近いものを選んでください。",
+    "ふだんの夢に近い答えを選んでね。",
     "정답은 없어요. 평소 꿈에 가장 가까운 답을 골라 주세요.",
     "没有标准答案。请选择最符合平时梦境的选项。",
     "There are no right answers. Choose what feels closest to your usual dreams.",
@@ -111,7 +134,7 @@ export const messages = {
   begin: ["はじめる", "시작하기", "开始", "Let’s begin"],
   catalog: ["16タイプ図鑑", "16유형 도감", "16类型图鉴", "Explore all 16"],
   retake: [
-    "アンケートをやり直す",
+    "もう一度診断",
     "설문 다시 하기",
     "重新测试",
     "Retake questionnaire",
@@ -124,7 +147,7 @@ export const messages = {
     "No sleep records yet",
   ],
   levelHint: [
-    "直近7日・1日1件の自己申告から計算する暫定指標です。睡眠の改善でレベル1〜5に変化します。",
+    "直近7日間の睡眠記録をもとに算出。",
     "최근 7일간 하루 한 번의 자기 보고로 계산한 임시 지표예요. 수면 변화에 따라 1~5레벨로 변해요.",
     "根据最近7天每天一条自评计算的暂定指标，随睡眠变化在1至5级之间变化。",
     "A provisional score from one self-report per day over the last 7 days. Sleep changes move the level from 1 to 5.",
@@ -156,13 +179,13 @@ export const messages = {
     "What scenes or feelings do you remember?",
   ],
   tags: [
-    "あてはまる夢のテーマ（複数可）",
+    "夢のテーマ（任意）",
     "해당하는 꿈 주제 (복수 선택)",
     "选择符合的梦境主题（可多选）",
     "Dream themes (choose any)",
   ],
   tagHint: [
-    "選んだテーマを優先します。未選択なら本文のキーワードから候補を探します。",
+    "複数選べます。未選択なら文章から探します。",
     "선택한 주제를 우선해요. 선택하지 않으면 본문의 키워드로 찾아요.",
     "优先使用所选主题。未选择时，根据文字关键词匹配。",
     "Your selections take priority. Otherwise, keywords in your notes suggest themes.",
@@ -187,7 +210,7 @@ export const messages = {
     "Night awakenings",
   ],
   rested: [
-    "起床時の休息感（1:低い〜5:高い）",
+    "目覚めの気分（1:悪い〜5:良い）",
     "기상 시 개운함 (1:낮음~5:높음)",
     "醒来后的休息感（1低–5高）",
     "Feeling rested (1: low–5: high)",

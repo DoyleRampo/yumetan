@@ -1,5 +1,28 @@
 // Locale order matches the rest of the app: ja, ko, zh, en.
 export const communityMessages = {
+  planDetails: ["プランの詳細", "요금제 상세", "套餐详情", "Plan details"],
+  comparePlans: ["プランを比較", "요금제 비교", "比较套餐", "Compare plans"],
+  details: ["詳細", "상세", "详情", "Details"],
+  includedShort: [
+    "全プランで、キャラクター育成と記録の振り返り。",
+    "모든 요금제에 캐릭터 성장과 기록 돌아보기 포함.",
+    "所有套餐均含角色成长与记录回顾。",
+    "Character growth and journal review in every plan.",
+  ],
+  freeSummary: ["まずは気軽に", "가볍게 시작", "轻松开始", "Start simply"],
+  starterSummary: ["毎日の夢に", "매일 돌아보기", "每日回顾", "Reflect daily"],
+  standardSummary: ["たっぷり記録", "더 많이 기록", "记录更多", "Explore more"],
+  dreamShort: ["夢 / 日", "꿈 / 일", "梦 / 天", "Dreams / day"],
+  aiShort: ["AI / 月", "AI / 월", "AI / 月", "AI / month"],
+  ocrShort: ["手書き / 月", "손글씨 / 월", "手写 / 月", "Handwriting / mo"],
+  readShort: ["投稿閲覧 / 日", "게시물 / 일", "阅读 / 天", "Post views / day"],
+  billingShort: [
+    "購入はアプリから。詳細で条件を確認できます。",
+    "앱에서 구매해요. 상세에서 조건을 확인하세요.",
+    "请在应用内购买，详情页可查看条款。",
+    "Purchase in the app. See details for terms.",
+  ],
+
   accountSettings: ["設定", "설정", "设置", "Settings"],
   community: ["みんなの夢", "모두의 꿈", "大家的梦", "Dream feed"],
   plans: ["プラン", "요금제", "套餐", "Plans"],
