@@ -26,6 +26,10 @@ npm start
 
 **APIキーなしで起動し、端末内のルールで利用できます。** 画面・結果・助言はすべて4言語の静的カタログにあります。本人が書いた夢・日記や過去のAI出力の原文を自動翻訳することはありません。言語を切り替えた場合、異なる言語で生成済みのAI出力に代えて、選択言語のローカル振り返りを表示します。
 
+## v4.5.2: iOSのLINEログインをLINEアプリ直接遷移に
+
+- iOSアプリの「LINEで続ける」はLINE SDKでLINEアプリを開き、戻るとログイン完了。`POST /api/auth/line` がLINEのIDトークンを検証してFirebaseカスタムトークンを発行します。設定は [docs/auth/LOGIN_AND_SYNC.md](docs/auth/LOGIN_AND_SYNC.md) を参照。
+
 ## v4.5.1: 戻る導線・夢レベル
 
 - タブバーの4ページと設定以外のすべての画面に「← 前のページ」リンクを置き、画面左端から右へスワイプしても1つ前の画面へ戻れます（ブラウザ・Androidの戻る操作も同じ）。
@@ -45,7 +49,7 @@ npm start
 
 初期画面・設定から3種類の外部ログインとゲスト利用を選べます。夢・日記・写真・プロフィール・診断回答・表示キャラクターを本人のアカウントへ同期し、別端末から復元できます。ゲスト記録の引き継ぎと、設定からのログイン方法の連携にも対応します。iOS/Androidは標準ブラウザで認証します。
 
-**本番ではFirebaseのプロバイダ設定、Apple/LINEの認証情報が必要です。LINEはIdentity PlatformのOIDCを利用します。** [接続設定・同期仕様・検証手順](docs/auth/LOGIN_AND_SYNC.md)を参照してください。
+**本番ではFirebaseのプロバイダ設定、Apple/LINEの認証情報が必要です。iOSアプリのLINEログインはLINE SDKでLINEアプリへ直接遷移し（`LINE_CHANNEL_ID`）、Web/AndroidはIdentity PlatformのOIDCを利用します。** [接続設定・同期仕様・検証手順](docs/auth/LOGIN_AND_SYNC.md)を参照してください。
 
 ## v4.3: プランと「みんなの夢」
 
@@ -74,6 +78,7 @@ npm start
 - `POST /api/community/posts/:id/private`、`GET /api/community/posts/:id`
 - `POST /api/community/posts/:id/reaction`、`POST /api/community/posts/:id/comments`
 - 通報・ブロック・コメント削除、運営者専用の通報確認/非表示API
+- `POST /api/auth/line`：LINE IDトークン → Firebaseカスタムトークン（iOSネイティブLINEログイン）
 - `POST /api/reflect`（`text`・`date`・`typeTags`・`diary`・`recentDiaries`・`sleep`・`dreamType`）、`POST /api/handwriting`：GPT-5.6 Luna。読み解きは `mood_weather`・`mood_label`・`mental_state`・`fortune_overview`・`fortune_mood`・`lucky_hint`・`advice` を返します
 - `GET /api/sleep-knowledge`：参照文献と暫定評価ルール
 

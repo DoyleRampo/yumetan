@@ -3,6 +3,7 @@
 # 必要な Repository secrets（Settings → Secrets and variables → Actions）:
 #   API_URL                 アプリが接続する公開サーバーの URL
 #   REVENUECAT_IOS_KEY      RevenueCat の iOS 公開キー（appl_…）
+#   LINE_CHANNEL_ID         LINE ログインチャネルの ID（LINE アプリ直接ログイン用。任意）
 #   IOS_TEAM_ID             Apple Developer の Team ID（10桁）
 #   IOS_DIST_CERT_P12       Apple Distribution 証明書（.p12、秘密鍵入り）を base64 にした文字列
 #   IOS_DIST_CERT_PASSWORD  .p12 のパスワード
@@ -58,6 +59,7 @@ jobs:
         env:
           API_URL: ${{ secrets.API_URL }}
           REVENUECAT_IOS_KEY: ${{ secrets.REVENUECAT_IOS_KEY }}
+          LINE_CHANNEL_ID: ${{ secrets.LINE_CHANNEL_ID }}
         run: |
           npm run mobile:build
           npx cap sync ios

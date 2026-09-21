@@ -2,6 +2,7 @@
 // Paid community, billing and GPT requests pass through this authenticated server.
 import express from "express";
 import { registerAuthBridge } from "./server/auth-bridge.js";
+import { registerLineAuth } from "./server/line-auth.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,6 +50,7 @@ app.post(
 );
 app.use(express.json({ limit: "750kb" }));
 registerAuthBridge(app, { ...services, asyncRoute });
+const lineAuth = registerLineAuth(app, { ...services, asyncRoute });
 const bursts = new Map();
 app.use(
   "/api",
@@ -79,6 +81,7 @@ app.get("/api/health", (req, res) =>
     acceptsUserKey: false,
     billingConfigured: billing.configured,
     communityConfigured: Boolean(services.store && process.env.OPENAI_API_KEY),
+    lineNativeConfigured: lineAuth.configured,
     langs: ["ja", "ko", "zh", "en"],
   }),
 );

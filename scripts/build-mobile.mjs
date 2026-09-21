@@ -50,8 +50,15 @@ for (const [platform, key] of [
       `REVENUECAT_${platform.toUpperCase()}_KEY 未設定: ${platform} ではストア購入ボタンが無効になります。`,
     );
 }
+// LINE Login channel ID (public). With it the iOS app logs in through the LINE app;
+// without it LINE falls back to the browser flow (Identity Platform OIDC).
+const lineChannelId = String(process.env.LINE_CHANNEL_ID || "").trim();
+if (!lineChannelId)
+  console.warn(
+    "LINE_CHANNEL_ID 未設定: LINE ログインはブラウザ経由（Identity Platform）になります。",
+  );
 fs.writeFileSync(
   path.join("dist", "config.js"),
-  `window.YUMETAN_CONFIG = ${JSON.stringify({ apiBase: apiUrl, revenueCat })};\n`,
+  `window.YUMETAN_CONFIG = ${JSON.stringify({ apiBase: apiUrl, revenueCat, lineChannelId })};\n`,
 );
 console.log(`dist/ を作成しました（接続先: ${apiUrl}）`);

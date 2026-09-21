@@ -6,6 +6,8 @@ import {
   startNativeAuth,
   finishNativeAuth,
   cancelNativeAuth,
+  lineNativeAvailable,
+  lineNativeLogin,
 } from "./core/native-auth.js";
 import { createCommunity, communityText } from "./community.js";
 import { createPurchases } from "./core/purchases.js";
@@ -55,7 +57,7 @@ const esc = (value) =>
       ],
   );
 const id = () => crypto.randomUUID();
-const APP_VERSION = "4.5.1";
+const APP_VERSION = "4.5.2";
 const cap = window.Capacitor,
   native = cap?.isNativePlatform?.(),
   plugins = cap?.Plugins || {};
@@ -1394,7 +1396,20 @@ async function account(mode, provider = null) {
         upgrade: cloud.isAnonymous() && !!cloud.uid(),
         language: language(),
       });
-    if (mode === "provider" && native) {
+    // LINE opens the LINE app directly when the native plugin and channel are set up.
+    if (
+      mode === "provider" &&
+      native &&
+      provider === "line" &&
+      lineNativeAvailable()
+    )
+      login = lineNativeLogin({
+        cloud,
+        link,
+        base: window.YUMETAN_CONFIG?.apiBase || options.apiBase,
+        config: window.YUMETAN_CONFIG,
+      });
+    else if (mode === "provider" && native) {
       await startNativeAuth({
         cloud,
         provider,

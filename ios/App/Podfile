@@ -21,7 +21,8 @@ end
 
 target 'App' do
   capacitor_pods
-  # Add your Pods here
+  # LINE Login SDK: app-to-app login through the LINE app (see LineLoginPlugin in SceneDelegate.swift)
+  pod 'LineSDKSwift', '~> 5.8'
 end
 
 post_install do |installer|

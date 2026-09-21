@@ -55,7 +55,19 @@
 
 公式: [Firebase Appleログイン](https://firebase.google.com/docs/auth/web/apple)、[Apple Web設定](https://developer.apple.com/help/account/capabilities/configure-sign-in-with-apple-for-the-web)。
 
-### LINE
+### LINE（iOSアプリ: LINEアプリへ直接遷移）
+
+iOSアプリでは LINE SDK（`LineSDKSwift`）でログインし、LINEアプリがあればそのまま LINE アプリに遷移して認証します。Safari も Identity Platform も使いません。
+
+1. LINE Developers のLINEログインチャネルで **アプリタイプに「モバイルアプリ」を追加**し、iOS の **バンドルID `com.doyle.yumetan`** を登録（URLスキームは `line3rdp.com.doyle.yumetan` が自動で使われます）。ユニバーサルリンクは未設定でも動作します。
+2. サーバー（Render）の環境変数 `LINE_CHANNEL_ID` にチャネルIDを設定。チャネルシークレットは不要です（ID トークンは LINE の `oauth2/v2.1/verify` で検証）。
+3. GitHub Secrets に `LINE_CHANNEL_ID` を追加。`scripts/build-mobile.mjs` が `config.js` に埋め込み、未設定なら従来のブラウザ経由にフォールバックします。
+4. 流れ: アプリ → `LineLogin` プラグイン（`ios/App/App/SceneDelegate.swift`）→ LINE ID トークン → `POST /api/auth/line` → `lineUsers/{LINEユーザーID}` の対応表で Firebase UID を決定（初回は `line:<LINEユーザーID>`、連携時はログイン中の UID）→ カスタムトークンでログイン。
+5. ゲストから LINE でログインした場合は Firebase の「リンク」ではなく、既存の「ゲストの記録を取り込む」確認で引き継ぎます。設定からの「LINE を連携」は対応表にログイン中の UID を登録します。別アカウントに登録済みの LINE は連携できません。
+
+`lineUsers` はクライアントの Firestore ルールで拒否されるサーバー専用コレクションです。Web 版と Android 版の LINE ログインは引き続き下記の Identity Platform OIDC を使うため、同じ LINE アカウントでも iOS ネイティブとは別 UID になります。両方を同一アカウントにしたい場合は、片方でログイン後に設定から「連携」してください。
+
+### LINE（Web / Android: ブラウザ経由）
 
 Firebase Authentication with **Identity Platform** のOIDC連携を使用。プロジェクトのアップグレード・利用料金確認が必要。今回の作業では有料サービスへのアップグレードは実行していない。
 

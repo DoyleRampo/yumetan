@@ -87,3 +87,47 @@ export async function finishNativeAuth(cloud) {
 export async function cancelNativeAuth() {
   await write(key, null);
 }
+
+// Direct LINE login through the LINE app (iOS LineLogin plugin). The LINE ID
+// token never touches the WebView URL; the server verifies it with LINE and
+// returns a Firebase custom token for the mapped account.
+export function lineNativeAvailable(config = window.YUMETAN_CONFIG) {
+  return Boolean(window.Capacitor?.Plugins?.LineLogin && config?.lineChannelId);
+}
+export async function lineNativeLogin({ cloud, link, base, config }) {
+  const url = new URL(base);
+  if (url.protocol !== "https:")
+    throw Object.assign(new Error("authNotConfigured"), {
+      code: "authNotConfigured",
+    });
+  let result;
+  try {
+    result = await window.Capacitor.Plugins.LineLogin.login({
+      channelId: String(config.lineChannelId),
+    });
+  } catch (error) {
+    throw Object.assign(new Error(error?.code || "auth/popup-closed-by-user"), {
+      code: error?.code || "auth/popup-closed-by-user",
+    });
+  }
+  if (!result?.idToken)
+    throw Object.assign(new Error("authFailed"), { code: "authFailed" });
+  const headers = { "Content-Type": "application/json" };
+  if (link) headers.Authorization = "Bearer " + (await cloud.idToken());
+  const response = await fetch(url.origin + "/api/auth/line", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      idToken: result.idToken,
+      nonce: result.nonce,
+      link,
+    }),
+    signal: AbortSignal.timeout(20000),
+  });
+  const value = await response.json().catch(() => ({}));
+  if (!response.ok)
+    throw Object.assign(new Error(value.code || "authFailed"), {
+      code: value.code || "authFailed",
+    });
+  return cloud.signInToken(value.token);
+}

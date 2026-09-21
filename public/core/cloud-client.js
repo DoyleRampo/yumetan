@@ -7,6 +7,11 @@ export function createCloudClient({ A, fs, auth, db }) {
   A.onAuthStateChanged(auth, (user) => {
     const previous = state.user;
     state.user = user;
+    state.claims = null;
+    // Custom-token sign-ins (native LINE) carry the provider as a claim.
+    user?.getIdTokenResult?.().then((r) => {
+      if (state.user === user) state.claims = r?.claims || null;
+    });
     if (previous?.uid !== user?.uid) listeners.forEach((cb) => cb(user));
   });
   const uid = () => {
@@ -21,7 +26,12 @@ export function createCloudClient({ A, fs, auth, db }) {
     isAnonymous: () => !state.user || state.user.isAnonymous,
     email: () => state.user?.email || "",
     displayName: () => state.user?.displayName || "",
-    providers: () => (state.user?.providerData || []).map((p) => p.providerId),
+    providers: () => [
+      ...new Set([
+        ...(state.user?.providerData || []).map((p) => p.providerId),
+        ...(state.claims?.provider ? [state.claims.provider] : []),
+      ]),
+    ],
     idToken: async () => state.user?.getIdToken() || null,
     onUser(cb) {
       listeners.add(cb);
@@ -35,6 +45,7 @@ export function createCloudClient({ A, fs, auth, db }) {
     async signInToken(token) {
       const res = await A.signInWithCustomToken(auth, token);
       state.user = res.user;
+      state.claims = (await res.user.getIdTokenResult?.())?.claims || null;
       return res.user;
     },
     async signUp(email, password) {
