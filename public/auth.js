@@ -1,5 +1,6 @@
 import { providerLogin } from "./core/auth-providers.js";
 import { authText, authError } from "./core/auth-i18n.js";
+import { loadFirebase } from "./core/firebase-sdk.js";
 const params = new URLSearchParams(location.hash.slice(1));
 history.replaceState(null, "", location.pathname);
 const language = params.get("language") || "ja",
@@ -22,11 +23,7 @@ async function request(action, extra = {}) {
 let A, auth, config;
 try {
   config = await request("bootstrap");
-  const V = "10.14.1";
-  const [{ initializeApp }, sdk] = await Promise.all([
-    import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
-    import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
-  ]);
+  const [{ initializeApp }, sdk] = await loadFirebase(["app", "auth"]);
   A = sdk;
   auth = A.initializeAuth(
     initializeApp(window.FIREBASE_CONFIG, "auth-handoff"),

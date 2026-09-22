@@ -1,4 +1,5 @@
 import { createCloudClient } from "./core/cloud-client.js";
+import { loadFirebase } from "./core/firebase-sdk.js";
 const cloud = (window.YumetanCloud = {
   state: { enabled: false, user: null, error: null },
 });
@@ -6,12 +7,7 @@ cloud.ready = (async () => {
   const cfg = window.FIREBASE_CONFIG;
   if (!cfg?.apiKey || !cfg.projectId) return cloud.state;
   try {
-    const V = "10.14.1";
-    const [{ initializeApp }, A, fs] = await Promise.all([
-      import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
-      import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
-      import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`),
-    ]);
+    const [{ initializeApp }, A, fs] = await loadFirebase();
     const app = initializeApp(cfg),
       auth = A.getAuth(app);
     await A.setPersistence(auth, A.indexedDBLocalPersistence);

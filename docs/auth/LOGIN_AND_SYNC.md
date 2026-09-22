@@ -104,6 +104,8 @@ WebView内のOAuthポップアップは使用せず、独自の小さな `AuthBr
 - 起動前の未完了フローは5分まで復帰可能。他アカウントへの切り替え後に以前の認証結果を適用しない。
 - Render の無料インスタンスは休止から復帰するまで 50 秒以上かかる。アプリはログイン開始前に `GET /api/health` で最大約 1 分サーバーを起こし、認証リクエストは 20 秒のタイムアウト後に 1 回だけ再試行する（`public/core/native-auth.js`）。`AbortSignal.timeout` が無い iOS 15 の WebView でも動作する。
 - `GET /api/health` の `authConfigured` でサーバー側の Firebase Admin 認証情報の有無を確認できる。
+- Firebase Web SDK は `public/vendor/firebase/` に同梱し、同一オリジンから読み込む（CDN はフォールバック）。アプリ起動時に gstatic.com から約 700KB をダウンロードする必要がなくなる。更新は `node scripts/vendor-firebase.mjs`（バージョンは `public/core/firebase-sdk.js`）。
+- 起動時 3 秒以内に接続できなくてもログイン画面は「クラウドに接続しています…」と表示して待ち続け、準備でき次第ボタンを有効にする。初期化に失敗した場合は「接続できません」の後ろに Firebase のエラーコードを表示する。
 
 ## 検証と残る本番確認
 

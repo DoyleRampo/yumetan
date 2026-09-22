@@ -791,7 +791,7 @@ function accountView(onboard = false) {
   const enabled = cloud?.state.enabled,
     signed = enabled && !cloud.isAnonymous();
   const providers = cloud?.providers?.() || [];
-  return `<section class="card account-card"><h2>${t("account")}</h2><p class="help">${at(signed ? "loginHint" : "guestHint")}</p><p class="status" id="account-sync-status" role="status">${at(enabled ? syncStatus : "offline")}${!enabled && window.YumetanCloud?.state?.error ? ` (${esc(window.YumetanCloud.state.error)})` : ""}</p>
+  return `<section class="card account-card"><h2>${t("account")}</h2><p class="help">${at(signed ? "loginHint" : "guestHint")}</p><p class="status" id="account-sync-status" role="status">${enabled ? at(syncStatus) : offlineStatus()}</p>
   ${signed ? `<p>${esc(cloud.email() || cloud.displayName?.() || state.profile?.nickname || "Yumetan")}</p><div class="row">${button("signOut", "signout", "ghost")}${button("sync", "sync", "ghost")}</div><h3>${at("link")}</h3><p class="help">${at("linkHint")}</p>` : `<p class="help">${at("loginHint")}</p>`}
   <div class="auth-buttons">${["google", "apple", "line"]
     .map((provider) => {
@@ -807,6 +807,13 @@ function accountView(onboard = false) {
   ${!enabled ? `<button type="button" class="btn ghost" data-action="auth-retry">${at("reconnect")}</button>` : ""}
   ${!signed && enabled ? `<details><summary>${at("email")}</summary><form id="account-form">${input("email", "email", "", "email", 'required autocomplete="email"')}${input("password", "password", "", "password", 'minlength="6" autocomplete="current-password"')}<div class="row"><button type="submit" class="btn primary">${t("signIn")}</button>${button("signUp", "signup", "ghost")}${button("resetPassword", "reset-password", "small ghost")}</div></form></details>` : ""}
   ${onboard && !signed ? `<button type="button" class="btn ghost full" data-action="guest">${at("guest")}</button>` : ""}</section>`;
+}
+// Distinguish "still connecting" from a real failure (with Firebase's error code).
+let cloudPending = false;
+function offlineStatus() {
+  const error = window.YumetanCloud?.state?.error;
+  if (cloudPending && !error) return at("cloudConnecting");
+  return at("offline") + (error ? ` (${esc(error)})` : "");
 }
 function showSyncStatus(value) {
   syncStatus = value;
@@ -1943,6 +1950,7 @@ function bindCloud() {
 // The cloud connection was not ready when the UI first rendered. Wait for it in
 // the background and enable login/sync without a reload once it arrives.
 async function attachLateCloud(pending) {
+  cloudPending = true;
   let timer;
   const ready = await Promise.race([
     pending.ready,
@@ -1951,7 +1959,16 @@ async function attachLateCloud(pending) {
     }),
   ]);
   clearTimeout(timer);
-  if (!ready?.enabled || cloud || dirty || processing || authChanging) return;
+  cloudPending = false;
+  if (!ready?.enabled || cloud || dirty || processing || authChanging) {
+    if (!cloud) {
+      if (ready && !pending.state.error)
+        pending.state.error = "auth/unavailable";
+      const el = $("#account-sync-status");
+      if (el) el.textContent = offlineStatus();
+    }
+    return;
+  }
   cloud = pending;
   await adoptCloud();
   await loadScope();

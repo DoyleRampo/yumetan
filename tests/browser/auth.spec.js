@@ -209,7 +209,7 @@ test("a slow cloud connection enables the social logins later without a reload",
   await page.locator(".onboard-account > summary").click();
   await expect(page.locator("[data-auth-provider=google]")).toBeDisabled();
   await expect(page.locator("#account-sync-status")).toContainText(
-    "接続できません",
+    "接続しています",
   );
   await expect(page.locator("[data-auth-provider=google]")).toBeEnabled({
     timeout: 10000,
@@ -220,6 +220,6 @@ test("a slow cloud connection enables the social logins later without a reload",
     ).toBeEnabled();
   expect(await page.evaluate(() => window.__sameDocument)).toBe(true);
   await expect(page.locator("#account-sync-status")).not.toContainText(
-    "接続できません",
+    "接続しています",
   );
 });
