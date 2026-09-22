@@ -560,7 +560,8 @@ test("account switching isolates journals and reload restores the active scope",
   await page.locator("#language").selectOption("en");
   await page.locator("#nickname").fill("First account");
   await page.locator("#profile-form button").click();
-  for (let i = 0; i < 16; i++) {
+  // Every question accepts 0 (never / first scene / neutral).
+  for (let i = 0; i < QUESTIONS.length; i++) {
     await page.locator('[data-answer="0"]').click();
     await page.locator("[data-action=quiz-next]").click();
   }

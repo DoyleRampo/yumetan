@@ -180,8 +180,13 @@ export async function appleNativeLogin({ cloud, link, upgrade }) {
   try {
     result = await window.Capacitor.Plugins.AppleLogin.login();
   } catch (error) {
-    throw authError(error?.code || "auth/popup-closed-by-user");
+    // The plugin rejects with an ASAuthorizationError-derived code and Apple's message.
+    throw Object.assign(
+      new Error(error?.message || error?.code || "auth/popup-closed-by-user"),
+      { code: error?.code || "auth/popup-closed-by-user" },
+    );
   }
+  if (!result?.identityToken) throw authError("authFailed");
   const displayName = [result.givenName, result.familyName]
     .filter(Boolean)
     .join(" ")

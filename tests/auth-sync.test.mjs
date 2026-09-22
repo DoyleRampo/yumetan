@@ -1,4 +1,5 @@
 import test from "node:test";
+import { authError, authErrorKey } from "../public/core/auth-i18n.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createAuthBridge } from "../server/auth-bridge.js";
@@ -299,9 +300,16 @@ test("native Apple credentials sign in, upgrade a guest, and never silently link
       return { provider: this.id, ...input };
     }
     static credentialFromError() {
-      return { provider: "apple.com", fromError: true };
+      return Provider.recovered;
     }
   }
+  // What Firebase attaches to a credential-already-in-use error: usable on its
+  // own only when it carries a pending token (or a nonce).
+  Provider.recovered = {
+    provider: "apple.com",
+    fromError: true,
+    pendingToken: "pt",
+  };
   const A = {
     OAuthProvider: Provider,
     signInWithCredential: async (_, credential) => {
@@ -342,8 +350,36 @@ test("native Apple credentials sign in, upgrade a guest, and never silently link
   assert.equal(conflict.user.uid, "apple-user");
   assert.deepEqual(calls.at(-1), [
     "signIn",
-    { provider: "apple.com", fromError: true },
+    { provider: "apple.com", fromError: true, pendingToken: "pt" },
   ]);
+  // Without a pending token or nonce the recovered credential would be rejected
+  // (auth/missing-or-invalid-nonce), so the original token + raw nonce is reused.
+  for (const recovered of [{ provider: "apple.com", fromError: true }, null]) {
+    Provider.recovered = recovered;
+    const again = await credentialLogin(
+      A,
+      { currentUser: { uid: "guest-used" } },
+      "apple",
+      { ...input, upgrade: true },
+    );
+    assert.equal(again.user.uid, "apple-user");
+    assert.deepEqual(calls.at(-1), [
+      "signIn",
+      { provider: "apple.com", idToken: "jwt", rawNonce: "nonce" },
+    ]);
+  }
+  // Every failure explains itself with a specific message and keeps its code.
+  assert.equal(authErrorKey("auth/apple-unknown"), "appleDevice");
+  assert.equal(authErrorKey("auth/invalid-credential"), "appleToken");
+  assert.equal(authErrorKey("auth/missing-or-invalid-nonce"), "appleToken");
+  assert.equal(authErrorKey("auth/network-request-failed"), "network");
+  assert.equal(authErrorKey("auth/operation-not-allowed"), "config");
+  assert.ok(
+    authError("auth/invalid-credential", "ja").endsWith(
+      "(auth/invalid-credential)",
+    ),
+  );
+  assert.ok(!authError("auth/popup-closed-by-user", "ja").includes("auth/"));
   await assert.rejects(
     credentialLogin(A, { currentUser: { uid: "guest-used" } }, "apple", {
       ...input,

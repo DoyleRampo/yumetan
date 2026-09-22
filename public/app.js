@@ -848,7 +848,7 @@ function homeView() {
     type = typeById(result?.id) || TYPES[0],
     value = dreamLevel(state.records);
   return `<section class="home-dashboard"><section class="hero"><div><p class="eyebrow">${esc(dateText(localDate()))} · ${esc(state.profile?.nickname)}</p><h1>${t("hero").replace(/\n/g, ["ja", "zh"].includes(language()) ? "" : " ")}</h1><div class="row">${button("record", "record", "primary")}${button("diary", "diary", "ghost")}</div></div></section>
- <div class="card accent character-row" style="--accent:${group(type).color}"><button type="button" class="character-link" data-type-detail="${type.id}" aria-label="${esc(name(characterById(type.id)))} · ${esc(t("more"))}">${avatar(type, value.stars, true)}</button><div><span class="tag-label">${name(group(type))}</span><button type="button" class="character-link" data-type-detail="${type.id}"><h2 class="character-name">${name(characterById(type.id))}</h2></button><p class="help">${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p>${button("catalog", "catalog", "small ghost")}${result?.version === 1 ? button("newQuiz", "retake", "small ghost") : ""}</div></div>
+ <div class="card accent character-row" style="--accent:${group(type).color}"><button type="button" class="character-link" data-type-detail="${type.id}" aria-label="${esc(name(characterById(type.id)))} · ${esc(t("more"))}">${avatar(type, value.stars, true)}</button><div><span class="tag-label">${name(group(type))}</span><button type="button" class="character-link" data-type-detail="${type.id}"><h2 class="character-name">${name(characterById(type.id))}</h2></button><p class="help">${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p>${button("catalog", "catalog", "small ghost")}</div></div>
  <div class="home-insights"><div class="card level-card"><div class="row between"><h2>${t("level")}</h2><div class="score">Lv.<b>${value.level}</b></div></div><div class="level-gauge" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value.progress}" aria-label="${esc(t("level"))}"><i style="width:${value.progress}%"></i></div><p class="help level-next">${esc(
    t("nextLevel")
      .replace("{n}", value.remaining)
@@ -2038,6 +2038,12 @@ async function account(mode, provider = null) {
         (cloud.uid() ? `yumetan.v4.${cloud.uid()}` : "yumetan.v4.local")
     )
       await switchAccount();
+    console.error("Sign-in failed", {
+      mode,
+      provider,
+      code: error?.code,
+      message: error?.message,
+    });
     throw new Error(authError(error.code, displayLanguage()));
   } finally {
     stopLoading();
@@ -2118,9 +2124,12 @@ async function switchAccount() {
   state = (await read(storageKey)) || state;
   pendingGuestKey = await read(`${storageKey}.guest-import`);
   applyAccountPreferences();
-  const draft = quizDraft(await read(`${storageKey}.quiz`));
-  quizAnswers = draft ? draft.answers : Array(QUESTIONS.length).fill(null);
-  quizIndex = draft ? draft.index : 0;
+  // `draft` is the module-level journal draft; the questionnaire draft gets its own name.
+  const savedQuiz = quizDraft(await read(`${storageKey}.quiz`));
+  quizAnswers = savedQuiz
+    ? savedQuiz.answers
+    : Array(QUESTIONS.length).fill(null);
+  quizIndex = savedQuiz ? savedQuiz.index : 0;
   refreshPlanInBackground();
   await syncCloud();
 }
@@ -2405,10 +2414,10 @@ async function loadScope() {
   if (state.profile?.characterSet)
     options.characterSet = normalizeCharacterSet(state.profile.characterSet);
   pendingGuestKey = await read(`${storageKey}.guest-import`);
-  const draft = quizDraft(await read(`${storageKey}.quiz`));
-  if (draft) {
-    quizAnswers = draft.answers;
-    quizIndex = draft.index;
+  const savedQuiz = quizDraft(await read(`${storageKey}.quiz`));
+  if (savedQuiz) {
+    quizAnswers = savedQuiz.answers;
+    quizIndex = savedQuiz.index;
   }
 }
 function bindCloud() {

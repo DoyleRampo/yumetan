@@ -173,8 +173,8 @@ public class AppleLoginPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationContr
         defer { pending = nil; self.controller = nil }
         guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
               let tokenData = credential.identityToken,
-              let identityToken = String(data: tokenData, encoding: .utf8) else {
-            pending?.reject("Apple did not return an identity token", "authFailed"); return
+              let identityToken = String(data: tokenData, encoding: .utf8), !identityToken.isEmpty else {
+            pending?.reject("Apple did not return an identity token", "auth/apple-invalid-response"); return
         }
         pending?.resolve([
             "identityToken": identityToken,
@@ -188,8 +188,25 @@ public class AppleLoginPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationContr
 
     public func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
         defer { pending = nil; self.controller = nil }
-        let cancelled = (error as? ASAuthorizationError)?.code == .canceled
-        pending?.reject(error.localizedDescription, cancelled ? "auth/popup-closed-by-user" : "authFailed")
+        // ASAuthorizationError raw values (kept numeric so newer SDK cases still compile):
+        // 1000 unknown (no iCloud account, missing entitlement, Simulator), 1001 canceled,
+        // 1002 invalidResponse, 1003 notHandled, 1004 failed, 1005 notInteractive.
+        let nsError = error as NSError
+        let code: String
+        if nsError.domain == ASAuthorizationError.errorDomain {
+            switch nsError.code {
+            case 1001: code = "auth/popup-closed-by-user"
+            case 1000: code = "auth/apple-unknown"
+            case 1002: code = "auth/apple-invalid-response"
+            case 1003: code = "auth/apple-not-handled"
+            case 1005: code = "auth/apple-not-interactive"
+            default: code = "auth/apple-failed"
+            }
+        } else {
+            code = "authFailed"
+        }
+        NSLog("Sign in with Apple failed: %@ (%ld) -> %@", nsError.domain, nsError.code, code)
+        pending?.reject(error.localizedDescription, code)
     }
 
     public func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {

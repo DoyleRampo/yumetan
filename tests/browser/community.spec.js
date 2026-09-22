@@ -5,6 +5,7 @@ import {
   submitDream,
 } from "./helpers/journal.js";
 import { test, expect } from "@playwright/test";
+import { QUESTIONS } from "../../public/core/diagnosis.js";
 import { MemoryStore } from "../helpers/memory-store.mjs";
 import { createAccess } from "../../server/access.js";
 import { registerCommunity } from "../../server/community.js";
@@ -24,8 +25,9 @@ async function boot(page) {
   await page.locator("#nickname").fill("Dreamer");
   await page.locator("#ageGroup").selectOption("20代");
   await page.locator("#profile-form button[type=submit]").click();
-  for (let i = 0; i < 16; i++) {
-    await page.locator(`[data-answer="${i === 11 ? 2 : 0}"]`).click();
+  // Every question accepts 0 (never / first scene / neutral); the type is not under test here.
+  for (let i = 0; i < QUESTIONS.length; i++) {
+    await page.locator('[data-answer="0"]').click();
     await page.locator("[data-action=quiz-next]").click();
   }
   await page.locator("[data-action=begin]").click();

@@ -67,6 +67,22 @@ iOSアプリでは `AuthenticationServices` の標準シートで Sign in with A
 3. Firebase Console → Authentication → Sign-in method → **Apple** を有効化。iOS だけなら Services ID・Team ID・Key ID・秘密鍵の欄は空でよい。
 4. Firebase のプロジェクト設定でバンドル ID `com.doyle.yumetan` の iOS アプリを登録しておく（Firebase はトークンの対象 ID をこのバンドル ID で照合します）。
 
+#### Apple ログインが失敗するときの確認表
+
+ログイン失敗時の表示には末尾にエラーコードが付きます（例「…(auth/invalid-credential)」）。コードから原因を絞れます。
+
+| 表示されるコード | 意味 | 確認すること |
+|---|---|---|
+| `auth/apple-unknown`（ASAuthorizationError 1000） | iOS のサインインシートが開けない | 端末が iCloud（Apple ID）にサインインしているか。TestFlight ビルドのプロビジョニングプロファイルに Sign in with Apple の entitlement が含まれているか（Capability 追加後にプロファイルを作り直して `IOS_PROVISIONING_PROFILE` を更新）。シミュレータでは動作しない |
+| `auth/apple-invalid-response` / `auth/apple-failed` | Apple がトークンを返さなかった | 同上。Apple 側の一時障害なら再試行 |
+| `auth/operation-not-allowed` | Firebase で Apple プロバイダが無効 | Firebase Console → Authentication → Sign-in method → Apple を有効化 |
+| `auth/invalid-credential` | Firebase がトークンを拒否（対象 ID の不一致など） | Firebase のプロジェクト設定に iOS アプリ `com.doyle.yumetan` が登録されているか。Web/Android は Services ID・Team ID・Key ID・秘密鍵が正しいか |
+| `auth/missing-or-invalid-nonce` | nonce の不一致 | アプリを最新版に更新（旧版はゲストから既存の Apple アカウントへ入り直すときにこのコードで失敗した） |
+| `auth/credential-already-in-use` / `auth/email-already-in-use` | 別アカウントで使用中 | 元のログイン方法でログインし、設定から連携 |
+| `auth/network-request-failed` | 通信失敗 | 通信状態。サーバー停止中でも Apple ログイン自体は Firebase と直接通信する |
+
+既知の不具合（修正済み）: ゲスト（匿名）状態から、すでに登録済みの Apple ID でログインし直すと、Firebase の「使用中」エラーから復元した資格情報に nonce が含まれず `auth/missing-or-invalid-nonce` で失敗していた。現在は元の ID トークンと raw nonce で再ログインする。アプリは起動時に必ず匿名ログインするため、再インストール・別端末・再ログインは全てこの経路を通る。
+
 ### Apple（Web / Android: ブラウザ経由）
 
 1. Apple DeveloperでSign in with Appleを有効にしたApp IDと、Web認証用Services IDを用意。

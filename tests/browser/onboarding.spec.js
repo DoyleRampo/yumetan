@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { QUESTIONS } from "../../public/core/diagnosis.js";
 import { passTour } from "./helpers/introduction.js";
 async function begin(page, lang = "ja", configured = false) {
   await page.route("**/firebase-config.js*", (r) =>
@@ -87,7 +88,7 @@ test("skip jumps straight to the login wall and the type note appears only with 
   await expect(page.locator("#nickname")).toBeVisible();
   await page.locator("#nickname").fill("ゆめ");
   await page.locator("#profile-form button[type=submit]").click();
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < QUESTIONS.length; i++) {
     await expect(page.locator("main")).not.toContainText("タイプについて");
     await page.locator('[data-answer="0"]').click();
     await page.locator("[data-action=quiz-next]").click();

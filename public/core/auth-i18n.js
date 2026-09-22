@@ -139,6 +139,24 @@ const strings = {
     "이 인증 정보는 다른 계정에서 사용 중이에요. 기존 방식으로 로그인한 뒤 설정에서 연결하세요.",
     "此身份已属于其他账号，请用原方式登录后在设置中关联。",
   ],
+  appleDevice: [
+    "この端末では Apple でサインインを開始できませんでした。設定アプリで iCloud（Apple ID）にサインインしているか確認し、アプリを最新版に更新してください。シミュレータでは動作しません。",
+    "Sign in with Apple could not start on this device. Make sure you are signed in to iCloud in Settings and the app is up to date. It does not work in the Simulator.",
+    "이 기기에서는 Apple로 로그인을 시작할 수 없었어요. 설정에서 iCloud에 로그인되어 있는지 확인하고 앱을 최신 버전으로 업데이트하세요. 시뮬레이터에서는 동작하지 않아요.",
+    "此设备无法启动“通过 Apple 登录”。请确认在“设置”中已登录 iCloud，并将应用更新到最新版本。模拟器中无法使用。",
+  ],
+  appleToken: [
+    "Apple の認証情報をサーバーが受け付けませんでした。Firebase の Apple ログイン設定（プロバイダの有効化と iOS アプリの登録）を確認してください。",
+    "The server did not accept the Apple credential. Check the Apple sign-in setup in Firebase (provider enabled, iOS app registered).",
+    "서버가 Apple 인증 정보를 받아들이지 않았어요. Firebase의 Apple 로그인 설정(제공업체 활성화, iOS 앱 등록)을 확인하세요.",
+    "服务器未接受 Apple 的凭据。请检查 Firebase 的 Apple 登录设置（启用提供方、注册 iOS 应用）。",
+  ],
+  network: [
+    "ネットワークに接続できませんでした。通信状態を確認して、もう一度お試しください。",
+    "The network request failed. Check your connection and try again.",
+    "네트워크에 연결할 수 없었어요. 연결 상태를 확인하고 다시 시도하세요.",
+    "网络请求失败。请检查网络后重试。",
+  ],
   failed: [
     "ログインできませんでした。接続を確認して再試行してください。",
     "Could not sign in. Check your connection and retry.",
@@ -167,29 +185,59 @@ const strings = {
 export function authText(key, language = "ja") {
   return strings[key]?.[{ ja: 0, en: 1, ko: 2, zh: 3 }[language] ?? 0] || key;
 }
+// Which message explains an error code. Exported so the mapping can be tested.
+export function authErrorKey(code) {
+  if (
+    ["auth/popup-closed-by-user", "auth/cancelled-popup-request"].includes(code)
+  )
+    return "cancelled";
+  if (code === "auth/popup-blocked") return "popup";
+  if (
+    [
+      "auth/operation-not-allowed",
+      "auth/unauthorized-domain",
+      "auth/invalid-provider-id",
+      "authNotConfigured",
+    ].includes(code)
+  )
+    return "config";
+  if (
+    [
+      "auth/account-exists-with-different-credential",
+      "auth/credential-already-in-use",
+      "auth/email-already-in-use",
+    ].includes(code)
+  )
+    return "conflict";
+  if (code === "authExpired") return "retry";
+  // The system Sign in with Apple sheet could not start (ASAuthorizationError).
+  if (
+    [
+      "auth/apple-unknown",
+      "auth/apple-not-handled",
+      "auth/apple-not-interactive",
+      "auth/apple-invalid-response",
+    ].includes(code)
+  )
+    return "appleDevice";
+  // Firebase rejected the identity token (audience, nonce, provider config).
+  if (
+    [
+      "auth/invalid-credential",
+      "auth/missing-or-invalid-nonce",
+      "auth/invalid-oauth-client-id",
+      "auth/invalid-oauth-provider",
+    ].includes(code)
+  )
+    return "appleToken";
+  if (["auth/network-request-failed", "auth/timeout"].includes(code))
+    return "network";
+  return "failed";
+}
+// The raw code is appended except for cancellations, so a report from a user
+// or a tester says exactly what failed ("auth/invalid-credential").
 export function authError(code, language) {
-  const key = [
-    "auth/popup-closed-by-user",
-    "auth/cancelled-popup-request",
-  ].includes(code)
-    ? "cancelled"
-    : code === "auth/popup-blocked"
-      ? "popup"
-      : [
-            "auth/operation-not-allowed",
-            "auth/unauthorized-domain",
-            "auth/invalid-provider-id",
-            "authNotConfigured",
-          ].includes(code)
-        ? "config"
-        : [
-              "auth/account-exists-with-different-credential",
-              "auth/credential-already-in-use",
-              "auth/email-already-in-use",
-            ].includes(code)
-          ? "conflict"
-          : code === "authExpired"
-            ? "retry"
-            : "failed";
-  return authText(key, language);
+  const key = authErrorKey(code);
+  const detail = code && key !== "cancelled" ? ` (${code})` : "";
+  return authText(key, language) + detail;
 }
