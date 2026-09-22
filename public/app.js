@@ -1025,10 +1025,14 @@ function analysisCard(d) {
     records: state.records,
     language: language(),
   }).sharedThemes;
+  // Why there is no AI reading: sign in, or the server's reason with a retry.
+  const failure = d === draft && d.aiError && d.aiError !== "loginRequired";
   const upsell =
     !ai && !signedIn()
-      ? `<div class="reading-upsell"><p class="help">${t(signedIn() ? "readingUpsell" : "readingLogin")}</p><button type="button" class="btn small ghost" data-go="${signedIn() ? "plans" : "settings"}">${t(signedIn() ? "viewPlans" : "signIn")}</button></div>`
-      : "";
+      ? `<div class="reading-upsell"><p class="help">${t("readingLogin")}</p><button type="button" class="btn small ghost" data-go="settings">${t("signIn")}</button></div>`
+      : !ai && failure
+        ? `<div class="reading-upsell reading-failure"><p class="help"><strong>${t("readingFailed")}</strong> ${esc(d.aiError === "networkError" ? t("networkError") : ct(d.aiError))}</p>${["quotaReached", "aiBudgetReached", "paidRequired"].includes(d.aiError) ? `<button type="button" class="btn small ghost" data-go="plans">${t("viewPlans")}</button>` : d.aiError === "aiTextTooLong" ? "" : button("retryReading", "retry-reading", "small ghost")}</div>`
+        : "";
   const body = rich
     ? `<section class="reading-section"><h3>${t("mentalState")}</h3><p class="mood-line">${weather ? `<span class="mood-icon" aria-hidden="true">${weather[0]}</span>` : ""}<strong>${esc(a.mood_label)}</strong>${weather ? `<small>${t(weather[1])}</small>` : ""}</p><p class="prose">${esc(a.mental_state)}</p></section>
     <section class="reading-section fortune"><h3>${t("fortune")}</h3><p class="prose">${esc(a.fortune_overview)}</p><dl class="fortune-list"><div><dt>${t("fortuneMood")}</dt><dd>${esc(a.fortune_mood)}</dd></div><div><dt>${t("luckyHint")}</dt><dd>${esc(a.lucky_hint)}</dd></div><div><dt>${t("adviceToday")}</dt><dd>${esc(a.advice)}</dd></div></dl></section>
@@ -1483,6 +1487,7 @@ async function diagnose() {
     });
     draft.typeTags = result.tags;
     draft.analysis = result.analysis;
+    draft.aiError = signedIn() ? null : "loginRequired";
     if (signedIn()) {
       try {
         const { analysis } = await api("/api/reflect", {
@@ -1493,6 +1498,7 @@ async function diagnose() {
             ? { date: result.diary.date, text: result.diary.text }
             : null,
           recentDiaries: recentDiaries(draft.date),
+          recentDreams: recentDreams(draft),
           sleep: validateSleep(draft.sleep) ? draft.sleep : null,
           dreamType: currentType()?.id || null,
         });
@@ -1503,6 +1509,8 @@ async function diagnose() {
           diaryDate: result.diary?.date || null,
         };
       } catch (error) {
+        // The reason stays on the reading page (with a retry) instead of only in a toast.
+        draft.aiError = error.code || "networkError";
         toast(error.userMessage || error.message);
       }
     }
@@ -1511,6 +1519,28 @@ async function diagnose() {
   quotaDraft = { page: "record", draft, dirty: wasDirty };
   processing = false;
   await navigate("reading", true);
+}
+// Up to seven earlier dreams, newest first, as short summaries: the themes, the
+// title and the mood weather of their readings let the AI see patterns across days.
+function recentDreams(current) {
+  return state.records
+    .filter(
+      (r) =>
+        r.kind === "dream" && r.id !== current.id && r.date <= current.date,
+    )
+    .sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) ||
+        Date.parse(b.createdAt) - Date.parse(a.createdAt),
+    )
+    .slice(0, 7)
+    .map((r) => ({
+      date: r.date,
+      typeTags: r.typeTags || [],
+      title: String(r.analysis?.title || "").slice(0, 80),
+      mood_weather:
+        r.analysis?.engine === "ai" ? r.analysis.mood_weather || "" : "",
+    }));
 }
 // Up to seven diary pages before the wake-up date, newest first, trimmed so the
 // whole request stays inside the server's input budget.
@@ -1722,7 +1752,10 @@ async function api(path, body) {
     if (!response.ok)
       throw Object.assign(
         new Error(data.code ? ct(data.code) : t("networkError")),
-        { userMessage: data.code ? ct(data.code) : t("networkError") },
+        {
+          userMessage: data.code ? ct(data.code) : t("networkError"),
+          code: data.code || "networkError",
+        },
       );
     return data;
   } catch (e) {
@@ -2234,6 +2267,12 @@ const actions = {
     }
   },
   diagnose,
+  "retry-reading": async () => {
+    if (!draft) return;
+    draft.analysis = null;
+    draft.aiError = null;
+    await diagnose();
+  },
   "save-reading": saveDream,
   recognize,
   "remove-photo": () => {

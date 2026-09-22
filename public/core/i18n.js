@@ -183,6 +183,18 @@ export const messages = {
     "AI心理状态诊断与今日运势需入门版及以上套餐。",
     "The AI state-of-mind reading and daily fortune are available on Starter and above.",
   ],
+  readingFailed: [
+    "AI診断ができませんでした。",
+    "AI 진단을 하지 못했어요.",
+    "AI诊断未能完成。",
+    "The AI reading could not be made.",
+  ],
+  retryReading: [
+    "AI診断をもう一度",
+    "AI 진단 다시 하기",
+    "再次尝试AI诊断",
+    "Try the AI reading again",
+  ],
   readingLogin: [
     "AIの夢診断にはログインが必要です。",
     "AI 꿈 진단에는 로그인이 필요해요.",

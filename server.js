@@ -74,10 +74,22 @@ app.use(
 const user = (req) => req.verifiedUser || access.user(req);
 // Verification cannot be bypassed with local storage, a fake device ID or a personal API key.
 const verifiedAccess = Object.assign(Object.create(access), { user });
-app.get("/api/health", (req, res) =>
+// `aiStatus` says whether the key can see the model (cached ten minutes, no secrets),
+// so a deployment can be checked from the outside before anyone spends a reading.
+app.get("/api/health", async (req, res) => {
+  const aiStatus = await Promise.race([
+    ai.status().catch(() => null),
+    new Promise((resolve) =>
+      setTimeout(
+        () => resolve({ configured: Boolean(ai.model), error: "pending" }),
+        4000,
+      ).unref?.(),
+    ),
+  ]);
   res.json({
     ok: true,
     aiConfigured: Boolean(process.env.OPENAI_API_KEY),
+    aiStatus,
     // Firebase Admin credentials present for the login handoff (/api/auth/*).
     authConfigured: Boolean(
       services.store && services.verify && services.mint && services.getUser,
@@ -89,8 +101,8 @@ app.get("/api/health", (req, res) =>
     communityConfigured: Boolean(services.store && process.env.OPENAI_API_KEY),
     lineNativeConfigured: lineAuth.configured,
     langs: ["ja", "ko", "zh", "en"],
-  }),
-);
+  });
+});
 app.get(
   "/api/account",
   asyncRoute(async (req, res) =>

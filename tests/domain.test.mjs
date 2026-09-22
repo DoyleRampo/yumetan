@@ -32,6 +32,9 @@ import { reflect } from "../public/core/reflection.js";
 import { dreamLevel, levelThreshold } from "../public/core/level.js";
 import {
   reflectionInput,
+  moonPhase,
+  weekday,
+  typeProfile,
   handwritingInput,
   registerFeatures,
 } from "../server-features.js";
@@ -329,6 +332,48 @@ test("API validates locale, image format, and the exact previous diary date", ()
     }),
   );
   assert.throws(() => reflectionInput({ ...input, dreamType: "unicorn" }));
+  // Recent dreams: at most seven summaries on or before the wake-up date, known
+  // theme ids, short titles, and only the app's weather words.
+  const withDreams = reflectionInput({
+    ...input,
+    recentDreams: [
+      {
+        date: "2026-09-13",
+        typeTags: ["chase", "chase"],
+        title: "Old",
+        mood_weather: "rainy",
+      },
+      { date: "2026-09-15", typeTags: [], title: null, mood_weather: "" },
+    ],
+  });
+  assert.deepEqual(
+    withDreams.recentDreams.map((d) => [
+      d.date,
+      d.typeTags,
+      d.title,
+      d.mood_weather,
+    ]),
+    [
+      ["2026-09-15", [], "", ""],
+      ["2026-09-13", ["chase"], "Old", "rainy"],
+    ],
+  );
+  for (const bad of [
+    [{ date: "2026-09-16", typeTags: [] }],
+    [{ date: "2026-09-14", typeTags: ["unicorn"] }],
+    [{ date: "2026-09-14", typeTags: [], title: "x".repeat(81) }],
+    [{ date: "2026-09-14", typeTags: [], mood_weather: "foggy" }],
+    Array.from({ length: 8 }, () => ({ date: "2026-09-14", typeTags: [] })),
+    "not a list",
+  ])
+    assert.throws(() => reflectionInput({ ...input, recentDreams: bad }));
+  // Prompt seasoning is deterministic and the type profile speaks the user's language.
+  assert.equal(weekday("2026-09-15"), "Tuesday");
+  assert.equal(moonPhase("2026-09-11"), "new moon");
+  assert.equal(moonPhase("2026-09-26"), "full moon");
+  assert.equal(typeProfile("chase", "en").name, "The Runner");
+  assert.equal(typeProfile("chase", "ja").group, "悪夢タイプ");
+  assert.equal(typeProfile("unicorn", "ja"), null);
   assert.throws(() =>
     handwritingInput({
       language: "en",
@@ -399,6 +444,14 @@ test("AI routes propagate requested language, context, and multimodal content us
   assert.ok(calls[0].messages[0].content.includes("Yesterday"));
   assert.ok(calls[0].messages[0].content.includes("Two days before"));
   assert.ok(calls[0].messages[0].content.includes('"rested":4'));
+  const sent = JSON.parse(calls[0].messages[0].content);
+  assert.equal(sent.typeProfile.id, "challenge");
+  assert.equal(sent.typeProfile.name, "도전형");
+  assert.equal(sent.weekday, "Tuesday");
+  assert.ok(sent.moon);
+  assert.deepEqual(sent.recentDreams, []);
+  assert.ok(calls[0].system[0].text.includes("mood_weather"));
+  assert.ok(calls[0].system[0].text.includes("Evidence"));
   assert.equal(payload.analysis.reply, "Reply");
   assert.equal(payload.analysis.fortune_overview, "Outlook");
   assert.equal(payload.analysis.mood_weather, "sunny");
@@ -407,6 +460,7 @@ test("AI routes propagate requested language, context, and multimodal content us
     { json: (value) => (payload = value) },
   );
   assert.equal(calls[1].messages[0].content[0].type, "image");
+  assert.ok(calls[1].system[0].text.includes("transcribe"));
   assert.equal(payload.text, "Notebook text");
   assert.equal(gates, 2);
 });

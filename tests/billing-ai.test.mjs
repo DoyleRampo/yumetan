@@ -4,7 +4,14 @@ import { z } from "zod/v4";
 import { MemoryStore } from "./helpers/memory-store.mjs";
 import { createAccess } from "../server/access.js";
 import { createBilling, membershipFromSubscriber } from "../server/billing.js";
-import { createAI } from "../server/openai.js";
+import {
+  createAI,
+  DEFAULT_MODEL,
+  DEFAULT_FALLBACK_MODEL,
+  READING_OUTPUT_TOKENS,
+  MAX_INPUT_BYTES,
+} from "../server/openai.js";
+const quiet = { error() {}, warn() {} };
 const now = Date.parse("2026-09-17T00:00:00Z");
 const env = {
   REVENUECAT_SECRET_API_KEY: "sk_test",
@@ -220,7 +227,7 @@ test("GPT uses bounded structured output, no storage; every plan gets one readin
       },
     },
   };
-  const ai = createAI({ access, env: {}, client });
+  const ai = createAI({ access, env: {}, client, log: quiet });
   const req = {
     user: { uid: "a" },
     system: [{ text: "Transcribe" }],
@@ -257,9 +264,9 @@ test("GPT uses bounded structured output, no storage; every plan gets one readin
   store.data.set("usage/a_m_2026-09", {});
   assert.deepEqual(await ai.call(req), { text: "Hello" });
   assert.equal(args.store, false);
-  assert.equal(args.model, "gpt-5.6-luna-2026-07-09");
+  assert.equal(args.model, DEFAULT_MODEL);
   assert.equal(args.reasoning_effort, "none");
-  assert.equal(args.max_completion_tokens, 1400);
+  assert.equal(args.max_completion_tokens, READING_OUTPUT_TOKENS);
   assert.equal(args.response_format.json_schema.strict, true);
   store.data.set("usage/a_m_2026-09", { aiCost: 749999 });
   await assert.rejects(ai.call(req), (e) => e.code === "aiBudgetReached");
@@ -286,7 +293,7 @@ test("provider errors, refused/truncated responses and oversized input do not re
       },
     },
   };
-  const ai = createAI({ access, env: {}, client }),
+  const ai = createAI({ access, env: {}, client, log: quiet }),
     req = {
       user: { uid: "a" },
       system: [{ text: "x" }],
@@ -299,7 +306,7 @@ test("provider errors, refused/truncated responses and oversized input do not re
   await assert.rejects(
     ai.call({
       ...req,
-      messages: [{ role: "user", content: "x".repeat(31000) }],
+      messages: [{ role: "user", content: "x".repeat(MAX_INPUT_BYTES + 1) }],
     }),
     (e) => e.code === "aiTextTooLong",
   );
@@ -312,6 +319,133 @@ test("provider errors, refused/truncated responses and oversized input do not re
   await assert.rejects(ai.call(req), (e) => e.code === "aiFailed");
 });
 
+// The provider's own errors are logged and either retried once (an unknown model
+// id, a rejected parameter) or mapped to a code the app can explain (a bad key).
+test("an unknown model falls back once, a rejected parameter is dropped, key problems say the AI is unavailable, and the health status reports the model", async () => {
+  const store = new MemoryStore(),
+    access = createAccess({ store, now: () => now });
+  store.data.set("memberships/a", {
+    plan: "standard",
+    status: "active",
+    paidUntil: now + 86400000,
+  });
+  const ok = {
+    choices: [
+      { finish_reason: "stop", message: { content: '{"text":"Hello"}' } },
+    ],
+  };
+  const providerError = (status, code, message) =>
+    Object.assign(new Error(message), { status, code });
+  const requests = [];
+  let plan = [];
+  const client = {
+    chat: {
+      completions: {
+        create: async (a) => {
+          requests.push(a);
+          const next = plan.shift();
+          if (next instanceof Error) throw next;
+          return next || ok;
+        },
+      },
+    },
+    models: { retrieve: async () => ({}) },
+  };
+  const logs = [];
+  const ai = createAI({
+    access,
+    env: {},
+    client,
+    log: { error: (m) => logs.push(m), warn: (m) => logs.push(m) },
+  });
+  const req = {
+    user: { uid: "a" },
+    system: [{ text: "x" }],
+    messages: [{ role: "user", content: "hello" }],
+    schema: z.object({ text: z.string() }),
+    kind: "reflections",
+  };
+  assert.equal(ai.model, DEFAULT_MODEL);
+  assert.equal(ai.fallback, DEFAULT_FALLBACK_MODEL);
+  // Unknown model id → the fallback model once, same request otherwise.
+  plan = [providerError(404, "model_not_found", "The model does not exist")];
+  assert.deepEqual(await ai.call({ ...req, date: "2026-09-10" }), {
+    text: "Hello",
+  });
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].model, DEFAULT_MODEL);
+  assert.equal(requests[1].model, DEFAULT_FALLBACK_MODEL);
+  assert.equal(requests[1].reasoning_effort, "none");
+  assert.ok(logs.includes("OpenAI request failed"));
+  // A model that rejects reasoning_effort gets the same request without it.
+  plan = [
+    providerError(
+      400,
+      "unsupported_value",
+      "reasoning_effort is not supported with this model",
+    ),
+  ];
+  assert.deepEqual(await ai.call({ ...req, date: "2026-09-11" }), {
+    text: "Hello",
+  });
+  assert.equal(requests[3].model, DEFAULT_MODEL);
+  assert.equal("reasoning_effort" in requests[3], false);
+  // Two failures in a row are a failure; the allowance was still consumed once.
+  plan = [
+    providerError(404, "model_not_found", "no"),
+    providerError(404, "model_not_found", "no"),
+  ];
+  await assert.rejects(
+    ai.call({ ...req, date: "2026-09-12" }),
+    (e) => e.code === "aiFailed",
+  );
+  assert.equal((await store.get("usage/a_d_2026-09-12")).reflections, 1);
+  // Key or billing problems are reported as "unavailable", never retried.
+  plan = [providerError(401, "invalid_api_key", "Incorrect API key")];
+  await assert.rejects(
+    ai.call({ ...req, date: "2026-09-13" }),
+    (e) => e.code === "aiUnavailable",
+  );
+  plan = [
+    providerError(429, "insufficient_quota", "You exceeded your current quota"),
+  ];
+  await assert.rejects(
+    ai.call({ ...req, date: "2026-09-14" }),
+    (e) => e.code === "aiUnavailable",
+  );
+  assert.equal(requests.length, 8);
+  // A pinned model and a disabled fallback are respected.
+  const pinned = createAI({
+    access,
+    env: { OPENAI_MODEL: "gpt-5.6-luna-2026-07-09", OPENAI_FALLBACK_MODEL: "" },
+    client,
+    log: quiet,
+  });
+  plan = [providerError(404, "model_not_found", "no")];
+  await assert.rejects(
+    pinned.call({ ...req, date: "2026-09-15" }),
+    (e) => e.code === "aiFailed",
+  );
+  assert.equal(requests.at(-1).model, "gpt-5.6-luna-2026-07-09");
+  // Health status: cached, no secrets, explains a missing key or model.
+  assert.deepEqual(await ai.status(now), {
+    configured: true,
+    model: DEFAULT_MODEL,
+    available: true,
+    error: null,
+  });
+  client.models.retrieve = async () => {
+    throw providerError(404, "model_not_found", "no");
+  };
+  assert.equal((await ai.status(now)).available, true);
+  assert.equal((await ai.status(now + 11 * 60000)).error, "modelNotFound");
+  assert.deepEqual(await createAI({ access, env: {}, client: null }).status(), {
+    configured: false,
+    model: DEFAULT_MODEL,
+    available: false,
+    error: "noKey",
+  });
+});
 test("a subscription whose entitlement is missing still grants the plan its product names", () => {
   const expires = iso(now + 86400000 * 30);
   const granted = membershipFromSubscriber(
