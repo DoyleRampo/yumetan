@@ -1,4 +1,5 @@
 import { TYPES, LANGUAGES } from "./types.js";
+import { quizVersion } from "./diagnosis.js";
 import { localDate, validDate, validateSleep } from "./sleep.js";
 // GPT reading fields beyond the original four; kept short in every record.
 export const READING_FIELDS = [
@@ -170,12 +171,8 @@ export function normalizeProfile(raw) {
     ...raw,
     nickname: raw.nickname.trim().slice(0, 20),
     language: LANGUAGES.includes(raw.language) ? raw.language : "ja",
-    typeAnswers:
-      Array.isArray(raw.typeAnswers) &&
-      raw.typeAnswers.length === 16 &&
-      raw.typeAnswers.every((v) => [0, 1, 2].includes(v))
-        ? raw.typeAnswers
-        : null,
+    // Version 1 (16 answers) and version 2 (one per question) sheets both stay valid.
+    typeAnswers: quizVersion(raw.typeAnswers) ? raw.typeAnswers : null,
   };
 }
 export function parseBackup(value) {

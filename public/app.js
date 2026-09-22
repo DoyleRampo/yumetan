@@ -7,6 +7,22 @@ import {
 } from "./core/interface.js";
 import { wrapJapaneseLabels } from "./core/ui-text.js";
 import { TYPE_FEATURES } from "./core/type-features.js";
+import { TYPE_LORE } from "./core/type-lore.js";
+import {
+  QUESTIONS,
+  AXES,
+  PARTS,
+  GROUP_AXES,
+  TYPE_POLES,
+  FREQUENCY_OPTIONS,
+  SCALE_STRENGTH,
+  QUIZ_VERSION,
+  answerValues,
+  validAnswer,
+  axisById,
+  partOf,
+  classify,
+} from "./core/diagnosis.js";
 import { authText, authError } from "./core/auth-i18n.js";
 import { importGuest } from "./core/account-sync.js";
 import {
@@ -31,14 +47,7 @@ import {
   characterSetById,
   characterById as getCharacter,
 } from "./core/characters.js";
-import {
-  TYPES,
-  GROUPS,
-  LANGUAGES,
-  localized,
-  typeById,
-  classify,
-} from "./core/types.js";
+import { TYPES, GROUPS, LANGUAGES, localized, typeById } from "./core/types.js";
 import { translator, locales, languageNames } from "./core/i18n.js";
 import {
   localDate,
@@ -91,7 +100,7 @@ let storageKey = "yumetan.v4.local",
   dirty = false,
   processing = false;
 let t = translator("ja"),
-  quizAnswers = Array(16).fill(null),
+  quizAnswers = Array(QUESTIONS.length).fill(null),
   quizIndex = 0,
   pendingResult = null,
   cloud = null,
@@ -718,22 +727,128 @@ function profileView() {
  ${languageField()}<button class="btn primary full" type="submit">${t(state.profile?.typeAnswers ? "save" : "startQuiz")}</button></form></div>`;
 }
 function quizView() {
-  const q = TYPES[quizIndex];
-  return `<div class="narrow"><p class="eyebrow">FIND YOUR DREAM TYPE</p><h1>${t("quiz")}</h1><p class="muted">${t("quizHint")}</p><div class="row between"><span>${quizIndex + 1} / 16</span><span>${Math.round(((quizIndex + 1) / 16) * 100)}%</span></div><progress class="progress" max="16" value="${quizIndex + 1}" aria-label="${t("quiz")}"></progress>
- <div class="card quiz-card"><h2>${localized(q.questions, language())}</h2><div class="quiz-answers">${[2, 1, 0].map((v, i) => `<button class="btn ${quizAnswers[quizIndex] === v ? "selected" : ""}" data-answer="${v}" aria-pressed="${quizAnswers[quizIndex] === v}">${t(["often", "sometimes", "rarely"][i])}</button>`).join("")}</div></div>
- <div class="row between">${button("back", "quiz-back", "ghost")}<button class="btn primary" data-action="quiz-next" ${quizAnswers[quizIndex] === null ? "disabled" : ""}>${t(quizIndex === 15 ? "result" : "next")}</button></div></div>`;
+  const q = QUESTIONS[quizIndex],
+    lang = language(),
+    total = QUESTIONS.length,
+    part = partOf(q),
+    answer = quizAnswers[quizIndex],
+    values = answerValues(q);
+  const option = (v, label, extra = "") =>
+    `<button class="btn ${answer === v ? "selected" : ""}" data-answer="${v}" aria-pressed="${answer === v}"${extra}>${label}</button>`;
+  let body = `<h2>${esc(localized(q.text, lang))}</h2>`;
+  if (q.kind === "frequency")
+    body += `<div class="quiz-answers">${values.map((v) => option(v, esc(localized(FREQUENCY_OPTIONS[v], lang)))).join("")}</div>`;
+  else if (q.kind === "scene")
+    body += `<div class="quiz-answers">${q.options.map((o, i) => option(i, esc(localized(o.text, lang)))).join("")}</div>`;
+  else {
+    const axis = axisById(q.axis);
+    body += `<div class="quiz-poles"><p class="quiz-pole">${esc(localized(q.left, lang))}</p><p class="quiz-pole right">${esc(localized(q.right, lang))}</p></div><div class="quiz-scale" role="group" aria-label="${esc(localized(axis.names, lang))}">${values
+      .map((v, i) => {
+        const strength = localized(SCALE_STRENGTH[i], lang),
+          label =
+            v === 0
+              ? strength
+              : `${localized(v < 0 ? q.left : q.right, lang)} (${strength})`;
+        return option(
+          v,
+          `<span class="quiz-dot" aria-hidden="true"></span><small>${esc(strength)}</small>`,
+          ` aria-label="${esc(label)}" title="${esc(label)}"`,
+        );
+      })
+      .join("")}</div>`;
+  }
+  return `<div class="narrow"><p class="eyebrow">FIND YOUR DREAM TYPE · ${PARTS.indexOf(part) + 1}/${PARTS.length} ${esc(localized(part.names, lang))}</p><h1>${t("quiz")}</h1><p class="muted">${esc(localized(part.hint, lang))}</p><div class="row between"><span>${quizIndex + 1} / ${total}</span><span>${Math.round(((quizIndex + 1) / total) * 100)}%</span></div><progress class="progress" max="${total}" value="${quizIndex + 1}" aria-label="${t("quiz")}"></progress>
+ <div class="card quiz-card quiz-${q.kind}">${body}</div>
+ <div class="row between">${button("back", "quiz-back", "ghost")}<button class="btn primary" data-action="quiz-next" ${answer === null ? "disabled" : ""}>${t(quizIndex === total - 1 ? "result" : "next")}</button></div></div>`;
+}
+// A saved questionnaire draft is only restored when every answer fits the current questions.
+function quizDraft(progress) {
+  const answers = progress?.answers;
+  if (
+    !Array.isArray(answers) ||
+    answers.length !== QUESTIONS.length ||
+    !answers.every((v, i) => v === null || validAnswer(QUESTIONS[i], v))
+  )
+    return null;
+  return {
+    answers,
+    index: Math.max(0, Math.min(QUESTIONS.length - 1, progress.index || 0)),
+  };
+}
+const fmt = (text, ...args) =>
+  String(text).replace(/\{(\d+)\}/g, (_, i) => String(args[i] ?? ""));
+const groupShort = (g) =>
+  language() === "ja" ? name(g).replace("タイプ", "") : name(g);
+// "Nightmare × Act × The world": the group and the two style poles that define a type.
+function typeSignature(type) {
+  const lang = language();
+  return [
+    groupShort(group(type)),
+    ...GROUP_AXES[type.group].map((axisId, i) =>
+      localized(
+        axisById(axisId).poles[TYPE_POLES[type.id][i] < 0 ? 0 : 1],
+        lang,
+      ),
+    ),
+  ]
+    .map(esc)
+    .join(" × ");
+}
+function loreCard(type) {
+  return `<section class="card lore"><h2>${t("storyTitle")}</h2><p>${esc(localized(TYPE_LORE[type.id].story, language()))}</p></section>`;
+}
+// The evidence behind a result: group profile, the two style axes, the scene pick, recent dreams.
+function rationaleCard(result, type) {
+  const lang = language(),
+    ev = result.evidence;
+  const groups = result.groups
+    .map((g) => {
+      const grp = GROUPS.find((x) => x.id === g.id);
+      return `<li class="${g.id === type.group ? "active" : ""}" style="--accent:${grp.color}"><span class="meter-label">${esc(groupShort(grp))}<small>${g.percent}%</small></span><span class="meter" role="img" aria-label="${esc(groupShort(grp))} ${g.percent}%"><span class="meter-fill" style="width:${g.percent}%"></span></span></li>`;
+    })
+    .join("");
+  const axes = ev.axes
+    .map((a) => {
+      const axis = axisById(a.axis),
+        left = localized(axis.poles[0], lang),
+        right = localized(axis.poles[1], lang),
+        chosen = localized(axis.poles[a.pole], lang),
+        note = a.match
+          ? fmt(t("axisMatch"), chosen)
+          : a.value === 0
+            ? t("axisNeutral")
+            : fmt(t("axisOpposite"), chosen);
+      return `<li><span class="meter-label">${esc(localized(axis.names, lang))}<small>${esc(note)}</small></span><span class="axis-track" role="img" aria-label="${esc(left)} – ${esc(right)}"><span class="axis-pole">${esc(left)}</span><span class="axis-line"><span class="axis-dot" style="left:${Math.round(((a.value + 1) / 2) * 100)}%"></span></span><span class="axis-pole">${esc(right)}</span></span></li>`;
+    })
+    .join("");
+  const sceneType = ev.scene && typeById(ev.scene.type),
+    runner = typeById(result.runnerUp.id);
+  const facts = [
+    fmt(
+      t(ev.group.rank === 1 ? "groupTop" : "groupRank"),
+      groupShort(group(type)),
+      ev.group.percent,
+      ev.group.rank,
+    ),
+    sceneType
+      ? fmt(t(ev.scene.match ? "sceneMatch" : "sceneOther"), name(sceneType))
+      : "",
+    ev.dreams ? fmt(t("dreamVotes"), ev.dreams) : t("dreamVotesNone"),
+    fmt(t("runnerUp"), `${name(characterById(runner.id))} · ${name(runner)}`),
+  ].filter(Boolean);
+  return `<section class="card rationale"><h2>${t("whyTitle")}</h2><p class="help">${esc(localized(TYPE_LORE[type.id].basis, lang))}</p><h3>${t("groupProfile")}</h3><ul class="meters">${groups}</ul>${axes ? `<h3>${t("styleProfile")}</h3><ul class="meters">${axes}</ul>` : ""}<ul class="facts">${facts.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>${result.version === 1 ? `<p class="help">${t("legacyQuizHint")}</p>${button("newQuiz", "retake", "small ghost")}` : ""}</section>`;
 }
 function resultView() {
   const result = pendingResult || currentType(),
     type = typeById(result.id);
-  return `<div class="narrow center"><p class="eyebrow">YOUR DREAM, YOUR CHARACTER</p><h1>${t("yourType")}</h1><div class="card accent" style="--accent:${group(type).color}">${avatar(type)}<span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)}</p>${characterStory(type)}${result.tied ? `<p class="help">${t("tie")}</p>` : ""}</div><p>${t("characterHint")}</p>${button("begin", "begin", "primary full")}<details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
+  return `<div class="narrow center"><p class="eyebrow">YOUR DREAM, YOUR CHARACTER</p><h1>${t("yourType")}</h1><div class="card accent" style="--accent:${group(type).color}">${avatar(type)}<span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)} · ${typeSignature(type)}</p>${characterStory(type)}${result.tied ? `<p class="help">${t("tie")}</p>` : ""}${result.provisional ? `<p class="help">${t("provisional")}</p>` : ""}</div>${rationaleCard(result, type)}${loreCard(type)}<p>${t("characterHint")}</p>${button("begin", "begin", "primary full")}<details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
 }
 function homeView() {
   const result = currentType(),
     type = typeById(result?.id) || TYPES[0],
     value = dreamLevel(state.records);
   return `<section class="home-dashboard"><section class="hero"><div><p class="eyebrow">${esc(dateText(localDate()))} · ${esc(state.profile?.nickname)}</p><h1>${t("hero").replace(/\n/g, ["ja", "zh"].includes(language()) ? "" : " ")}</h1><div class="row">${button("record", "record", "primary")}${button("diary", "diary", "ghost")}</div></div></section>
- <div class="card accent character-row" style="--accent:${group(type).color}"><button type="button" class="character-link" data-type-detail="${type.id}" aria-label="${esc(name(characterById(type.id)))} · ${esc(t("more"))}">${avatar(type, value.stars, true)}</button><div><span class="tag-label">${name(group(type))}</span><button type="button" class="character-link" data-type-detail="${type.id}"><h2 class="character-name">${name(characterById(type.id))}</h2></button><p class="help">${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p>${button("catalog", "catalog", "small ghost")}</div></div>
+ <div class="card accent character-row" style="--accent:${group(type).color}"><button type="button" class="character-link" data-type-detail="${type.id}" aria-label="${esc(name(characterById(type.id)))} · ${esc(t("more"))}">${avatar(type, value.stars, true)}</button><div><span class="tag-label">${name(group(type))}</span><button type="button" class="character-link" data-type-detail="${type.id}"><h2 class="character-name">${name(characterById(type.id))}</h2></button><p class="help">${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p>${button("catalog", "catalog", "small ghost")}${result?.version === 1 ? button("newQuiz", "retake", "small ghost") : ""}</div></div>
  <div class="home-insights"><div class="card level-card"><div class="row between"><h2>${t("level")}</h2><div class="score">Lv.<b>${value.level}</b></div></div><div class="level-gauge" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value.progress}" aria-label="${esc(t("level"))}"><i style="width:${value.progress}%"></i></div><p class="help level-next">${esc(
    t("nextLevel")
      .replace("{n}", value.remaining)
@@ -765,7 +880,7 @@ function catalogView() {
 function typeDetailView() {
   const type =
     typeById(selectedType) || typeById(currentType()?.id) || TYPES[0];
-  return `<div class="narrow"><div class="card type-detail" style="--accent:${group(type).color}">${avatar(type)}<div><span class="tag-label">${name(group(type))}</span><h1 class="character-name">${name(characterById(type.id))}</h1><p>${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p>${characterStory(type)}</div></div></div>`;
+  return `<div class="narrow"><div class="card type-detail" style="--accent:${group(type).color}">${avatar(type)}<div><span class="tag-label">${name(group(type))}</span><h1 class="character-name">${name(characterById(type.id))}</h1><p>${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p><p class="help">${typeSignature(type)}</p>${characterStory(type)}</div></div><section class="card"><h2>${t("whyTitle")}</h2><p class="help">${esc(localized(TYPE_LORE[type.id].basis, language()))}</p></section>${loreCard(type)}</div>`;
 }
 function freshDream(date = localDate()) {
   return {
@@ -1562,7 +1677,7 @@ async function finishQuiz() {
     profile: {
       ...state.profile,
       typeAnswers: [...quizAnswers],
-      typeVersion: 1,
+      typeVersion: QUIZ_VERSION,
       language: language(),
     },
   });
@@ -1970,10 +2085,9 @@ async function switchAccount() {
   state = (await read(storageKey)) || state;
   pendingGuestKey = await read(`${storageKey}.guest-import`);
   applyAccountPreferences();
-  const progress = await read(`${storageKey}.quiz`);
-  quizAnswers =
-    progress?.answers?.length === 16 ? progress.answers : Array(16).fill(null);
-  quizIndex = Math.max(0, Math.min(15, progress?.index || 0));
+  const draft = quizDraft(await read(`${storageKey}.quiz`));
+  quizAnswers = draft ? draft.answers : Array(QUESTIONS.length).fill(null);
+  quizIndex = draft ? draft.index : 0;
   refreshPlanInBackground();
   await syncCloud();
 }
@@ -2098,7 +2212,7 @@ const actions = {
   begin: () => navigate("home", true),
   back: goBack,
   retake: async () => {
-    quizAnswers = Array(16).fill(null);
+    quizAnswers = Array(QUESTIONS.length).fill(null);
     quizIndex = 0;
     pendingResult = null;
     await saveQuizDraft();
@@ -2112,7 +2226,7 @@ const actions = {
   },
   "quiz-next": async () => {
     if (quizAnswers[quizIndex] === null) return;
-    if (quizIndex === 15) await finishQuiz();
+    if (quizIndex === QUESTIONS.length - 1) await finishQuiz();
     else {
       quizIndex++;
       await saveQuizDraft();
@@ -2252,13 +2366,10 @@ async function loadScope() {
   if (state.profile?.characterSet)
     options.characterSet = normalizeCharacterSet(state.profile.characterSet);
   pendingGuestKey = await read(`${storageKey}.guest-import`);
-  const progress = await read(`${storageKey}.quiz`);
-  if (
-    progress?.answers?.length === 16 &&
-    progress.answers.every((v) => v === null || [0, 1, 2].includes(v))
-  ) {
-    quizAnswers = progress.answers;
-    quizIndex = Math.max(0, Math.min(15, progress.index || 0));
+  const draft = quizDraft(await read(`${storageKey}.quiz`));
+  if (draft) {
+    quizAnswers = draft.answers;
+    quizIndex = draft.index;
   }
 }
 function bindCloud() {

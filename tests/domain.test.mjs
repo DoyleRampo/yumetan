@@ -1,12 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { TYPES, GROUPS, LANGUAGES, detectTags } from "../public/core/types.js";
 import {
-  TYPES,
-  GROUPS,
-  LANGUAGES,
+  QUESTIONS,
+  AXES,
+  PARTS,
+  GROUP_AXES,
+  TYPE_POLES,
+  FREQUENCY_OPTIONS,
+  SCALE_STRENGTH,
   classify,
-  detectTags,
-} from "../public/core/types.js";
+  quizVersion,
+} from "../public/core/diagnosis.js";
+import { TYPE_LORE } from "../public/core/type-lore.js";
 import { messages, translator } from "../public/core/i18n.js";
 import {
   sleepScore,
@@ -40,37 +46,99 @@ const record = (extra = {}) => ({
   typeTags: [],
   ...extra,
 });
-test("16 unique stable types in four equal groups, all reachable", () => {
+// A version-2 answer sheet that points clearly at one type: its group scale high, its
+// scene option chosen, and the two style axes on its poles. `strength` scales it down.
+function sheetFor(typeId, strength = 1) {
+  const type = TYPES.find((t) => t.id === typeId);
+  return QUESTIONS.map((q) => {
+    if (q.kind === "frequency")
+      return q.group === type.group ? Math.round(4 * strength) : 0;
+    if (q.kind === "scene")
+      return Math.max(
+        0,
+        q.options.findIndex((o) => o.type === typeId),
+      );
+    const i = GROUP_AXES[type.group].indexOf(q.axis);
+    return i < 0 ? 0 : TYPE_POLES[typeId][i] * Math.round(2 * strength);
+  });
+}
+test("16 unique stable types in four equal groups, all reachable with matching evidence", () => {
   assert.equal(new Set(TYPES.map((t) => t.id)).size, 16);
   for (const group of GROUPS)
     assert.equal(TYPES.filter((t) => t.group === group.id).length, 4);
-  TYPES.forEach((type, i) => {
-    const answers = Array(16).fill(0);
-    answers[i] = 2;
-    assert.equal(classify(answers).id, type.id);
-  });
+  assert.equal(QUESTIONS.length, 24);
+  assert.equal(new Set(QUESTIONS.map((q) => q.id)).size, QUESTIONS.length);
+  for (const type of TYPES) {
+    const result = classify(sheetFor(type.id));
+    assert.equal(result.id, type.id);
+    assert.equal(result.version, 2);
+    assert.equal(result.evidence.group.rank, 1);
+    assert.ok(result.evidence.axes.every((a) => a.match));
+    assert.equal(result.evidence.scene.match, true);
+    assert.equal(result.tied, false);
+    assert.equal(result.provisional, false);
+    // Every type also wins on a half-strength sheet: the model has no dead corners.
+    assert.equal(classify(sheetFor(type.id, 0.5)).id, type.id);
+  }
+  // Each group is split by exactly two axes, and its four types cover all four pole combinations.
+  for (const group of GROUPS) {
+    assert.equal(GROUP_AXES[group.id].length, 2);
+    const combos = TYPES.filter((t) => t.group === group.id).map((t) =>
+      TYPE_POLES[t.id].join(","),
+    );
+    assert.equal(new Set(combos).size, 4);
+  }
 });
-test("incomplete questionnaire rejected, ties deterministic, no response weight invented", () => {
+test("incomplete questionnaire rejected; empty sheets are provisional and never default to nightmare", () => {
   assert.throws(() => classify([2]));
   assert.throws(() => classify(Array(16).fill(null)));
-  const result = classify(Array(16).fill(0));
-  assert.equal(result.provisional, true);
-  assert.equal(result.tied, true);
-  assert.deepEqual(result, classify(Array(16).fill(0)));
+  assert.throws(() => classify(Array(24).fill(9)));
+  assert.equal(quizVersion(Array(24).fill(0)), 2);
+  assert.equal(quizVersion(Array(16).fill(0)), 1);
+  assert.equal(quizVersion(Array(24).fill(-3)), null);
+  const blank = classify(Array(24).fill(0));
+  assert.equal(blank.provisional, true);
+  assert.equal(blank.tied, true);
+  assert.notEqual(TYPES.find((t) => t.id === blank.id).group, "nightmare");
+  assert.deepEqual(blank, classify(Array(24).fill(0)));
+  // Legacy 16-answer sheets still classify, with the same all-zero rule.
+  const legacy = Array(16).fill(0);
+  assert.equal(classify(legacy).provisional, true);
+  assert.equal(classify(legacy).version, 1);
+  legacy[0] = 2;
+  assert.equal(classify(legacy).id, "chase");
 });
 test("recent recorded themes can change type; diaries and repeated tags cannot multiply votes", () => {
-  const answers = Array(16).fill(0);
-  answers[0] = 2;
-  const dreams = Array.from({ length: 3 }, (_, i) =>
+  const answers = sheetFor("chase", 0.5);
+  const dreams = Array.from({ length: 6 }, (_, i) =>
     record({ id: `dream-${i}`, typeTags: ["challenge", "challenge"] }),
   );
-  assert.equal(classify(answers, dreams).id, "challenge");
+  assert.equal(classify(answers).id, "chase");
+  assert.equal(classify(answers, dreams.slice(0, 3)).id, "chase");
+  const flipped = classify(answers, dreams);
+  assert.equal(flipped.id, "challenge");
+  assert.equal(flipped.evidence.dreams, 6);
+  assert.equal(flipped.evidence.scene.match, false);
   assert.equal(
     classify(
       answers,
       dreams.map((d) => ({ ...d, kind: "diary" })),
     ).id,
     "chase",
+  );
+  // Only the 12 most recent dream records vote.
+  const many = Array.from({ length: 30 }, (_, i) =>
+    record({
+      id: `many-${i}`,
+      createdAt: `2026-09-${String(1 + (i % 28)).padStart(2, "0")}T10:00:00Z`,
+      typeTags: ["place"],
+    }),
+  );
+  assert.equal(classify(answers, many).evidence.dreams, 12);
+  assert.equal(
+    classify(answers, many).scores.find((s) => s.id === "place").score,
+    classify(answers, many.slice(0, 12)).scores.find((s) => s.id === "place")
+      .score,
   );
 });
 test("keyword evidence works in all four languages", () => {
@@ -153,9 +221,30 @@ test("all interface and catalog copy has four nonempty translations", () => {
     assert.equal(translations.length, 4, key);
     for (const lang of LANGUAGES) assert.ok(translator(lang)(key).length, key);
   }
-  for (const type of TYPES)
-    for (const values of [type.names, type.questions])
-      assert.equal(values.filter(Boolean).length, 4);
+  const four = (values, key) =>
+    assert.equal(values.filter(Boolean).length, 4, key);
+  for (const type of TYPES) {
+    four(type.names, type.id);
+    four(TYPE_LORE[type.id].basis, type.id);
+    four(TYPE_LORE[type.id].story, type.id);
+  }
+  for (const group of GROUPS) four(group.desc, group.id);
+  for (const q of QUESTIONS) {
+    four(q.text, q.id);
+    for (const o of q.options || []) four(o.text, q.id);
+    if (q.left) four(q.left, q.id);
+    if (q.right) four(q.right, q.id);
+  }
+  for (const axis of AXES) {
+    four(axis.names, axis.id);
+    four(axis.hint, axis.id);
+    for (const pole of axis.poles) four(pole, axis.id);
+  }
+  for (const part of PARTS) {
+    four(part.names, part.id);
+    four(part.hint, part.id);
+  }
+  for (const values of [...FREQUENCY_OPTIONS, ...SCALE_STRENGTH]) four(values);
 });
 test("legacy backups retain conversation and analysis; malformed entries rejected", () => {
   const legacy = {

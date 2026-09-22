@@ -4,21 +4,45 @@ export const GROUPS = [
     id: "nightmare",
     color: "#e7a8aa",
     names: ["悪夢タイプ", "악몽 유형", "噩梦类型", "Nightmare"],
+    desc: [
+      "恐怖や不安が夢に出やすい。心が「守り」に入っているサイン。",
+      "공포나 불안이 꿈에 자주 나타나요. 마음이 '방어 모드'에 들어갔다는 신호.",
+      "恐惧与不安容易出现在梦里，是内心进入“防御模式”的信号。",
+      "Fear and unease surface in dreams: a sign the mind is in a protective mode.",
+    ],
   },
   {
     id: "premonition",
     color: "#c4b0ed",
     names: ["予知タイプ", "예감 유형", "预感类型", "Premonition"],
+    desc: [
+      "夢が「先のこと」や「気づいていない何か」を知らせてくる気がする。直感が働く。",
+      "꿈이 '앞일'이나 '아직 눈치채지 못한 무언가'를 알려주는 것 같아요. 직감이 예리한 편.",
+      "梦似乎在提示“将来的事”或“尚未察觉的事”，直觉敏锐。",
+      "Dreams seem to point at what is coming or what you have not noticed yet. Intuition at work.",
+    ],
   },
   {
     id: "lucid",
     color: "#a5d8d1",
     names: ["明晰タイプ", "자각몽 유형", "清醒梦类型", "Lucid"],
+    desc: [
+      "夢の中で「これは夢だ」と気づける。自分を少し外から見る力がある。",
+      "꿈속에서 '이건 꿈이다'라고 알아차릴 수 있어요. 자신을 조금 떨어져 보는 힘이 있어요.",
+      "能在梦中意识到“这是梦”，有从外部审视自己的能力。",
+      "You can notice you are dreaming. You are able to look at yourself from a little distance.",
+    ],
   },
   {
     id: "recurring",
     color: "#ebca8a",
     names: ["反復タイプ", "반복 유형", "重复类型", "Recurring"],
+    desc: [
+      "同じ場所・人・展開・感情が繰り返す。心が何度も戻りたがるテーマがある。",
+      "같은 장소·사람·전개·감정이 반복돼요. 마음이 자꾸 돌아가고 싶어 하는 주제가 있어요.",
+      "同样的地点、人物、情节或情绪反复出现。内心有一个总想回去的主题。",
+      "The same place, person, story, or feeling keeps returning. There is a theme your mind keeps revisiting.",
+    ],
   },
 ];
 const rows = [
@@ -250,49 +274,19 @@ const rows = [
     ["同じ感情", "same emotion", "same feeling", "같은 감정", "同样的情绪"],
   ],
 ];
-export const TYPES = rows.map(
-  ([id, symbol, names, questions, keywords], i) => ({
-    id,
-    symbol,
-    names,
-    questions,
-    keywords,
-    group: GROUPS[Math.floor(i / 4)].id,
-  }),
-);
+// rows: [id, symbol, names, legacy question (v1 quiz, kept for reference), keywords]
+export const TYPES = rows.map(([id, symbol, names, , keywords], i) => ({
+  id,
+  symbol,
+  names,
+  keywords,
+  group: GROUPS[Math.floor(i / 4)].id,
+}));
 export const LANGUAGES = ["ja", "ko", "zh", "en"];
 export const localized = (values, language) =>
   values[LANGUAGES.indexOf(language)] || values[0];
 export const typeById = (id) => TYPES.find((t) => t.id === id);
-export function classify(answers, dreams = []) {
-  if (
-    !Array.isArray(answers) ||
-    answers.length !== 16 ||
-    answers.some((v) => ![0, 1, 2].includes(v))
-  )
-    throw new Error("Incomplete questionnaire");
-  const scores = TYPES.map((type, i) => ({ id: type.id, score: answers[i] }));
-  // At most 12 recent records; one vote per tag per record, never repeated words.
-  [...dreams]
-    .filter((d) => d.kind !== "diary")
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-    .slice(0, 12)
-    .forEach((d) => {
-      const tags = d.typeTags || [];
-      scores.forEach((s) => {
-        if (tags.includes(s.id)) s.score += 1;
-      });
-    });
-  const max = Math.max(...scores.map((s) => s.score));
-  // Stable tie rule: catalog order. No randomness or clinical meaning.
-  return {
-    id: scores.find((s) => s.score === max).id,
-    scores,
-    tied: scores.filter((s) => s.score === max).length > 1,
-    provisional: max === 0,
-    version: 1,
-  };
-}
+// The questionnaire and the classification live in diagnosis.js.
 export function detectTags(text) {
   const lower = String(text).toLocaleLowerCase();
   return TYPES.filter((t) => t.keywords.some((k) => lower.includes(k))).map(

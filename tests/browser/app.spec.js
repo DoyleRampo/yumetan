@@ -5,6 +5,23 @@ import {
   submitDream,
 } from "./helpers/journal.js";
 import { test, expect } from "@playwright/test";
+import { QUESTIONS } from "../../public/core/diagnosis.js";
+// A questionnaire that lands on the challenge type (Kiro): the lucid scale high, the
+// "keep taking things on" scene, and a style that acts and looks at the world.
+const CHALLENGE_SHEET = QUESTIONS.map((q) =>
+  q.kind === "frequency"
+    ? q.group === "lucid"
+      ? 4
+      : 0
+    : q.kind === "scene"
+      ? Math.max(
+          0,
+          q.options.findIndex((o) => o.type === "challenge"),
+        )
+      : ["motion", "focus"].includes(q.axis)
+        ? -2
+        : 0,
+);
 const today = () =>
   new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
 const yesterday = () => {
@@ -60,8 +77,8 @@ async function start(page, lang = "ja") {
   await page.locator("#ageGroup").selectOption("20代");
   await page.locator("#profile-form button[type=submit]").click();
   await expect(page.locator('[data-answer="2"]')).toBeVisible();
-  for (let i = 0; i < 16; i++) {
-    await page.locator(`[data-answer="${i === 11 ? 2 : 0}"]`).click();
+  for (const value of CHALLENGE_SHEET) {
+    await page.locator(`[data-answer="${value}"]`).click();
     await page.locator('[data-action="quiz-next"]').click();
   }
   await expect(page.locator("[data-action=begin]")).toBeVisible();
