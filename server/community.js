@@ -155,12 +155,17 @@ export function registerCommunity(
       after,
       limit: 20,
     });
+    // The member's own public posts appear in the timeline too, marked `mine`;
+    // they never cost a read and are shown even while hidden or expired.
     const posts = [];
     for (const p of batch) {
-      if (p.owner === user.uid) continue;
+      if (p.owner === user.uid) {
+        posts.push({ ...publicPost(p), mine: true });
+        continue;
+      }
       try {
         await visible(user.uid, p.id);
-        posts.push(publicPost(p));
+        posts.push({ ...publicPost(p), mine: false });
       } catch (e) {
         if (e.status !== 404) throw e;
       }
@@ -169,10 +174,20 @@ export function registerCommunity(
     const usage =
       (await store.get(`usage/${user.uid}_d_${dayKey(now())}`)) || {};
     const remaining = limits.reads - (usage.reads || 0);
-    if (remaining <= 0) throw fault(429, "quotaReached");
-    // A page never silently drops items because of quota; its final page is the remaining allowance.
-    const shown = posts.slice(0, remaining);
-    if (shown.length) await access.consume(user.uid, "reads", shown.length);
+    if (remaining <= 0 && posts.some((p) => !p.mine))
+      throw fault(429, "quotaReached");
+    // A page never silently drops items because of quota; its final page is the
+    // remaining allowance of other members' posts, plus any of the member's own.
+    const shown = [];
+    let reads = 0;
+    for (const p of posts) {
+      if (p.mine) shown.push(p);
+      else if (reads < remaining) {
+        shown.push(p);
+        reads += 1;
+      }
+    }
+    if (reads) await access.consume(user.uid, "reads", reads);
     return {
       posts: shown,
       next:

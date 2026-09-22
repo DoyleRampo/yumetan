@@ -32,6 +32,7 @@ export const communityMessages = {
     "轻轻分享梦的片段。",
     "Share a little of your dream world.",
   ],
+  minePost: ["自分の投稿", "내 게시물", "我的帖子", "Your post"],
   paidRequired: [
     "みんなの夢の全文・投稿・スタンプ・コメントは有料プラン限定です。",
     "꿈 피드 전문, 게시, 스탬프, 댓글은 유료 플랜 전용이에요.",

@@ -118,10 +118,15 @@ test("public payload never includes diary/photo/sleep/AI; owner privacy survives
   });
   const feed = await s.call("GET", "/api/community/feed", "bob");
   assert.equal(feed.posts.length, 1);
+  assert.equal(feed.posts[0].mine, false);
   assert.ok(!JSON.stringify(feed).includes("SECRET"));
   assert.ok(!JSON.stringify(feed).includes("alice"));
+  // The author sees their own post in the timeline, marked as theirs, at no read cost.
+  const own = await s.call("GET", "/api/community/feed", "alice");
+  assert.equal(own.posts.length, 1);
+  assert.equal(own.posts[0].mine, true);
   assert.equal(
-    (await s.call("GET", "/api/community/feed", "alice")).posts.length,
+    (await s.store.get(`usage/alice_d_${dayKey(at)}`))?.reads || 0,
     0,
   );
   await assert.rejects(

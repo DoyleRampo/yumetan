@@ -78,7 +78,7 @@ export function createCommunity({
   const teaserView = () =>
     `<div class="teaser"><span class="eyebrow">MEMBERS' DREAMS</span><h2>${t("communityIntro")}</h2><p class="help">${t("teaserHint")}</p><div class="feed-list">${(teaser?.posts || []).map(teaserCard).join("") || (!busy ? `<p class="empty">${t("emptyTeaser")}</p>` : "")}</div><button type="button" class="btn primary full" data-social="plans">${t("seeMore")}</button><p class="help">${t("paidRequired")}</p></div>`;
   const postCard = (p, open = true) =>
-    `<article class="card feed-card${open ? " post-open" : ""}" ${open ? `data-social="post" data-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(p.alias)} · ${t("openPost")}"` : ""}>${author(p)}<div class="post-body"><strong class="post-name">${esc(p.alias)}</strong><p class="prose post-text">${esc(p.text)}</p></div></article>`;
+    `<article class="card feed-card${open ? " post-open" : ""}${p.mine ? " post-mine" : ""}" ${open ? `data-social="post" data-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(p.alias)} · ${t("openPost")}"` : ""}>${author(p)}<div class="post-body"><strong class="post-name">${esc(p.alias)}${p.mine ? `<span class="post-badge">${t("minePost")}</span>` : ""}</strong><p class="prose post-text">${esc(p.text)}</p></div></article>`;
   const planFields = [
     ["dreamLimit", "dreams"],
     ["diaryLimit", "diary"],
