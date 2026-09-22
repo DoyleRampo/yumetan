@@ -738,6 +738,22 @@ select {
   border-bottom: 1px solid var(--line);
   padding: 16px 0;
 }
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0 0 0 4px;
+  margin: 0;
+  font: inherit;
+  color: var(--gold);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.teaser-card .teaser-text {
+  margin: 0;
+}
+.teaser > .btn.full {
+  margin: 12px 0 8px;
+}
 .paywall {
   margin-top: 24px;
 }

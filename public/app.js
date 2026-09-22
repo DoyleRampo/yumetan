@@ -727,7 +727,7 @@ function recordView() {
  <div class="card">${dateRow("date", "dream-date", d.date)}${chips}${isSaved ? `<p class="help saved-note">${t("savedEntry")} · ${esc(dateText(d.date))}</p>` : ""}${area("dreamText", "dream-text", d.text, t("dreamPlaceholder"))}<div class="record-tools">${button("voice", "voice", "small ghost")}<details ${d.photo ? "open" : ""}><summary>${t("photo")}</summary><p class="help">${t("photoHint")}</p><label class="field"><span>${t("photo")}</span><input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp"></label>${d.photo ? `<img class="photo" src="${esc(d.photo)}" alt="${t("photoAlt")}"><div class="row">${button("recognize", "recognize", "small")}${button("removePhoto", "remove-photo", "small ghost")}</div>` : ""}</details></div></div>
  <details class="card theme-picker" ${d.typeTags.length ? "open" : ""}><summary>${t("tags")}</summary><p class="help">${t("tagHint")}</p>${themes(d.typeTags)}</details>
  <div class="card"><h2>${t("sleep")}</h2><label class="check"><input type="checkbox" id="include-sleep" ${d.sleep ? "checked" : ""}><span>${t("sleepOptional")}</span></label><div id="sleep-fields" ${d.sleep ? "" : "hidden"}><div class="grid">${input("hours", "hours", d.sleep?.hours ?? "", "number", 'min="0" max="24" step="0.25"')}${input("awakenings", "awakenings", d.sleep?.awakenings ?? "", "number", 'min="0" max="30" step="1"')}</div><label class="field"><span>${t("rested")}</span><select class="input" id="rested"><option value="">—</option>${[1, 2, 3, 4, 5].map((v) => `<option value="${v}" ${d.sleep?.rested === v ? "selected" : ""}>${v}</option>`).join("")}</select></label><label class="check"><input type="checkbox" id="nightmare" ${d.sleep?.nightmare ? "checked" : ""}><span>${t("nightmare")}</span></label></div><p class="help">${t("sleepNote")}</p></div>
- <div class="row">${button(plan === "free" ? "analyze" : "analyzeAI", "analyze", "ghost")}<button type="submit" class="btn primary">${t("save")}</button>${isSaved ? button("delete", "delete-entry", "danger ghost small") : ""}</div>
+ <div class="row">${button(signedIn() ? "analyzeAI" : "analyze", "analyze", "ghost")}<button type="submit" class="btn primary">${t("save")}</button>${isSaved ? button("delete", "delete-entry", "danger ghost small") : ""}</div>
  <details class="previous-diary"><summary>${t("previousDiary")}</summary><p class="help">${previous ? esc(previous.text.slice(0, 500)) : t("noDiary")}</p></details>
  ${d.analysis ? analysisCard(d) : ""}</form>${recentLink("dream")}</div>`;
 }
@@ -751,7 +751,7 @@ function analysisCard(d) {
     language: language(),
   }).sharedThemes;
   const upsell =
-    !ai && displayPlan() === "free"
+    !ai && !signedIn()
       ? `<div class="reading-upsell"><p class="help">${t(signedIn() ? "readingUpsell" : "readingLogin")}</p><button type="button" class="btn small ghost" data-go="${signedIn() ? "plans" : "settings"}">${t(signedIn() ? "viewPlans" : "signIn")}</button></div>`
       : "";
   const body = rich
@@ -1199,7 +1199,9 @@ async function analyzeDraft() {
     records: state.records,
     language: language(),
   });
-  if (displayPlan() !== "free") {
+  // Every plan gets an AI reading with each dream; the server counts one per
+  // dream date. Only a local-only build (no account) falls back to the on-device reflection.
+  if (signedIn()) {
     const { analysis } = await api("/api/reflect", {
       text: draft.text,
       typeTags: result.tags,

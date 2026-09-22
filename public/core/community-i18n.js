@@ -33,10 +33,24 @@ export const communityMessages = {
     "Share a little of your dream world.",
   ],
   paidRequired: [
-    "みんなの夢・投稿・スタンプ・コメントは有料プラン限定です。",
-    "꿈 피드, 게시, 스탬프, 댓글은 유료 플랜 전용이에요.",
-    "梦境动态、发布、表情和评论仅限付费会员。",
-    "The feed, publishing, stamps and comments require a paid plan.",
+    "みんなの夢の全文・投稿・スタンプ・コメントは有料プラン限定です。",
+    "꿈 피드 전문, 게시, 스탬프, 댓글은 유료 플랜 전용이에요.",
+    "梦境动态全文、发布、表情和评论仅限付费会员。",
+    "Full posts, publishing, stamps and comments require a paid plan.",
+  ],
+  teaserHint: [
+    "今日投稿された夢から、ランダムに3つだけ冒頭をご紹介。",
+    "오늘 올라온 꿈 중 무작위로 3개의 첫 부분만 보여 드려요.",
+    "从今天发布的梦境中随机展示3条开头。",
+    "A random three of today's dreams, opening lines only.",
+  ],
+  readMore: ["…続きを読む", "…더 읽기", "…阅读全文", "… Read more"],
+  seeMore: ["もっと見る", "더 보기", "查看更多", "See more"],
+  emptyTeaser: [
+    "今日はまだ投稿がありません。",
+    "오늘은 아직 게시물이 없어요.",
+    "今天还没有帖子。",
+    "No posts yet today.",
   ],
   loginRequired: [
     "設定からアカウント登録・ログインしてください。",
@@ -188,10 +202,10 @@ export const communityMessages = {
     "In-app purchase is being prepared. Existing subscribers can sign in.",
   ],
   planRules: [
-    "記録枠は記録の日付ごと。日記は全プラン1日1ページで何度でも編集できます。交流枠は毎日、AI枠は毎月1日0:00 UTCにリセット。年額も同じ月間枠で、繰り越しはありません。",
-    "기록 한도는 기록 날짜 기준이에요. 일기는 모든 플랜에서 하루 한 페이지를 계속 편집할 수 있어요. 커뮤니티는 매일, AI는 매월 1일 00:00 UTC에 초기화돼요. 연간도 같은 월 한도이며 이월되지 않아요.",
-    "记录额度按记录日期计算。所有套餐每天一页日记，可反复编辑。社区额度每天、AI额度每月1日UTC 0点重置，年付也使用相同月度额度，不结转。",
-    "Journal limits apply per entry date. All plans allow one editable diary page per day. Community limits reset daily and AI limits monthly on the 1st, at 00:00 UTC. Annual plans have the same monthly allowance, with no rollover.",
+    "夢・日記・AI読み解きの枠は記録の日付ごとで、0時に新しい日の枠になります。AI読み解きは夢1件につき1回、全プランに含まれます。手書き認識の枠は毎月、交流枠は毎日リセット。年額も同じ枠で、繰り越しはありません。",
+    "꿈·일기·AI 읽기 한도는 기록 날짜 기준이며 0시에 새 날의 한도가 열려요. AI 읽기는 꿈 1건당 1회로 모든 플랜에 포함돼요. 손글씨 인식은 매월, 커뮤니티는 매일 초기화돼요. 연간도 같은 한도이며 이월되지 않아요.",
+    "梦境、日记和AI解读额度按记录日期计算，0点起为新的一天。AI解读每条梦境1次，所有套餐均包含。手写识别额度每月重置，社区额度每天重置，年付使用相同额度，不结转。",
+    "Dream, diary and AI reading limits apply per entry date and start over at midnight. One AI reading per dream is included in every plan. Handwriting resets monthly and community limits daily. Annual plans have the same allowance, with no rollover.",
   ],
   costNote: [
     "AIは回数と費用の両方に上限があります。長文などで費用上限に先に達する場合があります。AI実行開始後は失敗も1回に含みます。保存ボタンではAI回数を使いません。",
@@ -208,10 +222,10 @@ export const communityMessages = {
   dreamLimit: ["夢の記録 / 日", "꿈 기록 / 일", "梦境记录/天", "Dreams / day"],
   diaryLimit: ["日記 / 日", "일기 / 일", "日记/天", "Diary / day"],
   reflectionLimit: [
-    "GPT振り返り / 月",
-    "GPT 돌아보기 / 월",
-    "GPT回顾/月",
-    "GPT reflections / month",
+    "AI読み解き / 日（夢1件につき1回）",
+    "AI 읽기 / 일 (꿈 1건당 1회)",
+    "AI解读/天（每条梦境1次）",
+    "AI readings / day (one per dream)",
   ],
   ocrLimit: [
     "手書き認識 / 月",
@@ -370,10 +384,10 @@ export const communityMessages = {
     "Posts allow 4,000 characters and comments 500. Content you publish is sent to OpenAI for safety checking.",
   ],
   planAIHint: [
-    "AIで読み解くと夢・最近の日記、文字認識時は画像をサーバーとOpenAIへ送信します。有料プランの利用枠を使います。保存だけなら端末内で処理します。",
-    "AI로 살펴보면 꿈과 최근 일기, 문자 인식 시 이미지를 서버와 OpenAI로 보내요. 유료 플랜 한도를 사용해요. 저장만 하면 기기 내에서 처리해요.",
-    "使用AI解读会将梦境、最近的日记或待识别图片发送至服务器及OpenAI，消耗付费套餐额度。仅保存时在本地处理。",
-    "AI readings send your dream and recent diaries, or a handwriting image, to the server and OpenAI and use your paid allowance. Saving alone runs locally.",
+    "AIで読み解くと夢・最近の日記、文字認識時は画像をサーバーとOpenAIへ送信します。読み解きは夢1件につき1回、全プランに含まれます。手書き認識は有料プランのみ。保存だけなら端末内で処理します。",
+    "AI로 살펴보면 꿈과 최근 일기, 문자 인식 시 이미지를 서버와 OpenAI로 보내요. 읽기는 꿈 1건당 1회로 모든 플랜에 포함돼요. 손글씨 인식은 유료 플랜 전용이에요. 저장만 하면 기기 내에서 처리해요.",
+    "使用AI解读会将梦境、最近的日记或待识别图片发送至服务器及OpenAI。每条梦境可解读1次，所有套餐均包含；手写识别仅限付费套餐。仅保存时在本地处理。",
+    "AI readings send your dream and recent diaries, or a handwriting image, to the server and OpenAI. One reading per dream is included in every plan; handwriting is for paid plans. Saving alone runs locally.",
   ],
   billingReturn: [
     "購入はApp Store / Google Playで処理され、完了後にプランが有効になります。別の端末で購入済みなら「購入を復元」を押してください。",

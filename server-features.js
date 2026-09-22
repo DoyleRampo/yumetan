@@ -154,6 +154,7 @@ export function registerFeatures(app, { gate, callAI, knowledge, asyncRoute }) {
         ],
         schema: Reflection,
         kind: "reflections",
+        date: data.date,
       });
       res.json({ analysis });
     }),

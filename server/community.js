@@ -95,6 +95,63 @@ export function registerCommunity(
         : null,
     };
   });
+  // Free members: a daily teaser of a few of today's posts, 20 characters each,
+  // chosen per user and day so reloading never reveals more of the feed.
+  route("get", "/api/community/teaser", async (req, user) => {
+    const day = req.query.day
+      ? parse(z.string().regex(/^\d{4}-\d{2}-\d{2}$/), req.query.day)
+      : dayKey(now());
+    // Minutes to add to local midnight to reach UTC, as Date#getTimezoneOffset.
+    const tz = req.query.tz
+      ? parse(z.coerce.number().int().min(-840).max(840), req.query.tz)
+      : 0;
+    const start = Date.parse(`${day}T00:00:00Z`) + tz * 60000,
+      end = start + 86400000;
+    if (!Number.isFinite(start)) throw fault(400, "invalidInput");
+    const batch = await store.list("communityPosts", {
+      where: [["public", "==", true]],
+      orderBy: "sortKey",
+      direction: "desc",
+      limit: 60,
+    });
+    const today = [];
+    for (const p of batch) {
+      const at = Date.parse(p.publishedAt);
+      if (!(at >= start && at < end) || p.owner === user.uid) continue;
+      try {
+        await visible(user.uid, p.id);
+        today.push(p);
+      } catch (e) {
+        if (e.status !== 404) throw e;
+      }
+    }
+    const seed = createHash("sha256")
+      .update(`${user.uid}:${day}`)
+      .digest("hex");
+    const rank = (p) =>
+      createHash("sha256")
+        .update(seed + p.id)
+        .digest("hex");
+    const picked = today
+      .sort((a, b) => rank(a).localeCompare(rank(b)))
+      .slice(0, PLANS.free.teaserPosts);
+    return {
+      day,
+      total: today.length,
+      posts: picked.map((p) => {
+        const chars = Array.from(p.text);
+        return {
+          id: p.id,
+          alias: p.alias,
+          typeId: p.typeId,
+          characterSet: p.characterSet,
+          publishedAt: p.publishedAt,
+          excerpt: chars.slice(0, 20).join(""),
+          truncated: chars.length > 20,
+        };
+      }),
+    };
+  });
   route("get", "/api/community/feed", async (req, user) => {
     await access.paid(user.uid);
     const after = req.query.after

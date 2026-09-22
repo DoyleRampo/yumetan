@@ -13,7 +13,7 @@ export function createAI({
   const model = "gpt-5.6-luna-2026-07-09";
   return {
     model,
-    async call({ user, system, messages, schema, kind }) {
+    async call({ user, system, messages, schema, kind, date = null }) {
       if (!client) throw fault(503, "aiUnavailable");
       const jsonSchema = z.toJSONSchema(schema);
       const input = messages.map((m) => ({
@@ -52,6 +52,8 @@ export function createAI({
         (bytes + (kind === "handwriting" ? 4096 : 1024)) * 0.2 +
           outputLimit * 1.2,
       );
+      // A reading counts against its dream's date (one per dream on every
+      // plan); handwriting stays a monthly, paid-only allowance.
       await access.consume(
         user.uid,
         kind === "handwriting" ? "handwriting" : "reflections",
@@ -59,6 +61,7 @@ export function createAI({
         true,
         costMicros,
         Number(env.AI_GLOBAL_MONTHLY_USD || 20) * 1000000,
+        kind === "handwriting" ? null : date,
       );
       let result;
       try {

@@ -197,7 +197,7 @@ test("missing RevenueCat credentials do not offer simulated purchases", async ()
   );
   assert.equal((await billing.account("a")).billingConfigured, false);
 });
-test("GPT uses bounded structured output, no storage; free and over-budget calls never reach provider", async () => {
+test("GPT uses bounded structured output, no storage; every plan gets one reading per dream date, handwriting and over-budget calls stay gated", async () => {
   const store = new MemoryStore(),
     access = createAccess({ store, now: () => now });
   let count = 0,
@@ -227,27 +227,47 @@ test("GPT uses bounded structured output, no storage; free and over-budget calls
     messages: [{ role: "user", content: "A dream" }],
     schema: z.object({ text: z.string() }),
     kind: "reflections",
+    date: "2026-09-17",
   };
-  await assert.rejects(ai.call(req), (e) => e.status === 403);
-  assert.equal(count, 0);
+  // Free: one reading per dream date, counted on that date; cost in the month.
+  assert.deepEqual(await ai.call(req), { text: "Hello" });
+  assert.equal(count, 1);
+  assert.equal((await store.get("usage/a_d_2026-09-17")).reflections, 1);
+  assert.ok((await store.get("usage/a_m_2026-09")).aiCost > 0);
+  await assert.rejects(ai.call(req), (e) => e.code === "quotaReached");
+  assert.deepEqual(await ai.call({ ...req, date: "2026-09-16" }), {
+    text: "Hello",
+  });
+  await assert.rejects(
+    ai.call({ ...req, date: "17-09-2026" }),
+    (e) => e.code === "invalidInput",
+  );
+  // Handwriting stays paid-only.
+  await assert.rejects(
+    ai.call({ ...req, kind: "handwriting" }),
+    (e) => e.code === "paidRequired",
+  );
+  assert.equal(count, 2);
   store.data.set("memberships/a", {
     plan: "starter",
     status: "active",
     paidUntil: now + 86400000,
   });
+  store.data.set("usage/a_d_2026-09-17", {});
+  store.data.set("usage/a_m_2026-09", {});
   assert.deepEqual(await ai.call(req), { text: "Hello" });
   assert.equal(args.store, false);
   assert.equal(args.model, "gpt-5.6-luna-2026-07-09");
   assert.equal(args.reasoning_effort, "none");
   assert.equal(args.max_completion_tokens, 1400);
   assert.equal(args.response_format.json_schema.strict, true);
-  store.data.set("usage/a_m_2026-09", { aiCost: 499999 });
+  store.data.set("usage/a_m_2026-09", { aiCost: 749999 });
   await assert.rejects(ai.call(req), (e) => e.code === "aiBudgetReached");
-  assert.equal(count, 1);
+  assert.equal(count, 3);
   store.data.set("usage/a_m_2026-09", {});
   store.data.set("serviceBudgets/2026-09", { aiCost: 20000000 });
   await assert.rejects(ai.call(req), (e) => e.code === "aiBudgetReached");
-  assert.equal(count, 1);
+  assert.equal(count, 3);
 });
 test("provider errors, refused/truncated responses and oversized input do not return invented AI output", async () => {
   const store = new MemoryStore(),

@@ -279,3 +279,28 @@ test("real HTTP APIs never authorize by claimed plan, user ID or own key and do 
   });
   expect(old.status()).toBe(404);
 });
+
+test("free members see three 20-character teasers of today's dreams; read more and see more open the plans", async ({
+  page,
+}) => {
+  const s = await fixture(page, "free");
+  for (let i = 0; i < 3; i++)
+    await s.publish(
+      "alice",
+      `Dream number ${i}: a long walk under a paper moon that never sets.`,
+    );
+  await boot(page);
+  await page.locator("nav [data-go=community]").click();
+  await expect(page.locator(".teaser-card")).toHaveCount(3);
+  for (const text of await page.locator(".teaser-text").allInnerTexts()) {
+    expect(text.replace(/… Read more$/, "").length).toBeLessThanOrEqual(20);
+    expect(text).toContain("Read more");
+  }
+  await expect(page.locator("main")).not.toContainText("never sets");
+  await expect(page.locator(".paywall")).toHaveCount(0);
+  await page.locator(".teaser-card .link-button").first().click();
+  await expect(page.locator(".plan-comparison thead th")).toHaveCount(3);
+  await page.locator("nav [data-go=community]").click();
+  await page.locator(".teaser [data-social=plans].btn").click();
+  await expect(page.locator(".plan-comparison thead th")).toHaveCount(3);
+});

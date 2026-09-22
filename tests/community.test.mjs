@@ -297,3 +297,96 @@ test("read caps are atomic, not reset by reload; daily and monthly rollovers use
   s.setTime(Date.parse("2026-10-01T00:00:00Z"));
   await s.access.consume("alice", "reflections", 1, true);
 });
+
+test("free members get a fixed random teaser of today's posts, 20 characters each, never the full text", async () => {
+  const s = setup();
+  s.paid("alice", "standard");
+  s.paid("carol", "standard");
+  const day = dayKey(at);
+  const long =
+    "夜の海を歩いていたら、遠くに光る灯台が見えて、その方向へ泳ぎ始めた。";
+  for (let i = 0; i < 3; i++)
+    await s.call(
+      "POST",
+      "/api/community/publish",
+      "alice",
+      post(undefined, long + i),
+    );
+  for (let i = 0; i < 2; i++)
+    await s.call(
+      "POST",
+      "/api/community/publish",
+      "carol",
+      post(undefined, long + i),
+    );
+  await s.call(
+    "POST",
+    "/api/community/publish",
+    "carol",
+    post(undefined, "short"),
+  );
+  for (const uid of [null, "guest", "invalid"])
+    await assert.rejects(
+      s.call("GET", "/api/community/teaser", uid, {}, {}, { day }),
+      (e) => e.status === 401,
+    );
+  const first = await s.call(
+    "GET",
+    "/api/community/teaser",
+    "free",
+    {},
+    {},
+    { day },
+  );
+  assert.equal(first.total, 6);
+  assert.equal(first.posts.length, PLANS.free.teaserPosts);
+  for (const p of first.posts) {
+    assert.ok(Array.from(p.excerpt).length <= 20);
+    assert.equal("text" in p, false);
+    assert.equal(p.truncated, p.excerpt !== "short");
+  }
+  assert.ok(!JSON.stringify(first).includes("灯台が見えて"));
+  // Reloading never reveals more posts: the pick is stable per user and day.
+  const again = await s.call(
+    "GET",
+    "/api/community/teaser",
+    "free",
+    {},
+    {},
+    { day },
+  );
+  assert.deepEqual(
+    again.posts.map((p) => p.id),
+    first.posts.map((p) => p.id),
+  );
+  // Another day has no posts; an expired author's posts disappear.
+  assert.equal(
+    (
+      await s.call(
+        "GET",
+        "/api/community/teaser",
+        "free",
+        {},
+        {},
+        { day: "2026-09-18" },
+      )
+    ).total,
+    0,
+  );
+  s.store.data.set(memberPath("carol"), {
+    plan: "starter",
+    status: "active",
+    paidUntil: at - 1,
+  });
+  assert.equal(
+    (await s.call("GET", "/api/community/teaser", "free", {}, {}, { day }))
+      .total,
+    3,
+  );
+  // Paid members are not handed the teaser as their feed: the full feed still works.
+  s.paid("free");
+  assert.equal(
+    (await s.call("GET", "/api/community/feed", "free")).posts.length,
+    3,
+  );
+});

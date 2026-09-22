@@ -241,7 +241,53 @@ test("AI failures retain the unsaved dream; free members get a local reflection 
   );
   await expect(page.locator("#toast")).toContainText("preserved");
 });
-test("free members never call GPT: reflection stays local with an upgrade hint", async ({
+test("free members get an AI reading with each dream; the second reading of the day is refused", async ({
+  page,
+}) => {
+  await paidMember(page, "free");
+  await start(page, "en");
+  let calls = 0;
+  await page.route("**/api/reflect", (r) => {
+    calls++;
+    return calls === 1
+      ? r.fulfill({
+          json: {
+            analysis: {
+              title: "A challenge",
+              summary: "Dream summary",
+              reply: "A gentle reflection for a free member.",
+              mental_state_hint: "A possible association.",
+              mood_weather: "partly_cloudy",
+              mood_label: "Quietly hopeful",
+              mental_state: "Steady focus.",
+              fortune_overview: "A day for small wins.",
+              fortune_mood: "Calm.",
+              lucky_hint: "Lucky color: sky blue.",
+              advice: "Finish one small task early.",
+            },
+          },
+        })
+      : r.fulfill({ status: 429, json: { code: "quotaReached" } });
+  });
+  await page.locator("nav [data-go=record]").click();
+  await expect(page.locator("[data-action=analyze]")).toHaveText(
+    "Read with AI",
+  );
+  await page.locator("#dream-text").fill("A challenge on a mountain");
+  await page.locator("[data-action=analyze]").click();
+  await expect(page.locator(".reading-card")).toContainText(
+    "A gentle reflection for a free member.",
+  );
+  await expect(page.locator(".reading-upsell")).toHaveCount(0);
+  expect(calls).toBe(1);
+  await page.locator("[data-action=analyze]").click();
+  await expect(page.locator("#toast")).not.toHaveText("");
+  await expect(page.locator("#dream-text")).toHaveValue(
+    "A challenge on a mountain",
+  );
+  expect(calls).toBe(2);
+});
+test("without an account the reflection stays local with a sign-in hint", async ({
   page,
 }) => {
   await start(page, "en");
