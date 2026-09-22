@@ -18,7 +18,7 @@ const dream = (id, text) => ({
   photo:
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aEAAAAABJRU5ErkJggg==",
 });
-async function setup(page, db = new Map()) {
+async function setup(page, db = new Map(), readyDelay = 0) {
   await page.route("**/firebase-config.js*", (r) =>
     r.fulfill({
       contentType: "text/javascript",
@@ -32,7 +32,7 @@ async function setup(page, db = new Map()) {
 let uid=localStorage.getItem('auth.test.uid') || 'guest-1'; let listeners=[];
 const anon=()=>uid.startsWith('guest'); const user=()=>({uid,isAnonymous:anon()});
 window.__authCalls=[];
-const cloud=window.YumetanCloud={state:{enabled:true,user:user()}, ready:Promise.resolve({enabled:true}), uid:()=>uid,isAnonymous:anon,email:()=>anon()?'':uid+'@test.invalid', providers:()=>anon()?[]:['google.com'],onUser:cb=>listeners.push(cb),idToken:async()=> 'test',
+const cloud=window.YumetanCloud={state:{enabled:${readyDelay}===0,user:user()}, ready:new Promise(r=>setTimeout(()=>{cloud.state.enabled=true;r({enabled:true});},${readyDelay})), uid:()=>uid,isAnonymous:anon,email:()=>anon()?'':uid+'@test.invalid', providers:()=>anon()?[]:['google.com'],onUser:cb=>listeners.push(cb),idToken:async()=> 'test',
 syncSnapshot: async snapshot => {const res=await fetch('/__test/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,snapshot})});if(!res.ok)throw Error('offline');return res.json();},
 signInProvider:async (provider,opts)=>{window.__authCalls.push({provider,opts});if(window.__cancel)throw {code:'auth/popup-closed-by-user'};if(!opts.link){uid=provider==='line'?'member-b':'member-a';localStorage.setItem('auth.test.uid',uid);}cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();},
 signOut:async()=>{uid='guest-'+crypto.randomUUID();localStorage.setItem('auth.test.uid',uid);cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();}};
@@ -199,4 +199,27 @@ test("declining guest import leaves both accounts intact", async ({ page }) => {
   await page.locator("nav [data-go=record]").click();
   await page.locator("[data-open-days=dream]").click();
   await expect(page.locator(".day-records")).toContainText("ゲストの夢");
+});
+test("a slow cloud connection enables the social logins later without a reload", async ({
+  page,
+}) => {
+  await setup(page, new Map(), 4500);
+  await page.goto("/");
+  await page.evaluate(() => (window.__sameDocument = true));
+  await page.locator(".onboard-account > summary").click();
+  await expect(page.locator("[data-auth-provider=google]")).toBeDisabled();
+  await expect(page.locator("#account-sync-status")).toContainText(
+    "接続できません",
+  );
+  await expect(page.locator("[data-auth-provider=google]")).toBeEnabled({
+    timeout: 10000,
+  });
+  for (const provider of ["apple", "line"])
+    await expect(
+      page.locator(`[data-auth-provider=${provider}]`),
+    ).toBeEnabled();
+  expect(await page.evaluate(() => window.__sameDocument)).toBe(true);
+  await expect(page.locator("#account-sync-status")).not.toContainText(
+    "接続できません",
+  );
 });

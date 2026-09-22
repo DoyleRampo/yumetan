@@ -28,7 +28,9 @@ cloud.ready = (async () => {
     });
     Object.assign(cloud, createCloudClient({ A, fs, auth, db }));
   } catch (e) {
-    cloud.state.error = e.code || "auth/unavailable";
+    cloud.state.error = String(
+      e?.code || e?.message || "auth/unavailable",
+    ).slice(0, 120);
   }
   return cloud.state;
 })();

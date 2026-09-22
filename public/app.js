@@ -791,7 +791,7 @@ function accountView(onboard = false) {
   const enabled = cloud?.state.enabled,
     signed = enabled && !cloud.isAnonymous();
   const providers = cloud?.providers?.() || [];
-  return `<section class="card account-card"><h2>${t("account")}</h2><p class="help">${at(signed ? "loginHint" : "guestHint")}</p><p class="status" id="account-sync-status" role="status">${at(enabled ? syncStatus : "offline")}</p>
+  return `<section class="card account-card"><h2>${t("account")}</h2><p class="help">${at(signed ? "loginHint" : "guestHint")}</p><p class="status" id="account-sync-status" role="status">${at(enabled ? syncStatus : "offline")}${!enabled && window.YumetanCloud?.state?.error ? ` (${esc(window.YumetanCloud.state.error)})` : ""}</p>
   ${signed ? `<p>${esc(cloud.email() || cloud.displayName?.() || state.profile?.nickname || "Yumetan")}</p><div class="row">${button("signOut", "signout", "ghost")}${button("sync", "sync", "ghost")}</div><h3>${at("link")}</h3><p class="help">${at("linkHint")}</p>` : `<p class="help">${at("loginHint")}</p>`}
   <div class="auth-buttons">${["google", "apple", "line"]
     .map((provider) => {
@@ -1902,6 +1902,65 @@ window.addEventListener("popstate", () => {
   if (hasBack()) goBack();
   else if (page !== "home") navigate("home");
 });
+// Move the local scope to the signed-in account's scope (first time only) or
+// switch to the account's saved state.
+async function adoptCloud() {
+  const key = cloud.uid() ? `yumetan.v4.${cloud.uid()}` : "yumetan.v4.local";
+  const existing = await read(key);
+  const adopted = await read("yumetan.v4.cloud-adopted", false);
+  state =
+    existing ||
+    (!adopted
+      ? state
+      : { version: 4, profile: null, records: [], deleted: [] });
+  const oldProgress = await read(`${storageKey}.quiz`);
+  storageKey = key;
+  await commit(state);
+  await write("yumetan.v4.active", key);
+  if (!adopted && oldProgress) await write(`${key}.quiz`, oldProgress);
+  await write("yumetan.v4.cloud-adopted", true);
+}
+async function loadScope() {
+  if (state.profile?.characterSet)
+    options.characterSet = normalizeCharacterSet(state.profile.characterSet);
+  pendingGuestKey = await read(`${storageKey}.guest-import`);
+  const progress = await read(`${storageKey}.quiz`);
+  if (
+    progress?.answers?.length === 16 &&
+    progress.answers.every((v) => v === null || [0, 1, 2].includes(v))
+  ) {
+    quizAnswers = progress.answers;
+    quizIndex = Math.max(0, Math.min(15, progress.index || 0));
+  }
+}
+function bindCloud() {
+  cloud.onUser?.(() => {
+    // Cross-tab auth changes must invalidate every old draft and in-flight view.
+    if (!authChanging) location.reload();
+  });
+  watchAccount();
+}
+// The cloud connection was not ready when the UI first rendered. Wait for it in
+// the background and enable login/sync without a reload once it arrives.
+async function attachLateCloud(pending) {
+  let timer;
+  const ready = await Promise.race([
+    pending.ready,
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(null), 90000);
+    }),
+  ]);
+  clearTimeout(timer);
+  if (!ready?.enabled || cloud || dirty || processing || authChanging) return;
+  cloud = pending;
+  await adoptCloud();
+  await loadScope();
+  bindCloud();
+  if (!cloud.isAnonymous()) await refreshPlan().catch(() => {});
+  if (["home", "quiz", "onboard"].includes(page)) page = firstRunPage();
+  render();
+  syncCloud();
+}
 async function boot() {
   try {
     const old = await read("yumetan.settings", {}),
@@ -1936,45 +1995,19 @@ async function boot() {
         }),
       ]);
       clearTimeout(timer);
-      if (!ready?.enabled) cloud = null;
+      if (ready?.enabled) await adoptCloud();
       else {
-        const key = cloud.uid()
-          ? `yumetan.v4.${cloud.uid()}`
-          : "yumetan.v4.local";
-        const existing = await read(key);
-        const adopted = await read("yumetan.v4.cloud-adopted", false);
-        state =
-          existing ||
-          (!adopted
-            ? state
-            : { version: 4, profile: null, records: [], deleted: [] });
-        const oldProgress = await read(`${storageKey}.quiz`);
-        storageKey = key;
-        await commit(state);
-        await write("yumetan.v4.active", key);
-        if (!adopted && oldProgress) await write(`${key}.quiz`, oldProgress);
-        await write("yumetan.v4.cloud-adopted", true);
+        // A phone on a slow network often needs longer than the wait above to
+        // download the SDK and sign in. Keep the local scope for now and adopt
+        // the connection once it is ready, unless the user has started editing.
+        const pending = cloud;
+        cloud = null;
+        if (!ready) attachLateCloud(pending);
       }
     }
-    if (state.profile?.characterSet)
-      options.characterSet = normalizeCharacterSet(state.profile.characterSet);
-    pendingGuestKey = await read(`${storageKey}.guest-import`);
-    const progress = await read(`${storageKey}.quiz`);
-    if (
-      progress?.answers?.length === 16 &&
-      progress.answers.every((v) => v === null || [0, 1, 2].includes(v))
-    ) {
-      quizAnswers = progress.answers;
-      quizIndex = Math.max(0, Math.min(15, progress.index || 0));
-    }
+    await loadScope();
     page = firstRunPage();
-    if (cloud) {
-      cloud.onUser?.(() => {
-        // Cross-tab auth changes must invalidate every old draft and in-flight view.
-        if (!authChanging) location.reload();
-      });
-      watchAccount();
-    }
+    if (cloud) bindCloud();
     if (cloud && !cloud.isAnonymous()) await refreshPlan();
     if (state.profile?.typeAnswers && location.hash === "#plans")
       page = "plans";
