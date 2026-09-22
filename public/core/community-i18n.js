@@ -188,6 +188,32 @@ export const communityMessages = {
   yearly: ["年額", "연간", "年付", "Annual"],
   currentPlan: ["現在のプラン", "현재 요금제", "当前套餐", "Current plan"],
   choosePlan: ["このプランを選ぶ", "이 플랜 선택", "选择套餐", "Choose plan"],
+  subscribe: ["登録する", "가입하기", "订阅", "Subscribe"],
+  subscribeTo: [
+    "{plan}に登録する",
+    "{plan} 시작하기",
+    "订阅{plan}",
+    "Subscribe to {plan}",
+  ],
+  recommended: ["おすすめ", "추천", "推荐", "Recommended"],
+  upgradeBanner: [
+    "夢を1日3件まで記録、それぞれにAI読み解き。みんなの夢の全文・投稿・スタンプ・コメントも使えます。",
+    "하루 꿈 3건까지 기록하고 각각 AI 읽기를 받아요. 꿈 피드 전문, 게시, 스탬프, 댓글도 이용할 수 있어요.",
+    "每天最多记录3条梦境，每条都有AI解读，并可使用梦境动态全文、发布、表情和评论。",
+    "Record up to three dreams a day, each with an AI reading, plus full posts, publishing, stamps and comments.",
+  ],
+  diaryQuota: [
+    "今日の日記はプランの保存回数に達しました。プランを選ぶと続けて書けます。",
+    "오늘 일기는 플랜의 저장 횟수에 도달했어요. 플랜을 선택하면 계속 쓸 수 있어요.",
+    "今天的日记已达到套餐的保存次数，选择套餐后可继续记录。",
+    "Today's diary has reached your plan's save limit. Choose a plan to keep writing.",
+  ],
+  moreDreamsCta: [
+    "もう1件記録するにはプランへ",
+    "한 건 더 기록하려면 플랜으로",
+    "再记一条请选择套餐",
+    "Record another dream with a plan",
+  ],
   managePlan: [
     "契約管理・解約",
     "구독 관리·해지",
@@ -364,7 +390,7 @@ export const communityMessages = {
     "Sign in and connect to check or change sharing.",
   ],
   freeQuota: [
-    "この日付の夢はプラン上限に達しています。既存の夢を編集するか、プランを変更してください。",
+    "この日付の夢は無料枠の上限です。プランを選ぶと、同じ日に続けて記録できます。",
     "이 날짜의 꿈 한도에 도달했어요. 기존 꿈을 편집하거나 플랜을 변경해 주세요.",
     "该日期的梦境数量已达上限，请编辑已有梦境或更换套餐。",
     "The dream limit for this date is reached. Edit an existing dream or change your plan.",

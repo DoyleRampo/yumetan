@@ -304,3 +304,37 @@ test("free members see three 20-character teasers of today's dreams; read more a
   await page.locator(".teaser [data-social=plans].btn").click();
   await expect(page.locator(".plan-comparison thead th")).toHaveCount(3);
 });
+test("free limits lead to the plans page: the day's dream allowance, a fourth diary save, and subscribe buttons everywhere", async ({
+  page,
+}) => {
+  await local(page);
+  await boot(page);
+  await page.locator("nav [data-go=record]").click();
+  await page.locator("#dream-text").fill("Only dream of the day");
+  await page.locator("#dream-form button[type=submit]").click();
+  await savedDreamDetails(page);
+  // The "new dream" chip becomes a plans link once the free allowance is used.
+  await page.locator("nav [data-go=record]").click();
+  await expect(page.locator("[data-action=new-dream]")).toHaveCount(0);
+  await page.locator(".tag-cta").click();
+  await expect(page.locator(".plan-comparison thead th")).toHaveCount(3);
+  await expect(page.locator(".plan-recommend .plan-cta")).toBeVisible();
+  await expect(page.locator(".plan-cta-row .plan-cta")).toHaveCount(2);
+  await page.locator(".plan-links [data-plan=starter]").click();
+  await expect(page.locator(".plan-detail-bottom .plan-cta")).toBeVisible();
+  // Diary: the third save is fine, the fourth opens the plans and keeps the text.
+  await page.locator("nav [data-go=diary]").click();
+  for (let i = 1; i <= 3; i++) {
+    await page.locator("#diary-text").fill(`Diary save ${i}`);
+    await page.locator("#diary-form button[type=submit]").click();
+    await expect(page.locator("#toast")).toContainText("Saved");
+  }
+  await page.locator("#diary-text").fill("Diary save 4 goes to plans");
+  await page.locator("#diary-form button[type=submit]").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "plans");
+  await expect(page.locator("#toast")).toContainText("plan");
+  await page.locator(".back-link").click();
+  await expect(page.locator("#diary-text")).toHaveValue(
+    "Diary save 4 goes to plans",
+  );
+});

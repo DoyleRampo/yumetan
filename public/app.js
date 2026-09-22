@@ -45,6 +45,7 @@ import {
   validDate,
   previousDiary,
   validateSleep,
+  previousDate,
 } from "./core/sleep.js";
 import { dreamLevel } from "./core/level.js";
 import {
@@ -271,21 +272,82 @@ function header() {
   ).join("")}</div>`;
 }
 bindSlideNavigation($("#nav"), navigate);
-// Swiping in from the left edge goes back one page, like the iOS back gesture.
+// Swiping in from the left edge turns the page back: the current view follows
+// the finger like a page being lifted, flips away, and the previous page slides
+// in. A quick edge flick without movement events still goes back.
 function bindEdgeSwipe() {
-  let start = null;
+  const app = $("#app");
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let start = null,
+    dragging = false,
+    animating = false;
   const begin = (x, y, target) => {
+    if (animating) return;
     start =
       x <= 32 && !target.closest?.("nav, input, textarea, select")
         ? { x, y }
         : null;
+    dragging = false;
+  };
+  const move = (x, y) => {
+    if (!start) return;
+    const dx = x - start.x,
+      dy = Math.abs(y - start.y);
+    if (!dragging) {
+      if (dy > 40 && dx < 24) {
+        start = null;
+        return;
+      }
+      if (dx < 12 || !hasBack() || processing) return;
+      dragging = true;
+      app.classList.add("page-dragging");
+    }
+    const shift = Math.max(0, dx),
+      progress = Math.min(1, shift / Math.max(320, innerWidth));
+    app.style.setProperty("--turn-x", `${shift}px`);
+    app.style.setProperty("--turn-deg", `${(-progress * 16).toFixed(2)}deg`);
+    if (!reduced)
+      app.style.transform = `perspective(1200px) translateX(${shift}px) rotateY(${-progress * 16}deg)`;
   };
   const end = (x, y) => {
     if (!start) return;
     const dx = x - start.x,
       dy = Math.abs(y - start.y);
     start = null;
-    if (dx > 70 && dy < 80 && hasBack() && !processing) goBack();
+    const back = dx > 70 && dy < 80 && hasBack() && !processing;
+    if (!dragging) {
+      if (back) goBack();
+      return;
+    }
+    dragging = false;
+    app.classList.remove("page-dragging");
+    if (!back || reduced) {
+      app.classList.add("page-settling");
+      app.style.transform = "";
+      setTimeout(() => app.classList.remove("page-settling"), 220);
+      if (back) goBack();
+      return;
+    }
+    animating = true;
+    app.style.transform = "";
+    app.classList.add("page-turn-out");
+    setTimeout(async () => {
+      app.classList.remove("page-turn-out");
+      await goBack();
+      app.classList.add("page-turn-in");
+      setTimeout(() => {
+        app.classList.remove("page-turn-in");
+        animating = false;
+      }, 320);
+    }, 230);
+  };
+  const cancel = () => {
+    if (dragging) {
+      dragging = false;
+      app.classList.remove("page-dragging");
+      app.style.transform = "";
+    }
+    start = null;
   };
   document.addEventListener(
     "touchstart",
@@ -293,12 +355,21 @@ function bindEdgeSwipe() {
     { passive: true },
   );
   document.addEventListener(
+    "touchmove",
+    (e) => move(e.touches[0].clientX, e.touches[0].clientY),
+    { passive: true },
+  );
+  document.addEventListener(
     "touchend",
     (e) => end(e.changedTouches[0].clientX, e.changedTouches[0].clientY),
     { passive: true },
   );
+  document.addEventListener("touchcancel", cancel, { passive: true });
   document.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "mouse") begin(e.clientX, e.clientY, e.target);
+  });
+  document.addEventListener("pointermove", (e) => {
+    if (e.pointerType === "mouse") move(e.clientX, e.clientY);
   });
   document.addEventListener("pointerup", (e) => {
     if (e.pointerType === "mouse") end(e.clientX, e.clientY);
@@ -473,6 +544,12 @@ async function navigate(next, force = false, back = false) {
   social.leave();
   dirty = false;
   draft = null;
+  if (quotaDraft && quotaDraft.page === next) {
+    draft = quotaDraft.draft;
+    dirty = true;
+    quotaDraft = null;
+  } else if (quotaDraft && !["plans", "plan-details"].includes(next))
+    quotaDraft = null;
   const first = firstRunPage();
   if (first !== "home") {
     // Introduction, login and registration steps cannot be skipped.
@@ -721,7 +798,7 @@ function recordView() {
         )
         .join(
           "",
-        )}${canAdd ? `<button type="button" class="tag" data-action="new-dream" aria-pressed="${!isSaved}">＋ ${t("newDream")}</button>` : ""}</div>`
+        )}${canAdd ? `<button type="button" class="tag" data-action="new-dream" aria-pressed="${!isSaved}">＋ ${t("newDream")}</button>` : `<button type="button" class="tag tag-cta" data-go="plans">＋ ${ct("moreDreamsCta")}</button>`}</div>`
     : "";
   return `<div class="narrow"><p class="eyebrow">DREAM JOURNAL</p><h1>${t("recordTitle")}</h1><p class="help record-meta">${t("dreamJournalHint")} ${ct("dreamLimit")}: ${saved.length} / ${PLANS[social.plan()].dreams}</p><form id="dream-form">
  <div class="card">${dateRow("date", "dream-date", d.date)}${chips}${isSaved ? `<p class="help saved-note">${t("savedEntry")} · ${esc(dateText(d.date))}</p>` : ""}${area("dreamText", "dream-text", d.text, t("dreamPlaceholder"))}<div class="record-tools">${button("voice", "voice", "small ghost")}<details ${d.photo ? "open" : ""}><summary>${t("photo")}</summary><p class="help">${t("photoHint")}</p><label class="field"><span>${t("photo")}</span><input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp"></label>${d.photo ? `<img class="photo" src="${esc(d.photo)}" alt="${t("photoAlt")}"><div class="row">${button("recognize", "recognize", "small")}${button("removePhoto", "remove-photo", "small ghost")}</div>` : ""}</details></div></div>
@@ -1232,11 +1309,22 @@ function recentDiaries(date) {
     .slice(0, 7)
     .map((r) => ({ date: r.date, text: r.text.slice(0, 1500) }));
 }
+// Free-plan limits lead to the plans page instead of an error; the unsaved
+// text comes back when the user returns to the journal.
+let quotaDraft = null;
+async function sendToPlans(messageKey) {
+  quotaDraft = { page, draft };
+  dirty = false;
+  await navigate("plans", true);
+  toast(ct(messageKey));
+}
 async function saveDream() {
   capture();
   checkDraft();
-  if (!canSaveRecord(state.records, draft, social.plan()))
-    throw new Error(ct("freeQuota"));
+  if (!canSaveRecord(state.records, draft, social.plan())) {
+    await sendToPlans("freeQuota");
+    return;
+  }
   // Saving is always local. Paid AI runs only on the explicit analyze action.
   if (!draft.analysis) {
     const result = reflect({
@@ -1278,6 +1366,14 @@ async function saveDiary() {
   if (!validDate(draft.date) || draft.date > localDate())
     throw new Error(t("invalidDate"));
   if (!draft.text.trim()) throw new Error(t("required"));
+  // The diary is one page per date; each save of that page counts against the
+  // plan's daily diary allowance (free: 3 saves per date).
+  const savesKey = `${storageKey}.diary-saves`,
+    saves = (await read(savesKey)) || {};
+  if ((saves[draft.date] || 0) >= PLANS[social.plan()].diary) {
+    await sendToPlans("diaryQuota");
+    return;
+  }
   const old = state.records.find(
       (r) => r.kind === "diary" && r.date === draft.date,
     ),
@@ -1295,6 +1391,13 @@ async function saveDiary() {
   });
   dirty = false;
   selectedId = saved.id;
+  const kept = Object.fromEntries(
+    Object.entries(saves).filter(([date]) => date >= previousDate(localDate())),
+  );
+  await write(savesKey, {
+    ...kept,
+    [saved.date]: (saves[saved.date] || 0) + 1,
+  });
   draft = diaryDraft(saved.date);
   render();
   toast(t("saved"));

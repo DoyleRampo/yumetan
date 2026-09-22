@@ -1088,6 +1088,52 @@ summary {
   min-height: 44px;
   padding: 8px 16px;
 }
+.plan-cta {
+  width: 100%;
+  min-height: 54px;
+  font-size: 17px;
+  margin-top: 12px;
+  background: linear-gradient(135deg, var(--purple), #6c4ce8);
+  border-color: transparent;
+  box-shadow: 0 8px 24px rgba(108, 76, 232, 0.35);
+}
+.plan-cta.short {
+  min-height: 32px;
+  font-size: 13px;
+  padding: 4px 2px;
+  margin-top: 0;
+  box-shadow: none;
+}
+.plan-comparison .plan-cta-row td {
+  padding: 3px 4px;
+}
+.plan-cta[disabled] {
+  opacity: 0.55;
+  box-shadow: none;
+}
+.cta-note {
+  margin: 8px 0 0;
+}
+.plan-recommend {
+  border: 1px solid var(--gold);
+  background: linear-gradient(160deg, #2a2445, #1d1a35);
+  margin: 16px 0;
+}
+.plan-recommend h2 {
+  margin: 4px 0 6px;
+}
+.plan-recommend .plan-price {
+  font-size: 20px;
+  margin-left: 6px;
+}
+.plan-detail-bottom {
+  margin-top: 16px;
+  text-align: center;
+}
+.tag.tag-cta {
+  border-color: var(--gold);
+  color: var(--gold);
+}
 .plan-comparison {
   width: 100%;
   table-layout: fixed;

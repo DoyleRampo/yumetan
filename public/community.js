@@ -77,6 +77,21 @@ export function createCommunity({
   const cyclePicker = () =>
     `<div class="row plan-cycle" role="group" aria-label="${t("plans")}">${b("monthly", "monthly", `aria-pressed="${cycle === "monthly"}"`)}${b("yearly", "yearly", `aria-pressed="${cycle === "yearly"}"`)}</div>`;
   const planPrice = (p) => `¥${p[cycle].toLocaleString(language())}`;
+  const planName = (p) => localized(p.names, language());
+  // The subscribe call to action for free members. Purchases run in the store
+  // apps; elsewhere the button stays visible but disabled with the reason below.
+  const cta = (p, short = false) =>
+    p.id === "free" || p.id === plan() || plan() !== "free"
+      ? ""
+      : `<button type="button" class="btn primary plan-cta${short ? " short" : ""}" data-social="checkout" data-plan="${p.id}" ${!canBuy() ? "disabled" : ""}>${short ? t("subscribe") : t("subscribeTo").replace("{plan}", planName(p))}</button>`;
+  const ctaNote = () =>
+    plan() !== "free"
+      ? ""
+      : `<p class="help cta-note">${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : t("billingReturn")}</p>`;
+  const recommendation = () =>
+    plan() !== "free"
+      ? ""
+      : `<section class="card plan-recommend"><span class="eyebrow">${t("recommended")}</span><h2>${planName(PLANS.starter)} <span class="plan-price">${planPrice(PLANS.starter)}<small> / ${t(cycle)}</small></span></h2><p>${t("upgradeBanner")}</p>${cta(PLANS.starter)}${ctaNote()}</section>`;
   function plansView() {
     const plans = Object.values(PLANS);
     return `<section class="plans-overview"><div class="row between page-heading"><h1>${t("comparePlans")}</h1>${cyclePicker()}</div>${status()}
@@ -92,13 +107,14 @@ export function createCommunity({
           `<tr><th scope="row">${t(label)}</th>${plans.map((p) => `<td>${p[key] || "—"}</td>`).join("")}</tr>`,
       )
       .join("")}
-    <tr class="plan-links"><th scope="row">${t("planDetails")}</th>${plans.map((p) => `<td>${b("details", "plan-detail", `data-plan="${p.id}" aria-label="${localized(p.names, language())} · ${t("details")}"`)}</td>`).join("")}</tr></tbody></table>
-    <p class="help included-note">${t("includedShort")}</p><div class="plan-footer"><p class="help">${t("billingShort")}</p>${b("remaining", "plan-detail", `data-plan="${plan()}"`)}</div>
+    <tr class="plan-links"><th scope="row">${t("planDetails")}</th>${plans.map((p) => `<td>${b("details", "plan-detail", `data-plan="${p.id}" aria-label="${localized(p.names, language())} · ${t("details")}"`)}</td>`).join("")}</tr>
+    <tr class="plan-cta-row"><th scope="row" class="sr-label">${t("subscribe")}</th>${plans.map((p) => `<td>${cta(p, true) || (p.id === plan() ? `<span class="current-plan">${t("currentPlan")}</span>` : "")}</td>`).join("")}</tr></tbody></table>
+    ${recommendation()}<p class="help included-note">${t("includedShort")}</p><div class="plan-footer"><p class="help">${t("billingShort")}</p>${b("remaining", "plan-detail", `data-plan="${plan()}"`)}</div>
     <div class="row">${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}</div></section>`;
   }
   function planDetailsView() {
     const p = PLANS[selectedPlan] || PLANS.starter;
-    return `<div class="narrow plan-detail"><div class="row between page-heading"><h1>${localized(p.names, language())}</h1>${cyclePicker()}</div>${status()}<section class="card plan-card"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${p.id === plan() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${planFields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl><p class="help">${t("freeFeatures")}</p><p class="help">${t("renewalNote")}</p>${p.id !== "free" && p.id !== plan() && plan() === "free" && isNative() ? b("choosePlan", "checkout", `data-plan="${p.id}" ${!canBuy() ? "disabled" : ""}`) : ""}</section><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.day?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}<p>${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : t("billingReturn")}</p></div><p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p><p class="help">${t("renewalNote")}</p></div>`;
+    return `<div class="narrow plan-detail"><div class="row between page-heading"><h1>${localized(p.names, language())}</h1>${cyclePicker()}</div>${status()}<section class="card plan-card"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${p.id === plan() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${planFields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl><p class="help">${t("freeFeatures")}</p><p class="help">${t("renewalNote")}</p>${cta(p)}${cta(p) ? ctaNote() : ""}</section><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.day?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}<p>${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : t("billingReturn")}</p></div><p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p><p class="help">${t("renewalNote")}</p>${cta(p) ? `<section class="card plan-detail-bottom"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${cta(p)}${ctaNote()}</section>` : ""}</div>`;
   }
   function shareView() {
     const d = shareDraft;
