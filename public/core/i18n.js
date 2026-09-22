@@ -7,6 +7,70 @@ export const languageNames = {
 };
 // Every UI message has an explicit translation. User-authored journal text is preserved.
 export const messages = {
+  introStart: [
+    "登録してはじめる",
+    "등록하고 시작",
+    "注册并开始",
+    "Register & start",
+  ],
+  introProgress: ["アプリの使い方", "앱 사용법", "使用指南", "How it works"],
+  intro1Title: ["夢を残そう", "꿈을 남겨요", "记下你的梦", "Keep your dreams"],
+  intro1Text: [
+    "覚えていることを、ひとこと。",
+    "기억나는 것을 한마디로.",
+    "记下还记得的一点点。",
+    "Start with whatever you remember.",
+  ],
+  intro2Title: [
+    "今日の気持ちも",
+    "오늘의 마음도",
+    "也记下今天的心情",
+    "Make room for today",
+  ],
+  intro2Text: [
+    "日記と夢を、一緒に振り返ろう。",
+    "일기와 꿈을 함께 돌아봐요.",
+    "把日记和梦放在一起回顾。",
+    "Look back on your diary alongside your dreams.",
+  ],
+  intro3Title: [
+    "あなたの相棒に出会おう",
+    "나만의 친구를 만나요",
+    "遇见你的梦境伙伴",
+    "Meet your dream companion",
+  ],
+  intro3Text: [
+    "16タイプ診断で、夢の傾向を知ろう。",
+    "16유형 테스트로 꿈의 경향을 알아봐요.",
+    "通过16类型测试，了解梦的倾向。",
+    "Explore your dream patterns with the 16-type quiz.",
+  ],
+  intro4Title: [
+    "夢と一緒に育とう",
+    "꿈과 함께 성장해요",
+    "和梦一起成长",
+    "Grow with your dreams",
+  ],
+  intro4Text: [
+    "夢を記録するたび、レベルアップに近づく。",
+    "꿈을 기록할수록 다음 레벨에 가까워져요.",
+    "每记录一个梦，就离升级更近一步。",
+    "Each dream you save brings the next level closer.",
+  ],
+  introLogin: ["ログインへ", "로그인으로", "前往登录", "Continue to login"],
+  introLoginHint: [
+    "ログインすると、記録をアカウントに保存できます。",
+    "로그인하면 기록을 계정에 저장할 수 있어요.",
+    "登录后，可将记录保存在账号中。",
+    "Log in to save your entries to your account.",
+  ],
+  introSignedIn: [
+    "ログイン済みです。診断に進みましょう。",
+    "로그인했어요. 테스트를 시작해요.",
+    "已登录，开始测试吧。",
+    "You’re logged in. Ready for your quiz?",
+  ],
+
   unsavedTitle: [
     "編集中の内容があります",
     "작성 중인 내용이 있어요",
@@ -146,7 +210,7 @@ export const messages = {
     "Pick a date to revisit or add to that day’s dreams.",
   ],
   nextLevel: [
-    "あと{n}回でLv.{l}",
+    "あと{n}個の夢を記録するとLv.{l}になります",
     "{n}번 더 기록하면 Lv.{l}",
     "再记录{n}次升到Lv.{l}",
     "{n} more to Lv.{l}",
@@ -157,7 +221,7 @@ export const messages = {
     "夢を知って、自分を育てる。",
     "꿈을 알아가며, 나를 키워요.",
     "了解梦境，陪伴自己成长。",
-    "Meet your dreams. Grow with them.",
+    "Dream. Reflect. Grow.",
   ],
   welcome: [
     "夢の記録を、はじめよう。",
@@ -166,10 +230,10 @@ export const messages = {
     "Your dream story starts here.",
   ],
   profileHint: [
-    "呼び名を決めて、16問の診断へ。",
-    "프로필 작성 후 16개 질문으로 꿈의 경향을 알아봐요. 계정은 나중에 설정할 수 있어요.",
-    "填写资料后，回答16个问题探索梦境倾向。之后可在设置中创建账户。",
-    "After your profile, 16 questions help you discover your dream tendencies. You can add an account later.",
+    "呼び名を決めて、はじめよう。",
+    "이름을 정하고 시작해요.",
+    "填写昵称，开始吧。",
+    "Choose a name to get started.",
   ],
   language: ["言語", "언어", "语言", "Language"],
   nickname: ["呼び名", "닉네임", "昵称", "Nickname"],

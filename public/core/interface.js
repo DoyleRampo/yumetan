@@ -191,66 +191,107 @@ export function pickDate({ value, max, locale, t, marked = [], trigger }) {
   });
 }
 
-// A normal tap still navigates. Holding arms a scrub gesture; only release commits it.
+// The gray thumb follows the finger continuously, then commits on release.
+// Both a horizontal drag and a long press can start the gesture.
 export function bindSlideNavigation(nav, navigate) {
   let gesture = null,
     timer = null,
+    frame = null,
     suppressUntil = 0;
   const clear = () => {
     clearTimeout(timer);
-    timer = null;
+    cancelAnimationFrame(frame);
+    timer = frame = null;
     nav
       .querySelectorAll(".nav-preview")
       .forEach((el) => el.classList.remove("nav-preview"));
     nav.classList.remove("nav-scrubbing");
+    nav.style.removeProperty("--nav-position");
     gesture = null;
   };
-  const targetAt = (x, y) =>
-    document
-      .elementFromPoint(x, y)
-      ?.closest("#nav button[data-go]:not(:disabled)");
+  const geometry = () => {
+    const track = nav.querySelector(".nav-track");
+    if (!track) return null;
+    const rect = track.getBoundingClientRect(),
+      buttons = [...track.querySelectorAll("button[data-go]")];
+    return { rect, buttons, slot: (rect.width - 12) / buttons.length };
+  };
+  const targetAt = (x, y) => {
+    const g = geometry();
+    if (
+      !g ||
+      x < g.rect.left ||
+      x > g.rect.right ||
+      y < g.rect.top ||
+      y > g.rect.bottom
+    )
+      return null;
+    const i = Math.max(
+      0,
+      Math.min(
+        g.buttons.length - 1,
+        Math.floor((x - g.rect.left - 6) / g.slot),
+      ),
+    );
+    return g.buttons[i].disabled ? null : g.buttons[i];
+  };
+  const draw = () => {
+    frame = null;
+    if (!gesture?.armed) return;
+    const g = geometry();
+    if (!g) return;
+    const x = Math.max(
+      0,
+      Math.min(
+        g.slot * (g.buttons.length - 1),
+        gesture.x - g.rect.left - 6 - g.slot / 2,
+      ),
+    );
+    nav.style.setProperty("--nav-position", `${x}px`);
+    nav
+      .querySelectorAll(".nav-preview")
+      .forEach((el) => el.classList.remove("nav-preview"));
+    targetAt(gesture.x, gesture.y)?.classList.add("nav-preview");
+  };
+  const arm = () => {
+    if (!gesture) return;
+    clearTimeout(timer);
+    gesture.armed = true;
+    nav.classList.add("nav-scrubbing");
+    draw();
+  };
   nav.addEventListener("pointerdown", (e) => {
-    if (!e.isPrimary || e.button !== 0 || e.target.closest("button")?.disabled)
-      return;
+    if (!e.isPrimary || e.button !== 0) return;
     const button = e.target.closest("button[data-go]");
-    if (!button) return;
+    if (!button || button.disabled) return;
     clear();
     suppressUntil = 0;
     gesture = {
       id: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
       x: e.clientX,
       y: e.clientY,
-      button,
       armed: false,
     };
     button.setPointerCapture?.(e.pointerId);
-    timer = setTimeout(() => {
-      if (!gesture) return;
-      gesture.armed = true;
-      nav.classList.add("nav-scrubbing");
-      gesture.button = targetAt(gesture.x, gesture.y);
-      gesture.button?.classList.add("nav-preview");
-    }, 300);
+    timer = setTimeout(arm, 300);
   });
   nav.addEventListener("pointermove", (e) => {
     if (!gesture || gesture.id !== e.pointerId) return;
-    if (
-      !gesture.armed &&
-      Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y) > 10
-    ) {
-      clear();
-      suppressUntil = performance.now() + 500;
-      return;
-    }
     gesture.x = e.clientX;
     gesture.y = e.clientY;
+    const dx = Math.abs(e.clientX - gesture.startX),
+      dy = Math.abs(e.clientY - gesture.startY);
+    if (!gesture.armed && dy > 12 && dy > dx) {
+      clear();
+      suppressUntil = performance.now() + 600;
+      return;
+    }
+    if (!gesture.armed && dx > 6 && dx > dy) arm();
     if (gesture.armed) {
       e.preventDefault();
-      nav
-        .querySelectorAll(".nav-preview")
-        .forEach((el) => el.classList.remove("nav-preview"));
-      gesture.button = targetAt(e.clientX, e.clientY);
-      gesture.button?.classList.add("nav-preview");
+      if (frame === null) frame = requestAnimationFrame(draw);
     }
   });
   nav.addEventListener("pointerup", (e) => {
@@ -269,7 +310,7 @@ export function bindSlideNavigation(nav, navigate) {
     if (gesture) suppressUntil = performance.now() + 600;
     clear();
   });
-  nav.addEventListener("lostpointercapture", () => clear());
+  nav.addEventListener("lostpointercapture", clear);
   nav.addEventListener("contextmenu", (e) => e.preventDefault());
   nav.addEventListener(
     "click",

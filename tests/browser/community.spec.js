@@ -1,3 +1,4 @@
+import { finishIntroduction } from "./helpers/introduction.js";
 import { chooseDate, savedDreamDetails } from "./helpers/journal.js";
 import { test, expect } from "@playwright/test";
 import { MemoryStore } from "../helpers/memory-store.mjs";
@@ -18,6 +19,7 @@ async function boot(page) {
   await page.locator("#nickname").fill("Dreamer");
   await page.locator("#ageGroup").selectOption("20代");
   await page.locator("#profile-form button[type=submit]").click();
+  await finishIntroduction(page);
   for (let i = 0; i < 16; i++) {
     await page.locator(`[data-answer="${i === 11 ? 2 : 0}"]`).click();
     await page.locator("[data-action=quiz-next]").click();

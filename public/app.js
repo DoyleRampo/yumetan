@@ -64,7 +64,7 @@ const esc = (value) =>
       ],
   );
 const id = () => crypto.randomUUID();
-const APP_VERSION = "4.6.1";
+const APP_VERSION = "4.7.0";
 const cap = window.Capacitor,
   native = cap?.isNativePlatform?.(),
   plugins = cap?.Plugins || {};
@@ -250,7 +250,9 @@ function header() {
       ? `<button type="button" class="icon-btn" data-go="settings" aria-label="${esc(t("settings"))}" ${page === "settings" ? 'aria-current="page"' : ""}>${ICONS.settings}</button>`
       : "");
   const nav = $("#nav");
-  nav.hidden = !ready || ["quiz", "result", "onboard"].includes(page);
+  nav.hidden =
+    !ready ||
+    ["quiz", "result", "onboard", "intro", "welcome-login"].includes(page);
   nav.setAttribute("aria-label", t("brand"));
   const activePage =
     { "dream-days": "record", "diary-days": "diary" }[page] || page;
@@ -307,7 +309,7 @@ function updateHomeFit() {
     const fits = () =>
       [
         ...document.querySelectorAll(
-          ".home-dashboard > *, .home-dashboard .btn, .home-dashboard .score, .home-dashboard .character-art",
+          ".home-dashboard > *, .home-dashboard .btn, .home-dashboard .score, .home-dashboard .character-art, .home-dashboard .character-link, .home-dashboard .character-stars",
         ),
       ].every((el) => {
         const r = el.getBoundingClientRect(),
@@ -330,12 +332,22 @@ function updateHomeFit() {
   });
 }
 window.addEventListener("resize", updateHomeFit);
+$("#app").addEventListener(
+  "load",
+  (event) => {
+    if (page === "home" && event.target.matches(".character-art"))
+      updateHomeFit();
+  },
+  true,
+);
 function render() {
   header();
   document.body.dataset.screen = page;
   const views = {
     home: homeView,
     onboard: profileView,
+    intro: introductionView,
+    "welcome-login": introductionLoginView,
     quiz: quizView,
     result: resultView,
     catalog: catalogView,
@@ -419,7 +431,7 @@ function pageTitle(p) {
 }
 const hasBack = () =>
   !ROOTS.includes(page) &&
-  !["quiz", "result"].includes(page) &&
+  !["quiz", "result", "intro", "welcome-login"].includes(page) &&
   !(page === "onboard" && !state.profile?.typeAnswers);
 function backTarget() {
   const prev = navStack.at(-1);
@@ -459,9 +471,15 @@ async function navigate(next, force = false, back = false) {
   else if (
     state.profile &&
     !state.profile.typeAnswers &&
-    !["onboard", "quiz", "result"].includes(next)
+    !["onboard", "quiz", "result", "intro", "welcome-login"].includes(next)
   )
-    next = "quiz";
+    next = firstRunPage();
+  if (
+    !state.profile?.typeAnswers &&
+    next === "quiz" &&
+    ["intro", "welcome-login"].includes(firstRunPage())
+  )
+    next = firstRunPage();
   if (ROOTS.includes(next)) navStack = [];
   else if (!back && next !== page && !["quiz", "result"].includes(page))
     navStack.push(page);
@@ -481,12 +499,70 @@ async function navigate(next, force = false, back = false) {
   return true;
 }
 
+function firstRunPage() {
+  if (!state.profile) return "onboard";
+  if (state.profile.typeAnswers) return "home";
+  if (options.introduction?.phase === "tour") return "intro";
+  if (options.introduction?.phase === "login") return "welcome-login";
+  return "quiz";
+}
+async function saveIntroduction(introduction) {
+  const next = { ...options, introduction };
+  await write("yumetan.v4.options", next);
+  options = next;
+}
+function introductionView() {
+  const step = Math.max(0, Math.min(3, options.introduction?.step || 0));
+  const arts = [
+    `<div class="intro-moon">☾</div><div class="intro-paper"><i></i><i></i><i></i><span>✦</span></div>`,
+    `<div class="intro-journal"><span>♡</span><i></i><i></i><i></i></div><span class="intro-spark">✦</span>`,
+    `<img class="intro-character" src="${getCharacter("challenge", "animal").image}" width="768" height="768" alt=""><span class="intro-badge">16 TYPES</span>`,
+    `<div class="intro-growth"><span>Lv.1</span><b>✦</b><span>Lv.2</span><div class="intro-meter"><i></i></div></div>`,
+  ];
+  return `<section class="introduction narrow" data-intro-step="${step}"><div class="intro-progress" role="group" aria-label="${esc(t("introProgress"))}">${Array.from({ length: 4 }, (_, i) => `<span class="intro-dot ${i === step ? "current" : ""}" aria-label="${i + 1} / 4" ${i === step ? 'aria-current="step"' : ""}></span>`).join("")}</div><div class="intro-slide"><div class="intro-art intro-art-${step}" aria-hidden="true">${arts[step]}</div><div class="intro-copy" aria-live="polite"><p class="eyebrow">${step + 1} / 4</p><h1 tabindex="-1">${t(`intro${step + 1}Title`)}</h1><p>${t(`intro${step + 1}Text`)}</p></div></div><div class="intro-actions"><button type="button" class="btn ghost" data-action="intro-back" ${step === 0 ? "disabled" : ""}>${t("back")}</button><button type="button" class="btn primary" data-action="intro-next">${t(step === 3 ? "introLogin" : "next")}</button></div></section>`;
+}
+function introductionLoginView() {
+  return `<section class="narrow intro-login"><h1>${t("signIn")}</h1><p class="muted">${t("introLoginHint")}</p>${signedIn() ? `<div class="card"><p>${t("introSignedIn")}</p><button class="btn primary full" data-action="intro-continue">${t("startQuiz")}</button></div>` : accountView(true)}</section>`;
+}
+async function moveIntroduction(offset) {
+  if (page !== "intro") return;
+  const step = Math.max(0, Math.min(3, options.introduction?.step || 0));
+  if (step === 3 && offset > 0) {
+    await saveIntroduction({ phase: "login", step: 3 });
+    await navigate("welcome-login", true);
+  } else {
+    await saveIntroduction({
+      phase: "tour",
+      step: Math.max(0, Math.min(3, step + offset)),
+    });
+    render();
+    $(".intro-copy h1")?.focus({ preventScroll: true });
+  }
+}
+async function continueIntroduction() {
+  await saveIntroduction({ phase: "done", step: 3 });
+  await navigate(state.profile?.typeAnswers ? "home" : "quiz", true);
+}
+// Carry the just-entered registration profile to a new account. Existing guest
+// journals still use the established explicit import consent.
+async function completeIntroductionLogin(sourceKey, guest) {
+  if (options.introduction?.phase !== "login") {
+    await offerGuestImport(sourceKey, guest);
+    return;
+  }
+  if (!state.profile && guest?.profile && !guest.records.length) {
+    await commit({ ...state, profile: guest.profile });
+    await syncCloud();
+  } else await offerGuestImport(sourceKey, guest);
+  await saveIntroduction({ phase: "done", step: 3 });
+}
+
 function profileView() {
   const p = draft || state.profile || {};
   return `<div class="narrow"><p class="eyebrow">WELCOME TO YOUR DREAM WORLD</p><h1>${t("welcome")}</h1><p class="muted">${t("profileHint")}</p>${!state.profile ? `<details class="onboard-account"><summary>${t("accountOptional")}</summary>${accountView(true)}</details>` : ""}<form id="profile-form" class="card">
  ${input("nickname", "nickname", p.nickname, "text", 'required maxlength="20" autocomplete="nickname"')}
  <label class="field"><span>${t("age")}</span><select id="ageGroup" class="input">${["10", "20", "30", "40", "50", "60"].map((a) => `<option value="${a === "60" ? "60代以上" : a + "代"}" ${p.ageGroup === (a === "60" ? "60代以上" : a + "代") ? "selected" : ""}>${t("age" + a)}</option>`).join("")}</select></label>
- ${languageField()}<button class="btn primary full" type="submit">${t(state.profile?.typeAnswers ? "save" : "startQuiz")}</button></form><details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
+ ${languageField()}<button class="btn primary full" type="submit">${t(state.profile?.typeAnswers ? "save" : "introStart")}</button></form><details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
 }
 function quizView() {
   const q = TYPES[quizIndex];
@@ -509,7 +585,7 @@ function homeView() {
    t("nextLevel")
      .replace("{n}", value.remaining)
      .replace("{l}", value.level + 1),
- )} · ${t("dreamsLogged")}: ${value.count}</p></div></div></section>`;
+ )}<span class="dream-count">${t("dreamsLogged")}: ${value.count}</span></p></div></div></section>`;
 }
 
 function catalogView() {
@@ -882,8 +958,10 @@ function bindForms() {
     $("#profile-form").onsubmit = (e) =>
       run(async () => {
         e.preventDefault();
+        const isRegistration = !state.profile;
         capture();
         if (!draft.nickname.trim()) throw new Error(t("required"));
+        if (isRegistration) await saveIntroduction({ phase: "tour", step: 0 });
         await commit({
           ...state,
           profile: normalizeProfile({
@@ -894,7 +972,7 @@ function bindForms() {
         });
         await saveQuizDraft();
         await syncCloud();
-        navigate(state.profile.typeAnswers ? "home" : "quiz", true);
+        navigate(firstRunPage(), true);
       });
   if ($("#dream-form"))
     $("#dream-form").onsubmit = (e) => {
@@ -1416,6 +1494,7 @@ async function account(mode, provider = null) {
   )
     return;
   // Start popup OAuth directly in the click event, before awaiting storage/network.
+  const fromIntroduction = page === "welcome-login";
   const sourceKey = storageKey,
     guest = !cloud || cloud.isAnonymous() ? structuredClone(state) : null;
   const link = mode === "provider" && !cloud.isAnonymous();
@@ -1490,12 +1569,14 @@ async function account(mode, provider = null) {
     await login;
     if (syncTask) await syncTask;
     await switchAccount();
-    await offerGuestImport(sourceKey, guest);
+    await completeIntroductionLogin(sourceKey, guest);
     dirty = false;
     processing = false;
     navigate(
       state.profile?.typeAnswers
-        ? "settings"
+        ? fromIntroduction
+          ? "home"
+          : "settings"
         : state.profile
           ? "quiz"
           : "onboard",
@@ -1557,7 +1638,7 @@ async function resumeNativeLogin() {
     if (syncTask) await syncTask;
     const guest = pending.guest ? await read(pending.sourceKey) : null;
     await switchAccount();
-    await offerGuestImport(pending.sourceKey, guest);
+    await completeIntroductionLogin(pending.sourceKey, guest);
     navigate(
       state.profile?.typeAnswers ? "home" : state.profile ? "quiz" : "onboard",
       true,
@@ -1664,6 +1745,9 @@ async function speak() {
   }
 }
 const actions = {
+  "intro-next": () => moveIntroduction(1),
+  "intro-back": () => moveIntroduction(-1),
+  "intro-continue": continueIntroduction,
   home: () => navigate("home"),
   record: () => navigate("record"),
   diary: () => navigate("diary"),
@@ -1709,7 +1793,11 @@ const actions = {
   voice: startVoice,
   speak,
   sync: syncCloud,
-  guest: () => {
+  guest: async () => {
+    if (page === "welcome-login") {
+      await continueIntroduction();
+      return;
+    }
     $("#nickname")?.focus();
     $("#profile-form")?.scrollIntoView({ behavior: "smooth" });
   },
@@ -1877,11 +1965,7 @@ async function boot() {
       quizAnswers = progress.answers;
       quizIndex = Math.max(0, Math.min(15, progress.index || 0));
     }
-    page = state.profile
-      ? state.profile.typeAnswers
-        ? "home"
-        : "quiz"
-      : "onboard";
+    page = firstRunPage();
     if (cloud) {
       cloud.onUser?.(() => {
         // Cross-tab auth changes must invalidate every old draft and in-flight view.
@@ -1901,11 +1985,7 @@ async function boot() {
           !processing &&
           ["home", "quiz", "onboard"].includes(page)
         ) {
-          page = state.profile
-            ? state.profile.typeAnswers
-              ? "home"
-              : "quiz"
-            : "onboard";
+          page = firstRunPage();
           render();
         }
       });

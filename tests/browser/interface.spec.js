@@ -260,3 +260,54 @@ test("very short screens and enlarged text retain reachable home controls", asyn
     await expect(page.locator("[data-action=catalog]")).toBeInViewport();
   }
 });
+test("a quick horizontal drag moves the gray thumb continuously and switches only on release", async ({
+  page,
+}) => {
+  await ready(page);
+  const home = await page.locator("nav [data-go=home]").boundingBox(),
+    diary = await page.locator("nav [data-go=diary]").boundingBox();
+  const x = home.x + home.width / 2,
+    y = home.y + home.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 15, y);
+  await expect(page.locator("#nav")).toHaveClass(/nav-scrubbing/);
+  const thumb = page.locator(".nav-indicator");
+  await expect
+    .poll(async () => (await thumb.boundingBox()).x)
+    .toBeGreaterThan(home.x + 10);
+  const first = (await thumb.boundingBox()).x;
+  await page.mouse.move(x + 30, y);
+  await expect
+    .poll(async () => (await thumb.boundingBox()).x - first)
+    .toBeGreaterThan(10);
+  const color = await thumb.evaluate(
+    (el) => getComputedStyle(el).backgroundColor,
+  );
+  const [red, green, blue] = color.match(/[\d.]+/g).map(Number);
+  expect(red).toBe(green);
+  expect(green).toBe(blue);
+  await page.mouse.move(diary.x + diary.width / 2, y, { steps: 10 });
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "home");
+  await page.mouse.up();
+  await expect(page.locator("#diary-text")).toBeVisible();
+});
+test("home devotes more area to writing and level progress and spells out the next level", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await ready(page);
+  expect(
+    (await page.locator(".hero .btn").first().boundingBox()).height,
+  ).toBeGreaterThan(75);
+  expect(
+    (await page.locator(".level-card").boundingBox()).height,
+  ).toBeGreaterThan(170);
+  expect(
+    (await page.locator(".character-row").boundingBox()).height,
+  ).toBeLessThan(380);
+  await expect(page.locator(".level-next")).toContainText(
+    "あと3個の夢を記録するとLv.2になります",
+  );
+  await expect(page.locator(".dream-count")).toHaveText("記録した夢: 0");
+});

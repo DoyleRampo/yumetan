@@ -1,3 +1,4 @@
+import { finishIntroduction } from "./helpers/introduction.js";
 import { chooseDate, savedDreamDetails } from "./helpers/journal.js";
 import { test, expect } from "@playwright/test";
 const today = () =>
@@ -46,6 +47,7 @@ async function start(page, lang = "ja") {
   await page.locator("#nickname").fill("Dreamer");
   await page.locator("#ageGroup").selectOption("20代");
   await page.locator("#profile-form button[type=submit]").click();
+  await finishIntroduction(page);
   await expect(page.locator('[data-answer="2"]')).toBeVisible();
   for (let i = 0; i < 16; i++) {
     await page.locator(`[data-answer="${i === 11 ? 2 : 0}"]`).click();
@@ -209,6 +211,7 @@ test("partial questionnaire survives refresh and back navigation", async ({
   await page.goto("/");
   await page.locator("#nickname").fill("Test");
   await page.locator("#profile-form button").click();
+  await finishIntroduction(page);
   await page.locator('[data-answer="1"]').click();
   await page.locator("[data-action=quiz-next]").click();
   await page.reload();
@@ -457,6 +460,7 @@ test("account switching isolates journals and reload restores the active scope",
   await page.locator("#language").selectOption("en");
   await page.locator("#nickname").fill("First account");
   await page.locator("#profile-form button").click();
+  await finishIntroduction(page);
   for (let i = 0; i < 16; i++) {
     await page.locator('[data-answer="0"]').click();
     await page.locator("[data-action=quiz-next]").click();
