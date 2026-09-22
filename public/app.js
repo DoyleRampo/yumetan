@@ -812,7 +812,10 @@ function accountView(onboard = false) {
 let cloudPending = false;
 function offlineStatus() {
   const error = window.YumetanCloud?.state?.error;
-  if (cloudPending && !error) return at("cloudConnecting");
+  if (cloudPending && !error) {
+    const stage = window.YumetanCloud?.state?.stage;
+    return at("cloudConnecting") + (stage ? ` (${esc(stage)})` : "");
+  }
   return at("offline") + (error ? ` (${esc(error)})` : "");
 }
 function showSyncStatus(value) {
