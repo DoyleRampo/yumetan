@@ -862,7 +862,7 @@ body[data-screen="intro"] #app {
 }
 .intro-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   padding-bottom: 12px;
 }
@@ -875,13 +875,46 @@ body[data-screen="intro"] #app {
 .intro-login > .field {
   margin-top: 16px;
 }
+.intro-toolbar {
+  display: grid;
+  grid-template-columns: 80px 1fr 80px;
+  align-items: center;
+  min-height: 44px;
+}
+.intro-toolbar .intro-progress {
+  padding: 0;
+}
+.intro-back,
+.intro-skip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.intro-back {
+  width: 44px;
+  justify-self: start;
+}
+.intro-back:disabled {
+  visibility: hidden;
+}
 .intro-skip {
   justify-self: end;
-  margin: 0 0 8px auto;
+  padding: 0 8px;
 }
-.intro-language {
-  width: min(500px, 100%);
-  margin: 4px auto 12px;
+.intro-back:hover,
+.intro-skip:hover {
+  color: var(--gold);
+}
+.intro-actions {
+  width: min(440px, 100%);
+  margin-inline: auto;
 }
 @keyframes intro-enter {
   from {

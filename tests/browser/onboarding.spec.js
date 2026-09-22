@@ -9,12 +9,17 @@ async function begin(page, lang = "ja", configured = false) {
         : "window.FIREBASE_CONFIG={};",
     }),
   );
+  await page.addInitScript((language) => {
+    if (!localStorage.getItem("yumetan.v4.options"))
+      localStorage.setItem("yumetan.v4.options", JSON.stringify({ language }));
+  }, lang);
   await page.goto("/");
   await expect(page.locator("[data-intro-step]")).toHaveAttribute(
     "data-intro-step",
     "0",
   );
-  await page.locator("#language").selectOption(lang);
+  await expect(page.locator("#language")).toHaveCount(0);
+  await expect(page.locator("html")).toHaveAttribute("lang", "ja");
 }
 test("four-page introduction resumes, goes back, and leads to registration then the quiz", async ({
   page,
@@ -156,6 +161,10 @@ for (const lang of ["ja", "en", "ko", "zh"])
       );
       await page.locator("[data-action=intro-next]").click();
     }
+    // Language choice remains at registration, with the saved preference intact.
+    await expect(page.locator("#language")).toHaveValue(lang);
+    await page.locator("#language").selectOption("en");
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
     // Local-only build: registration follows the tour.
     await expect(page.locator("#app")).toHaveAttribute("data-page", "onboard");
     await expect(page.locator("main")).not.toContainText("undefined");

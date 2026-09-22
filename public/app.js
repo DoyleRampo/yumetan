@@ -1,3 +1,4 @@
+import { loadingMarkup, beginLoading } from "./core/loading.js";
 import {
   confirmDiscard,
   pickDate,
@@ -66,7 +67,7 @@ const esc = (value) =>
       ],
   );
 const id = () => crypto.randomUUID();
-const APP_VERSION = "4.7.0";
+const APP_VERSION = "4.8.0";
 const cap = window.Capacitor,
   native = cap?.isNativePlatform?.(),
   plugins = cap?.Plugins || {};
@@ -99,7 +100,9 @@ let authChanging = false,
   stopCloudWatch = null,
   syncStatus = "pending",
   syncAgain = false;
-const at = (key) => authText(key, language());
+const displayLanguage = () =>
+  ["intro", "welcome-login"].includes(page) ? "ja" : language();
+const at = (key) => authText(key, displayLanguage());
 const language = () => options.language;
 const ct = (key) => communityText(key, language());
 const signedIn = () => Boolean(cloud?.state.enabled && !cloud.isAnonymous());
@@ -243,7 +246,7 @@ const ICONS = {
 const NAV = ["home", "record", "diary", "community"];
 const navLabel = (p) => (p === "community" ? ct("community") : t(p));
 function header() {
-  document.documentElement.lang = language();
+  document.documentElement.lang = displayLanguage();
   document.title = `${t("brand")} / Yumetan`;
   const ready = Boolean(state.profile?.typeAnswers);
   $("#header").innerHTML =
@@ -343,6 +346,7 @@ $("#app").addEventListener(
   true,
 );
 function render() {
+  t = translator(displayLanguage());
   header();
   document.body.dataset.screen = page;
   const views = {
@@ -371,7 +375,7 @@ function render() {
     (hasBack()
       ? `<button type="button" class="back-link" data-action="back">← ${esc(pageTitle(backTarget()) || t("back"))}</button>`
       : "") + (views[page] || homeView)();
-  wrapJapaneseLabels($("#app"), language());
+  wrapJapaneseLabels($("#app"), displayLanguage());
   updateHomeFit();
   bindForms();
   bindLanguage();
@@ -521,10 +525,10 @@ function introductionView() {
     `<img class="intro-character" src="${getCharacter("challenge", "animal").image}" width="768" height="768" alt=""><span class="intro-badge">16 TYPES</span>`,
     `<div class="intro-growth"><span>Lv.1</span><b>✦</b><span>Lv.2</span><div class="intro-meter"><i></i></div></div>`,
   ];
-  return `<section class="introduction narrow" data-intro-step="${step}"><div class="intro-progress" role="group" aria-label="${esc(t("introProgress"))}">${Array.from({ length: 4 }, (_, i) => `<span class="intro-dot ${i === step ? "current" : ""}" aria-label="${i + 1} / 4" ${i === step ? 'aria-current="step"' : ""}></span>`).join("")}</div><div class="intro-slide"><div class="intro-art intro-art-${step}" aria-hidden="true">${arts[step]}</div><div class="intro-copy" aria-live="polite"><p class="eyebrow">${step + 1} / 4</p><h1 tabindex="-1">${t(`intro${step + 1}Title`)}</h1><p>${t(`intro${step + 1}Text`)}</p></div></div><button type="button" class="btn small ghost intro-skip" data-action="intro-skip">${t("introSkip")}</button><div class="intro-actions"><button type="button" class="btn ghost" data-action="intro-back" ${step === 0 ? "disabled" : ""}>${t("back")}</button><button type="button" class="btn primary" data-action="intro-next">${t(step === 3 ? (cloudConfigured() ? "introLogin" : "introStart") : "next")}</button></div>${step === 0 ? `<div class="intro-language">${languageField()}</div>` : ""}</section>`;
+  return `<section class="introduction narrow" lang="ja" data-intro-step="${step}"><div class="intro-toolbar"><button type="button" class="intro-back" data-action="intro-back" aria-label="戻る" ${step === 0 ? 'disabled aria-hidden="true"' : ""}><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="m14 6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="intro-progress" role="group" aria-label="${esc(t("introProgress"))}">${Array.from({ length: 4 }, (_, i) => `<span class="intro-dot ${i === step ? "current" : ""}" aria-label="${i + 1} / 4" ${i === step ? 'aria-current="step"' : ""}></span>`).join("")}</div><button type="button" class="intro-skip" data-action="intro-skip">${t("introSkip")}</button></div><div class="intro-slide"><div class="intro-art intro-art-${step}" aria-hidden="true">${arts[step]}</div><div class="intro-copy" aria-live="polite"><p class="eyebrow">${step + 1} / 4</p><h1 tabindex="-1">${t(`intro${step + 1}Title`)}</h1><p>${t(`intro${step + 1}Text`)}</p></div></div><div class="intro-actions"><button type="button" class="btn primary" data-action="intro-next">${t(step === 3 ? (cloudConfigured() ? "introLogin" : "introStart") : "next")}<span aria-hidden="true"> →</span></button></div></section>`;
 }
 function introductionLoginView() {
-  return `<section class="narrow intro-login"><h1>${t("signIn")}</h1><p class="muted">${t("introLoginHint")}</p>${signedIn() ? `<div class="card"><p>${t("introSignedIn")}</p><button class="btn primary full" data-action="intro-continue">${t(state.profile ? "startQuiz" : "introRegister")}</button></div>` : accountView(true)}${languageField()}</section>`;
+  return `<section class="narrow intro-login"><h1>${t("signIn")}</h1><p class="muted">${t("introLoginHint")}</p>${signedIn() ? `<div class="card"><p>${t("introSignedIn")}</p><button class="btn primary full" data-action="intro-continue">${t(state.profile ? "startQuiz" : "introRegister")}</button></div>` : accountView(true)}</section>`;
 }
 async function moveIntroduction(offset) {
   if (page !== "intro") return;
@@ -798,7 +802,7 @@ function accountView(onboard = false) {
   const enabled = cloud?.state.enabled,
     signed = enabled && !cloud.isAnonymous();
   const providers = cloud?.providers?.() || [];
-  return `<section class="card account-card"><h2>${t("account")}</h2><p class="help">${at(signed ? "loginHint" : onboard ? "loginRequired" : "guestHint")}</p><p class="status" id="account-sync-status" role="status">${enabled ? at(syncStatus) : offlineStatus()}</p>
+  return `<section class="card account-card"><h2>${t("account")}</h2><p class="help">${at(signed ? "loginHint" : onboard ? "loginRequired" : "guestHint")}</p><div class="status" id="account-sync-status">${enabled ? syncMarkup(syncStatus) : offlineStatus()}</div>
   ${signed ? `<p>${esc(cloud.email() || cloud.displayName?.() || state.profile?.nickname || "Yumetan")}</p><div class="row">${button("signOut", "signout", "ghost")}${button("sync", "sync", "ghost")}</div><h3>${at("link")}</h3><p class="help">${at("linkHint")}</p>` : `<p class="help">${at("loginHint")}</p>`}
   <div class="auth-buttons">${["google", "apple", "line"]
     .map((provider) => {
@@ -820,15 +824,19 @@ let cloudPending = false;
 function offlineStatus() {
   const error = window.YumetanCloud?.state?.error;
   if (cloudPending && !error) {
-    const stage = window.YumetanCloud?.state?.stage;
-    return at("cloudConnecting") + (stage ? ` (${esc(stage)})` : "");
+    return loadingMarkup(displayLanguage(), "connect", true);
   }
-  return at("offline") + (error ? ` (${esc(error)})` : "");
+  return `<span role="status">${at("offline")}${error ? ` (${esc(error)})` : ""}</span>`;
+}
+function syncMarkup(value) {
+  return value === "syncing"
+    ? loadingMarkup(displayLanguage(), "sync", true)
+    : `<span role="status">${at(value)}</span>`;
 }
 function showSyncStatus(value) {
   syncStatus = value;
   const el = $("#account-sync-status");
-  if (el) el.textContent = at(value);
+  if (el) el.innerHTML = syncMarkup(value);
 }
 function applyAccountPreferences() {
   if (state.profile?.language) {
@@ -1515,6 +1523,11 @@ async function account(mode, provider = null) {
   const link = mode === "provider" && !cloud.isAnonymous();
   if (link && !confirm(at("linkHint"))) return;
   authChanging = true;
+  const stopLoading = beginLoading(
+    displayLanguage(),
+    "connect",
+    $("#account-sync-status"),
+  );
   stopCloudWatch?.();
   try {
     disableActionButtons();
@@ -1564,7 +1577,6 @@ async function account(mode, provider = null) {
       });
     else if (mode === "provider" && native) {
       // The free API instance may need up to a minute to wake up.
-      toast(at("connecting"));
       await startNativeAuth({
         cloud,
         provider,
@@ -1620,8 +1632,9 @@ async function account(mode, provider = null) {
         (cloud.uid() ? `yumetan.v4.${cloud.uid()}` : "yumetan.v4.local")
     )
       await switchAccount();
-    throw new Error(authError(error.code, language()));
+    throw new Error(authError(error.code, displayLanguage()));
   } finally {
+    stopLoading();
     authChanging = false;
     watchAccount();
   }
@@ -1662,6 +1675,11 @@ async function switchAccount() {
 async function resumeNativeLogin() {
   if (!native || !cloud || authChanging || processing) return;
   authChanging = true;
+  const stopLoading = beginLoading(
+    displayLanguage(),
+    "connect",
+    $("#account-sync-status"),
+  );
   try {
     const pending = await finishNativeAuth(cloud);
     if (!pending) return;
@@ -1682,8 +1700,9 @@ async function resumeNativeLogin() {
       await switchAccount();
       navigate(state.profile?.typeAnswers ? "home" : "onboard", true);
     }
-    toast(authError(error.code, language()));
+    toast(authError(error.code, displayLanguage()));
   } finally {
+    stopLoading();
     authChanging = false;
     watchAccount();
   }
@@ -1979,7 +1998,7 @@ async function attachLateCloud(pending) {
       if (ready && !pending.state.error)
         pending.state.error = "auth/unavailable";
       const el = $("#account-sync-status");
-      if (el) el.textContent = offlineStatus();
+      if (el) el.innerHTML = offlineStatus();
     }
     return;
   }

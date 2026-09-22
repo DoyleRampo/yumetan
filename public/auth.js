@@ -1,3 +1,4 @@
+import { loadingMarkup } from "./core/loading.js";
 import { providerLogin } from "./core/auth-providers.js";
 import { authText, authError } from "./core/auth-i18n.js";
 import { loadFirebase } from "./core/firebase-sdk.js";
@@ -20,6 +21,7 @@ async function request(action, extra = {}) {
   if (!res.ok) throw { code: data.code };
   return data;
 }
+message.innerHTML = loadingMarkup(language, "connect");
 let A, auth, config;
 try {
   config = await request("bootstrap");
@@ -36,6 +38,7 @@ try {
   message.textContent = t(config.link ? "linkHint" : "loginHint");
   button.textContent = t(config.provider);
   button.disabled = false;
+  button.hidden = false;
 } catch (e) {
   error.textContent = authError(e.code, language);
   message.textContent = t("retry");
@@ -44,6 +47,7 @@ try {
 button.onclick = async () => {
   button.disabled = true;
   error.textContent = "";
+  message.innerHTML = loadingMarkup(language, "connect");
   try {
     const result = await providerLogin(A, auth, config.provider, {
       link: config.link,
@@ -55,6 +59,7 @@ button.onclick = async () => {
     button.hidden = true;
     message.textContent = t("returnApp");
   } catch (e) {
+    message.textContent = t(config.link ? "linkHint" : "loginHint");
     error.textContent = authError(e.code, language);
     button.disabled = false;
   }

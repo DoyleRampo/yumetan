@@ -5,14 +5,32 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="referrer" content="no-referrer" />
     <title>Yumetan · Sign in</title>
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css?v=4.8.0" />
+    <link rel="stylesheet" href="loading.css?v=4.8.0" />
   </head>
   <body>
     <main class="narrow">
       <h1>☾ Yumetan</h1>
       <section class="card">
-        <p id="message" role="status">…</p>
-        <button id="continue" class="btn primary" disabled>…</button>
+        <div id="message" aria-live="polite" aria-atomic="true">
+          <span class="dream-loading" role="status"
+            ><span class="dream-loading__scene" aria-hidden="true"
+              ><span class="dream-loading__orbit"></span
+              ><span class="dream-loading__moon"></span
+              ><span class="dream-loading__star dream-loading__star--one"
+                >✦</span
+              ><span class="dream-loading__star dream-loading__star--two"
+                >✧</span
+              ><span class="dream-loading__star dream-loading__star--three"
+                >✦</span
+              ></span
+            ><span class="dream-loading__copy">夢の世界につないでいます</span
+            ><span class="dream-loading__hint"
+              >少しだけ、お待ちください</span
+            ></span
+          >
+        </div>
+        <button id="continue" class="btn primary" disabled hidden></button>
         <p id="error" role="alert"></p>
       </section>
     </main>

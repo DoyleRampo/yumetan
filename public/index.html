@@ -12,18 +12,36 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icons/icon-192.png" />
     <link rel="apple-touch-icon" href="icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=4.7.0" />
-    <link rel="stylesheet" href="interface.css?v=4.7.0" />
+    <link rel="stylesheet" href="style.css?v=4.8.0" />
+    <link rel="stylesheet" href="loading.css?v=4.8.0" />
+    <link rel="stylesheet" href="interface.css?v=4.8.0" />
   </head>
   <body>
     <div class="sky" aria-hidden="true"></div>
     <header id="header"></header>
-    <main id="app" tabindex="-1"><p role="status">Loading…</p></main>
+    <main id="app" tabindex="-1">
+      <div class="launch-loading">
+        <span class="dream-loading" role="status"
+          ><span class="dream-loading__scene" aria-hidden="true"
+            ><span class="dream-loading__orbit"></span
+            ><span class="dream-loading__moon"></span
+            ><span class="dream-loading__star dream-loading__star--one">✦</span
+            ><span class="dream-loading__star dream-loading__star--two">✧</span
+            ><span class="dream-loading__star dream-loading__star--three"
+              >✦</span
+            ></span
+          ><span class="dream-loading__copy">夢の世界を準備しています</span
+          ><span class="dream-loading__hint"
+            >少しだけ、お待ちください</span
+          ></span
+        >
+      </div>
+    </main>
     <nav id="nav"></nav>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="config.js?v=4.7.0"></script>
-    <script src="firebase-config.js?v=4.7.0"></script>
-    <script type="module" src="cloud.js?v=4.7.0"></script>
-    <script type="module" src="app.js?v=4.7.0"></script>
+    <script src="config.js?v=4.8.0"></script>
+    <script src="firebase-config.js?v=4.8.0"></script>
+    <script type="module" src="cloud.js?v=4.8.0"></script>
+    <script type="module" src="app.js?v=4.8.0"></script>
   </body>
 </html>

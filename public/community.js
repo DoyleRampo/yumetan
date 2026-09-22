@@ -1,3 +1,4 @@
+import { loadingMarkup } from "./core/loading.js";
 import { PLANS, STAMPS } from "./core/plans.js";
 import { communityMessages } from "./core/community-i18n.js";
 import { localized } from "./core/types.js";
@@ -52,7 +53,7 @@ export function createCommunity({
     error
       ? `<p role="alert" class="status">${esc(error)}</p>`
       : busy
-        ? `<p role="status">${t("loading")}</p>`
+        ? loadingMarkup(language(), "load")
         : "";
   const postCard = (p) =>
     `<article class="card feed-card"><div class="post-author"><img src="${character(p.typeId, p.characterSet).image}" width="48" height="48" alt=""><div><strong>${esc(p.alias)}</strong><small>${esc(new Date(p.publishedAt).toLocaleDateString(language()))}</small></div></div><h2>${esc(p.title)}</h2><p class="prose">${esc(p.text)}</p><div class="row">${STAMPS.map((s) => `<span>${s} ${Number(p.reactions[s] || 0)}</span>`).join("")}</div><p class="help">${t("comments")}: ${p.commentCount}</p>${b("comments", "post", `data-id="${esc(p.id)}"`)}</article>`;

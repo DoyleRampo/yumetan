@@ -55,7 +55,7 @@ signOut:async()=>{uid='guest-'+crypto.randomUUID();localStorage.setItem('auth.te
   );
   return db;
 }
-test("the login wall offers the three social logins and no guest mode before registration in four languages", async ({
+test("the Japanese login wall offers three social logins and keeps language choice at registration", async ({
   page,
 }) => {
   await setup(page);
@@ -65,8 +65,10 @@ test("the login wall offers the three social logins and no guest mode before reg
     "data-page",
     "welcome-login",
   );
-  for (const lang of ["ja", "en", "ko", "zh"]) {
-    await page.locator("#language").selectOption(lang);
+  for (const width of [320, 390, 768]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(page.locator("#language")).toHaveCount(0);
+    await expect(page.locator("html")).toHaveAttribute("lang", "ja");
     for (const provider of ["google", "apple", "line"])
       await expect(
         page.locator(`[data-auth-provider=${provider}]`),
@@ -224,8 +226,11 @@ test("a slow cloud connection enables the social logins later without a reload",
   await page.locator("[data-action=intro-skip]").click();
   await expect(page.locator("[data-auth-provider=google]")).toBeDisabled();
   await expect(page.locator("#account-sync-status")).toContainText(
-    "接続しています",
+    "夢の世界につないでいます",
   );
+  await expect(
+    page.locator("#account-sync-status .dream-loading"),
+  ).toBeVisible();
   await expect(page.locator("[data-auth-provider=google]")).toBeEnabled({
     timeout: 10000,
   });
@@ -235,6 +240,6 @@ test("a slow cloud connection enables the social logins later without a reload",
     ).toBeEnabled();
   expect(await page.evaluate(() => window.__sameDocument)).toBe(true);
   await expect(page.locator("#account-sync-status")).not.toContainText(
-    "接続しています",
+    "夢の世界につないでいます",
   );
 });

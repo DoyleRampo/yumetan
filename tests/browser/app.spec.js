@@ -43,8 +43,8 @@ async function paidMember(page, plan = "starter") {
 async function start(page, lang = "ja") {
   await localOnly(page);
   await page.goto("/");
-  await page.locator("#language").selectOption(lang);
   await finishIntroduction(page);
+  await page.locator("#language").selectOption(lang);
   await page.locator("#nickname").fill("Dreamer");
   await page.locator("#ageGroup").selectOption("20代");
   await page.locator("#profile-form button[type=submit]").click();
@@ -467,8 +467,8 @@ test("account switching isolates journals and reload restores the active scope",
     }),
   );
   await page.goto("/");
-  await page.locator("#language").selectOption("en");
   await finishIntroduction(page);
+  await page.locator("#language").selectOption("en");
   await page.locator("#nickname").fill("First account");
   await page.locator("#profile-form button").click();
   for (let i = 0; i < 16; i++) {

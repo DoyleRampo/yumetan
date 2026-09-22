@@ -1,0 +1,158 @@
+/* Moonlight waiting states: transform/opacity only, no simulated progress. */
+.dream-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 12px;
+  text-align: center;
+  color: #f4edda;
+  font-family: inherit;
+  line-height: 1.6;
+  max-width: 100%;
+}
+.dream-loading__scene {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: 116px;
+  height: 100px;
+}
+.dream-loading__moon {
+  position: absolute;
+  inset: 23px 32px;
+  border-radius: 50%;
+  background: #f6da97;
+  box-shadow: 0 0 32px #e7c77f30;
+  overflow: hidden;
+  animation: dream-moon 3.6s ease-in-out infinite;
+}
+.dream-loading__moon::after {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #201d35;
+  transform: translate(11px, -8px);
+}
+.dream-loading__orbit {
+  position: absolute;
+  inset: 6px 14px;
+  border: 1px solid #f6da9726;
+  border-radius: 50%;
+}
+.dream-loading__star {
+  position: absolute;
+  color: #f6da97;
+  font-size: 16px;
+  animation: dream-twinkle 2.8s ease-in-out infinite;
+}
+.dream-loading__star--one {
+  top: 4px;
+  left: 30px;
+}
+.dream-loading__star--two {
+  top: 44px;
+  right: 2px;
+  animation-delay: -0.9s;
+}
+.dream-loading__star--three {
+  bottom: 4px;
+  left: 17px;
+  font-size: 11px;
+  animation-delay: -1.8s;
+}
+.dream-loading__copy {
+  font-size: 14px;
+  font-weight: 600;
+  line-break: strict;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.dream-loading__hint {
+  font-size: 12px;
+  color: #b9b3cb;
+}
+.launch-loading {
+  min-height: calc(100svh - 160px);
+  display: grid;
+  place-items: center;
+}
+.dream-loading--compact {
+  flex-direction: row;
+  gap: 12px;
+  padding: 8px 0;
+  text-align: start;
+}
+.dream-loading--compact .dream-loading__scene {
+  width: 58px;
+  height: 50px;
+}
+.dream-loading--compact .dream-loading__moon {
+  inset: 12px 16px;
+}
+.dream-loading--compact .dream-loading__moon::after {
+  transform: translate(6px, -4px);
+}
+.dream-loading--compact .dream-loading__orbit {
+  inset: 3px 7px;
+}
+.dream-loading--compact .dream-loading__star {
+  font-size: 10px;
+}
+.dream-loading--compact .dream-loading__star--one {
+  top: 0;
+  left: 15px;
+}
+.dream-loading--compact .dream-loading__star--two {
+  top: 22px;
+  right: 0;
+}
+.dream-loading--compact .dream-loading__star--three {
+  bottom: 0;
+  left: 8px;
+  font-size: 8px;
+}
+.dream-loading-toast {
+  position: fixed;
+  z-index: 110;
+  top: calc(env(safe-area-inset-top, 0px) + 64px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 4px 18px;
+  border: 1px solid #f6da9733;
+  border-radius: 22px;
+  background: #201d35fa;
+  box-shadow: 0 10px 36px #0005;
+  pointer-events: none;
+}
+@keyframes dream-moon {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-8deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(4deg);
+  }
+}
+@keyframes dream-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dream-loading__moon,
+  .dream-loading__star {
+    animation: none;
+  }
+}
