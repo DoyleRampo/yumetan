@@ -864,6 +864,22 @@ async function refreshPlan() {
     await write("yumetan.v4.options", options);
   } catch {}
 }
+// The plan only affects the character collection, so it is refreshed in the
+// background: a sleeping API instance must never delay login or app start.
+let planRefresh = null;
+function refreshPlanInBackground() {
+  if (planRefresh) return planRefresh;
+  const before = options.planCache?.plan;
+  planRefresh = refreshPlan()
+    .then(() => {
+      if (options.planCache?.plan !== before && !dirty && !processing) render();
+    })
+    .catch(() => {})
+    .finally(() => {
+      planRefresh = null;
+    });
+  return planRefresh;
+}
 // The language select lives on the first screen and in Settings; both apply at once.
 function bindLanguage() {
   const select = $("#language");
@@ -1669,7 +1685,7 @@ async function switchAccount() {
   quizAnswers =
     progress?.answers?.length === 16 ? progress.answers : Array(16).fill(null);
   quizIndex = Math.max(0, Math.min(15, progress?.index || 0));
-  await refreshPlan();
+  refreshPlanInBackground();
   await syncCloud();
 }
 async function resumeNativeLogin() {
@@ -2006,7 +2022,7 @@ async function attachLateCloud(pending) {
   await adoptCloud();
   await loadScope();
   bindCloud();
-  if (!cloud.isAnonymous()) await refreshPlan().catch(() => {});
+  if (!cloud.isAnonymous()) refreshPlanInBackground();
   if (["home", "quiz", "onboard", "intro", "welcome-login"].includes(page))
     page = firstRunPage();
   render();
@@ -2059,7 +2075,7 @@ async function boot() {
     await loadScope();
     page = firstRunPage();
     if (cloud) bindCloud();
-    if (cloud && !cloud.isAnonymous()) await refreshPlan();
+    if (cloud && !cloud.isAnonymous()) refreshPlanInBackground();
     if (state.profile?.typeAnswers && location.hash === "#plans")
       page = "plans";
     render();

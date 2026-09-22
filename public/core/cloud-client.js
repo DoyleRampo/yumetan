@@ -124,9 +124,11 @@ export function createCloudClient({ A, fs, auth, db }) {
       let remote = await this.loadSnapshot(owner);
       ensure();
       const merged = mergeAccount(local, remote);
+      let changed = false;
       for (const id of local.deleted || []) {
         if (remote.deleted.includes(id)) continue;
         ensure();
+        changed = true;
         await fs.runTransaction(db, async (tx) => {
           const ref = fs.doc(col("deleted", owner), id),
             old = await tx.get(ref);
@@ -144,6 +146,7 @@ export function createCloudClient({ A, fs, auth, db }) {
           JSON.stringify(normalizeRecord(existing)) === JSON.stringify(record)
         )
           continue;
+        changed = true;
         await fs.runTransaction(db, async (tx) => {
           const ref = fs.doc(
             col(record.kind === "diary" ? "diary" : "dreams", owner),
@@ -166,8 +169,12 @@ export function createCloudClient({ A, fs, auth, db }) {
             tx.set(ref, record);
         });
       }
-      if (merged.profile) {
+      if (
+        merged.profile &&
+        JSON.stringify(merged.profile) !== JSON.stringify(remote.profile)
+      ) {
         ensure();
+        changed = true;
         await fs.runTransaction(db, async (tx) => {
           const ref = root(owner),
             old = await tx.get(ref),
@@ -176,8 +183,12 @@ export function createCloudClient({ A, fs, auth, db }) {
             tx.set(ref, { profile }, { merge: true });
         });
       }
-      remote = await this.loadSnapshot(owner);
-      ensure();
+      // Re-read only when something was written; a new device signing in to an
+      // existing account otherwise needs a single round of server reads.
+      if (changed) {
+        remote = await this.loadSnapshot(owner);
+        ensure();
+      }
       return mergeAccount({ ...merged, profile: null }, remote);
     },
     watch(cb, onError = () => {}) {
