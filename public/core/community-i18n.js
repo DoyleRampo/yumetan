@@ -291,25 +291,25 @@ export const communityMessages = {
     "Each list or detail opening counts the posts displayed. Only paid members can read post content.",
   ],
   remaining: ["使用数 / 上限", "사용 / 한도", "已用/上限", "Used / limit"],
-  mine: ["公開中の夢", "공개 중인 꿈", "公开中的梦", "Your public dreams"],
-  emptyMine: [
-    "公開中の夢はありません。",
-    "공개 중인 꿈이 없어요.",
-    "没有公开中的梦。",
-    "No public dreams right now.",
-  ],
   openPost: ["投稿をひらく", "게시물 열기", "打开帖子", "Open post"],
+  switchTo: [
+    "{plan}に変更する",
+    "{plan}으로 변경",
+    "更改为{plan}",
+    "Switch to {plan}",
+  ],
+  switchPlan: ["変更する", "변경", "更改", "Switch"],
+  switchNote: [
+    "別のプランに変更すると、ストアの規約に従って現在のプランから切り替わります。解約すると期間終了後に自動的にフリーへ戻ります。",
+    "다른 요금제로 변경하면 스토어 규정에 따라 현재 요금제에서 전환돼요. 해지하면 기간 종료 후 자동으로 무료로 돌아가요.",
+    "更改为其他套餐时，将按商店规则从当前套餐切换。取消后到期会自动恢复为免费。",
+    "Switching moves you from your current plan under the store's rules. After cancelling, your account returns to Free when the period ends.",
+  ],
   purchaseActivated: [
     "プランが有効になりました。すぐにお使いいただけます。",
     "요금제가 활성화되었어요. 바로 이용할 수 있어요.",
     "套餐已生效，可以立即使用。",
     "Your plan is active and ready to use.",
-  ],
-  autoPublished: [
-    "みんなの夢に公開しました",
-    "모두의 꿈에 공개했어요",
-    "已公开到大家的梦",
-    "Shared to the dream feed",
   ],
   emptyFeed: [
     "まだ投稿がありません。",

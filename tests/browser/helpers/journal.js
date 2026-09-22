@@ -24,3 +24,9 @@ export async function savedDreamDetails(page) {
   await page.locator("[data-open-days=dream]").click();
   await page.locator("[data-entry]").first().click();
 }
+// "Read this dream" opens the reading page; Save lives there.
+export async function submitDream(page) {
+  await page.locator("[data-action=diagnose]").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "reading");
+  await page.locator("[data-action=save-reading]").click();
+}

@@ -1,5 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { chooseDate, savedDreamDetails } from "./helpers/journal.js";
+import {
+  chooseDate,
+  savedDreamDetails,
+  submitDream,
+} from "./helpers/journal.js";
 const today = new Date().toLocaleDateString("sv-SE", {
   timeZone: "Asia/Tokyo",
 });
@@ -59,7 +63,7 @@ test("saved dream clears all draft fields only after successful persistence", as
   await page.locator("#hours").fill("8");
   await page.locator("#awakenings").fill("0");
   await page.locator("#rested").selectOption("4");
-  await page.locator("#dream-form button[type=submit]").click();
+  await submitDream(page);
   await expect(page.locator("#dream-text")).toHaveValue("");
   await expect(page.locator("#dream-date")).toHaveValue(today);
   await expect(page.locator("#include-sleep")).not.toBeChecked();
@@ -68,7 +72,7 @@ test("saved dream clears all draft fields only after successful persistence", as
   await expect(page.locator("main")).toContainText("うるう日の夢");
   await page.locator("nav [data-go=record]").click();
   await page.locator("#dream-text").fill("今日の新しい夢");
-  await page.locator("#dream-form button[type=submit]").click();
+  await submitDream(page);
   const records = await page.evaluate(
     () => JSON.parse(localStorage.getItem("yumetan.v4.local")).records,
   );

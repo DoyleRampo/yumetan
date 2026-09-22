@@ -1049,9 +1049,26 @@ body[data-screen="intro"] #app {
     opacity: 1;
   }
 }
+/* Every view change: a short fade while the page settles into place. Scale
+   only shrinks toward the centre, so nothing overflows or shifts the layout. */
+#app.page-enter {
+  transform-origin: 50% 30%;
+  animation: page-enter 0.24s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   #app.page-turn-out,
-  #app.page-turn-in {
+  #app.page-turn-in,
+  #app.page-enter {
     animation: none;
   }
 }

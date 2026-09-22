@@ -1985,58 +1985,25 @@ nav button:focus-visible {
   outline-offset: 2px;
 }
 
-/* Sharing choice: first dream on an account, and Settings. */
-.visibility-options {
-  display: grid;
-  gap: 12px;
-  margin: 16px 0;
+/* The dream's own share box. */
+.share-card {
+  padding: 14px 16px;
 }
-.visibility-option {
-  display: grid;
-  gap: 4px;
-  text-align: start;
-  padding: 16px 18px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: #1a1830;
-  color: var(--ink);
+.share-check {
+  font-weight: 600;
 }
-.visibility-option strong {
-  font-size: 16px;
+.share-card .help {
+  margin: 6px 0 0;
 }
-.visibility-option span {
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.6;
+.share-card .btn {
+  margin-top: 10px;
 }
-.visibility-option[aria-checked="true"] {
-  border-color: var(--gold);
-  background: #2f2a1c;
-  box-shadow: inset 0 0 0 1px var(--gold);
-}
-.visibility-option[aria-checked="true"]::before {
-  content: "✓ ";
-  color: var(--gold);
-}
-.visibility-page {
-  padding-top: 24px;
-}
-.public-post {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-top: 1px solid var(--line);
-}
-.public-post .prose {
-  margin: 0;
-  font-size: 14px;
+.reading-page .reading-excerpt {
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-#public-posts h3 {
-  margin: 16px 0 6px;
-  font-size: 15px;
+.reading-page .reading-card {
+  margin-top: 8px;
 }
 .account-actions .btn {
   flex: 1;

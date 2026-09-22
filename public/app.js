@@ -363,7 +363,12 @@ function bindEdgeSwipe() {
     app.classList.add("page-turn-out");
     setTimeout(async () => {
       app.classList.remove("page-turn-out");
-      await goBack();
+      pageTurning = true;
+      try {
+        await goBack();
+      } finally {
+        pageTurning = false;
+      }
       app.classList.add("page-turn-in");
       setTimeout(() => {
         app.classList.remove("page-turn-in");
@@ -464,8 +469,8 @@ function render() {
     "dream-days": () => journalView("dream"),
     "diary-days": () => journalView("diary"),
     detail: detailView,
+    reading: readingView,
     settings: settingsView,
-    visibility: visibilityView,
     community: () => social.view("community"),
     plans: () => social.view("plans"),
     "plan-details": () => social.view("plan-details"),
@@ -479,7 +484,6 @@ function render() {
       : "") + (views[page] || homeView)();
   wrapJapaneseLabels($("#app"), displayLanguage());
   updateHomeFit();
-  if (page === "settings") loadPublicPosts();
   bindForms();
   bindLanguage();
   social.bind();
@@ -512,12 +516,12 @@ const PARENTS = {
   catalog: "home",
   "type-detail": "catalog",
   detail: "record",
+  reading: "record",
   plans: "settings",
   "plan-details": "plans",
   share: "detail",
   "community-post": "community",
   onboard: "settings",
-  visibility: "record",
 };
 let navStack = [];
 function pageTitle(p) {
@@ -532,12 +536,12 @@ function pageTitle(p) {
     catalog: t("catalog"),
     "type-detail": t("catalog"),
     detail: t("detail"),
+    reading: t("readingTitle"),
     plans: ct("plans"),
     "plan-details": ct("plans"),
     share: ct("share"),
     "community-post": ct("community"),
     onboard: t("profile"),
-    visibility: t("visibility"),
   }[p];
 }
 const hasBack = () =>
@@ -573,20 +577,25 @@ async function goBack() {
 async function navigate(next, force = false, back = false) {
   if (next === page && !force) return true;
   if (processing && !force) return false;
-  if (!force && dirty && !(await confirmDiscard(t))) return false;
+  // Text that is waiting on the target page is not lost by moving there.
+  const restoring = Boolean(quotaDraft && quotaDraft.page === next);
+  if (!force && !restoring && dirty && !(await confirmDiscard(t))) return false;
   stopVoice();
   social.leave();
+  // The reading page works on the journal page's draft.
+  const carried = next === "reading" ? { draft, dirty } : null;
   dirty = false;
   draft = null;
-  if (quotaDraft && quotaDraft.page === next) {
+  if (restoring) {
     draft = quotaDraft.draft;
-    dirty = true;
+    dirty = quotaDraft.dirty ?? true;
     quotaDraft = null;
-  } else if (
-    quotaDraft &&
-    !["plans", "plan-details", "visibility"].includes(next)
-  )
+  } else if (quotaDraft && !["plans", "plan-details", "reading"].includes(next))
     quotaDraft = null;
+  if (carried) {
+    draft = carried.draft;
+    dirty = carried.dirty;
+  }
   const first = firstRunPage();
   if (first !== "home") {
     // Introduction, login and registration steps cannot be skipped.
@@ -597,11 +606,13 @@ async function navigate(next, force = false, back = false) {
   else if (!back && next !== page && !["quiz", "result"].includes(page))
     navStack.push(page);
   if (navStack.length > 20) navStack = navStack.slice(-20);
+  const from = page;
   page = next;
   // Forward moves add a history entry so the browser/Android back button works.
   if (back || ROOTS.includes(page)) history.replaceState(null, "", `#${page}`);
   else history.pushState(null, "", `#${page}`);
   render();
+  animatePage(from);
   window.scrollTo(0, 0);
   $("#app").focus({ preventScroll: true });
   if (["community", "plans", "plan-details", "share"].includes(page))
@@ -612,6 +623,23 @@ async function navigate(next, force = false, back = false) {
   return true;
 }
 
+// A short fade-and-settle whenever the view changes. The page-turn gesture
+// brings its own animation and skips this one.
+let pageTurning = false;
+function animatePage(from) {
+  const app = $("#app");
+  if (
+    pageTurning ||
+    from === page ||
+    matchMedia("(prefers-reduced-motion: reduce)").matches
+  )
+    return;
+  app.classList.remove("page-enter");
+  void app.offsetWidth;
+  app.classList.add("page-enter");
+  clearTimeout(animatePage.timer);
+  animatePage.timer = setTimeout(() => app.classList.remove("page-enter"), 320);
+}
 // Records never live only on the device: whenever Firebase is configured, an
 // account is required before registration. Order for a new user:
 // introduction → login → registration → 16-type quiz → home.
@@ -749,6 +777,7 @@ function freshDream(date = localDate()) {
     sleep: null,
     photo: null,
     analysis: null,
+    shared: null,
     createdAt: new Date().toISOString(),
   };
 }
@@ -761,7 +790,9 @@ const dreamsOn = (date) =>
 function dreamDraft(date, recordId = null) {
   const saved = dreamsOn(date),
     existing = recordId ? saved.find((r) => r.id === recordId) : saved[0];
-  return existing ? structuredClone(existing) : freshDream(date);
+  return existing
+    ? { ...structuredClone(existing), shared: existing.shared === true }
+    : freshDream(date);
 }
 function diaryDraft(date) {
   const existing = state.records.find(
@@ -841,9 +872,24 @@ function recordView() {
  <div class="card">${dateRow("date", "dream-date", d.date)}${chips}${isSaved ? `<p class="help saved-note">${t("savedEntry")} · ${esc(dateText(d.date))}</p>` : ""}${area("dreamText", "dream-text", d.text, t("dreamPlaceholder"))}<div class="record-tools">${button("voice", "voice", "small ghost")}<details ${d.photo ? "open" : ""}><summary>${t("photo")}</summary><p class="help">${t("photoHint")}</p><label class="field"><span>${t("photo")}</span><input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp"></label>${d.photo ? `<img class="photo" src="${esc(d.photo)}" alt="${t("photoAlt")}"><div class="row">${button("recognize", "recognize", "small")}${button("removePhoto", "remove-photo", "small ghost")}</div>` : ""}</details></div></div>
  <details class="card theme-picker" ${d.typeTags.length ? "open" : ""}><summary>${t("tags")}</summary><p class="help">${t("tagHint")}</p>${themes(d.typeTags)}</details>
  <div class="card"><h2>${t("sleep")}</h2><label class="check"><input type="checkbox" id="include-sleep" ${d.sleep ? "checked" : ""}><span>${t("sleepOptional")}</span></label><div id="sleep-fields" ${d.sleep ? "" : "hidden"}><div class="grid">${input("hours", "hours", d.sleep?.hours ?? "", "number", 'min="0" max="24" step="0.25"')}${input("awakenings", "awakenings", d.sleep?.awakenings ?? "", "number", 'min="0" max="30" step="1"')}</div><label class="field"><span>${t("rested")}</span><select class="input" id="rested"><option value="">—</option>${[1, 2, 3, 4, 5].map((v) => `<option value="${v}" ${d.sleep?.rested === v ? "selected" : ""}>${v}</option>`).join("")}</select></label><label class="check"><input type="checkbox" id="nightmare" ${d.sleep?.nightmare ? "checked" : ""}><span>${t("nightmare")}</span></label></div><p class="help">${t("sleepNote")}</p></div>
- <div class="row">${button(signedIn() ? "analyzeAI" : "analyze", "analyze", "ghost")}<button type="submit" class="btn primary">${t("save")}</button>${isSaved ? button("delete", "delete-entry", "danger ghost small") : ""}</div>
+ <div class="row">${button("diagnose", "diagnose", "primary full")}${isSaved ? button("delete", "delete-entry", "danger ghost small") : ""}</div>
  <details class="previous-diary"><summary>${t("previousDiary")}</summary><p class="help">${previous ? esc(previous.text.slice(0, 500)) : t("noDiary")}</p></details>
- ${d.analysis ? analysisCard(d) : ""}</form>${recentLink("dream")}</div>`;
+ </form>${recentLink("dream")}</div>`;
+}
+// The reading page: the diagnosis of the dream on the journal page, the
+// dream's own share box (on by default when sharing is possible) and Save.
+function readingView() {
+  const d = draft;
+  if (!d) return `<p>${t("empty")}</p>`;
+  return `<div class="narrow reading-page"><p class="eyebrow">${esc(dateText(d.date))}</p><h1>${t("readingTitle")}</h1><p class="help reading-excerpt">${esc((d.text || t("sleep")).slice(0, 80))}${d.text && d.text.length > 80 ? "…" : ""}</p>${analysisCard(d)}${shareField(d)}<div class="row">${button("save", "save-reading", "primary full")}</div></div>`;
+}
+// Each dream decides for itself whether it appears in the feed. Sharing needs
+// an account and a paid plan; otherwise the box explains why it is off.
+function shareField(d) {
+  if (!cloudConfigured()) return "";
+  const allowed = signedIn() && displayPlan() !== "free",
+    on = d.shared == null ? allowed : d.shared;
+  return `<div class="card share-card"><label class="check share-check"><input type="checkbox" id="share-public" ${on ? "checked" : ""} ${allowed ? "" : "disabled"}><span>${t("shareDream")}</span></label><p class="help">${allowed ? t("shareDreamHint") : !signedIn() ? at("loginHint") : t("visibilityPaidNote")}</p>${allowed ? "" : signedIn() ? `<button type="button" class="btn small ghost" data-go="plans">${t("viewPlans")}</button>` : ""}</div>`;
 }
 const WEATHER = {
   sunny: ["☀️", "weatherSunny"],
@@ -879,7 +925,7 @@ function analysisCard(d) {
     .map((type) => `<span class="tag-label">${name(type)}</span>`)
     .join(
       "",
-    )}</div>${body}${prev ? `<h3>${t("previousDiary")} · ${esc(dateText(prev.date))}</h3><p class="prose">${esc(prev.text)}</p><p class="help">${t("diaryContext")}</p>${common.length ? `<p>${t("sharedThemes")}: ${common.map(typeById).map(name).join(" · ")}</p>` : ""}` : `<p class="help">${t("noDiary")}</p>`}${ai ? `<p class="help">${t("readingNote")}</p>` : ""}${button("speak", "speak", "small ghost")}</div>`;
+    )}</div>${body}${prev ? `<h3>${t("previousDiary")} · ${esc(dateText(prev.date))}</h3><p class="prose">${esc(prev.text)}</p><p class="help">${t("diaryContext")}</p>${common.length ? `<p>${t("sharedThemes")}: ${common.map(typeById).map(name).join(" · ")}</p>` : ""}` : `<p class="help">${t("noDiary")}</p>`}${ai ? `<p class="help">${t("readingNote")}</p>` : ""}</div>`;
 }
 function diaryView() {
   draft ||= diaryDraft(localDate());
@@ -900,7 +946,6 @@ function settingsView() {
   return `<div class="narrow settings-page"><h1>${t("settings")}</h1>
  <section class="card profile-card">${avatar(type, null, true)}<div><h2 class="character-name">${esc(state.profile?.nickname)}</h2><p class="help">${esc(state.profile?.ageGroup || "")} · ${esc(name(characterById(type.id)))} · ${esc(name(type))}</p><span class="tag-label">${esc(planName)}</span><div class="row">${button("edit", "profile", "small ghost")}${button("retake", "retake", "small ghost")}</div></div></section>
  <section class="card"><h2>${ct("plans")}</h2><p>${t("currentPlanLabel")}: <strong>${esc(planName)}</strong> · <span class="help">${ct(plan + "Summary")}</span></p><button class="btn primary" data-go="plans">${t("viewPlans")}</button></section>
- ${visibilityCard()}
  <section class="card"><h2>${t("appearance")}</h2>${languageField()}<p class="help">${t("privacy")}</p></section>
  <form id="character-form" class="card"><fieldset class="character-set-field"><legend>${t("characterSet")}</legend><p class="help">${t("characterSetHint")}</p><div class="character-set-options">${CHARACTER_SETS.map(
    (set) => {
@@ -918,23 +963,6 @@ function accountCard() {
   if (!cloud) return "";
   if (!signedIn()) return accountView(true);
   return `<section class="card account-card"><h2>${t("account")}</h2><p class="help">${t("accountHint")}</p><p>${esc(cloud.email() || cloud.displayName?.() || state.profile?.nickname || "Yumetan")}</p><div class="row account-actions">${button("signOut", "signout", "ghost")}${button("deleteAccount", "delete-account", "danger ghost")}</div>${pendingGuestKey ? `<button type="button" class="btn ghost" data-action="import-guest">${at("importLater")}</button>` : ""}</section>`;
-}
-const visibilityOptions = (current) =>
-  `<div class="visibility-options" role="radiogroup" aria-label="${esc(t("visibility"))}">${[
-    "public",
-    "private",
-  ]
-    .map(
-      (k) =>
-        `<button type="button" class="visibility-option" role="radio" data-visibility="${k}" aria-checked="${current === k}"><strong>${t(k === "public" ? "visibilityPublic" : "visibilityPrivate")}</strong><span>${t(k === "public" ? "visibilityPublicHint" : "visibilityPrivateHint")}</span></button>`,
-    )
-    .join("")}</div>`;
-function visibilityCard() {
-  if (!cloudConfigured()) return "";
-  return `<section class="card visibility-card"><h2>${t("visibility")}</h2><p class="help">${t("visibilityHint")}</p>${visibilityOptions(state.profile?.visibility)}${displayPlan() === "free" ? `<p class="help">${t("visibilityPaidNote")}</p>` : ""}<div id="public-posts" aria-live="polite">${signedIn() ? loadingMarkup(displayLanguage(), "load", true) : ""}</div></section>`;
-}
-function visibilityView() {
-  return `<section class="narrow visibility-page"><p class="eyebrow">SHARE YOUR DREAMS?</p><h1>${t("visibilityTitle")}</h1><p class="muted">${t("visibilityHint")}</p>${visibilityOptions(state.profile?.visibility)}${displayPlan() === "free" ? `<p class="help">${t("visibilityPaidNote")}</p>` : ""}</section>`;
 }
 function accountView(onboard = false) {
   const enabled = cloud?.state.enabled,
@@ -1088,7 +1116,9 @@ function capture() {
           }
         : null,
     };
-  } else if (page === "diary" && $("#diary-text"))
+  } else if (page === "reading" && $("#share-public"))
+    draft = { ...draft, shared: $("#share-public").checked };
+  else if (page === "diary" && $("#diary-text"))
     draft = {
       ...draft,
       date: $("#diary-date").value,
@@ -1121,7 +1151,8 @@ function bindForms() {
           dirty = true;
         if (page === "settings" && el.closest("form"))
           el.closest("form").dataset.dirty = "true";
-        if (page === "record" && draft) draft.analysis = null;
+        if (page === "record" && draft && el.id !== "share-public")
+          draft.analysis = null;
       }),
     );
   if ($("#profile-form"))
@@ -1145,7 +1176,7 @@ function bindForms() {
   if ($("#dream-form"))
     $("#dream-form").onsubmit = (e) => {
       e.preventDefault();
-      run(saveDream);
+      run(diagnose);
     };
   if ($("#include-sleep")) {
     const toggle = () => {
@@ -1319,38 +1350,52 @@ function checkDraft() {
   if (!draft.text.trim() && !draft.typeTags.length && !draft.sleep)
     throw new Error(t("emptyDream"));
 }
-async function analyzeDraft() {
+// "Read this dream": one step from the journal page to the reading page. A
+// dream whose reading is still valid (nothing edited since) opens it without
+// another AI call. Every plan gets an AI reading with each dream; the server
+// counts one per dream date. Without an account, or when the AI refuses or
+// fails, the on-device reflection stands in so the dream can still be saved.
+async function diagnose() {
   capture();
   checkDraft();
-  disableActionButtons();
-  const result = reflect({
-    ...draft,
-    records: state.records,
-    language: language(),
-  });
-  // Every plan gets an AI reading with each dream; the server counts one per
-  // dream date. Only a local-only build (no account) falls back to the on-device reflection.
-  if (signedIn()) {
-    const { analysis } = await api("/api/reflect", {
-      text: draft.text,
-      typeTags: result.tags,
-      date: draft.date,
-      diary: result.diary
-        ? { date: result.diary.date, text: result.diary.text }
-        : null,
-      recentDiaries: recentDiaries(draft.date),
-      sleep: validateSleep(draft.sleep) ? draft.sleep : null,
-      dreamType: currentType()?.id || null,
-    });
-    draft.analysis = {
-      ...analysis,
-      engine: "ai",
+  const wasDirty = dirty;
+  if (!draft.analysis) {
+    disableActionButtons();
+    const result = reflect({
+      ...draft,
+      records: state.records,
       language: language(),
-      diaryDate: result.diary?.date || null,
-    };
-  } else draft.analysis = result.analysis;
-  draft.typeTags = result.tags;
-  render();
+    });
+    draft.typeTags = result.tags;
+    draft.analysis = result.analysis;
+    if (signedIn()) {
+      try {
+        const { analysis } = await api("/api/reflect", {
+          text: draft.text,
+          typeTags: result.tags,
+          date: draft.date,
+          diary: result.diary
+            ? { date: result.diary.date, text: result.diary.text }
+            : null,
+          recentDiaries: recentDiaries(draft.date),
+          sleep: validateSleep(draft.sleep) ? draft.sleep : null,
+          dreamType: currentType()?.id || null,
+        });
+        draft.analysis = {
+          ...analysis,
+          engine: "ai",
+          language: language(),
+          diaryDate: result.diary?.date || null,
+        };
+      } catch (error) {
+        toast(error.userMessage || error.message);
+      }
+    }
+  }
+  // Going back returns the same text to the journal page.
+  quotaDraft = { page: "record", draft, dirty: wasDirty };
+  processing = false;
+  await navigate("reading", true);
 }
 // Up to seven diary pages before the wake-up date, newest first, trimmed so the
 // whole request stays inside the server's input budget.
@@ -1377,14 +1422,6 @@ async function saveDream() {
     await sendToPlans("freeQuota");
     return;
   }
-  // The first dream saved on an account asks whether dreams are shared; the
-  // text waits on the journal page and the save resumes after the choice.
-  if (cloudConfigured() && signedIn() && !state.profile?.visibility) {
-    quotaDraft = { page: "record", draft };
-    dirty = false;
-    await navigate("visibility", true);
-    return;
-  }
   // Saving is always local. Paid AI runs only on the explicit analyze action.
   if (!draft.analysis) {
     const result = reflect({
@@ -1396,7 +1433,8 @@ async function saveDream() {
     draft.typeTags = result.tags;
   }
   const beforeType = currentType()?.id,
-    before = dreamLevel(state.records).level;
+    before = dreamLevel(state.records).level,
+    wasShared = Boolean(state.records.find((r) => r.id === draft.id)?.shared);
   const saved = normalizeRecord({
     ...draft,
     updatedAt: new Date().toISOString(),
@@ -1407,6 +1445,7 @@ async function saveDream() {
   });
   dirty = false;
   selectedId = saved.id;
+  quotaDraft = null;
   processing = false;
   await navigate("record", true);
   const after = dreamLevel(state.records).level;
@@ -1420,80 +1459,33 @@ async function saveDream() {
     ),
   );
   await syncCloud();
-  await publishIfPublic(saved);
+  await shareSaved(saved, wasShared);
 }
-// Account visibility "public": the dream itself goes to the feed (the server
-// still applies the plan's publishing allowance; a refusal keeps the save).
-async function publishIfPublic(record) {
-  if (
-    state.profile?.visibility !== "public" ||
-    !signedIn() ||
-    displayPlan() === "free"
-  )
-    return;
+// The dream's own "share" box: checked → the dream text goes to the feed (the
+// server applies the plan's publishing allowance); unchecked after having been
+// shared → the post is withdrawn. A refused publish keeps the save and
+// unticks the box so it never claims to be public.
+async function shareSaved(record, wasShared) {
+  if (!signedIn()) return;
   try {
-    if (await social.publishRecord(record)) {
-      publicPosts = null;
-      toast(ct("autoPublished"));
-    }
-  } catch {}
-}
-async function setVisibility(value) {
-  const previous = state.profile?.visibility;
-  await commit({
-    ...state,
-    profile: { ...state.profile, visibility: value },
-  });
-  // Turning sharing off takes every dream of this account out of the feed.
-  if (value === "private" && previous === "public" && signedIn())
-    try {
-      for (const p of await social.myPosts()) await social.unpublish(p.id);
-    } catch {}
-  await syncCloud();
-}
-async function chooseVisibility(value) {
-  await setVisibility(value);
-  if (page === "visibility") {
-    const resume = quotaDraft?.page === "record";
-    processing = false;
-    await navigate("record", true);
-    if (resume && draft) await saveDream();
-    else toast(t("saved"));
-  } else {
-    publicPosts = null;
-    render();
-    toast(t("saved"));
-  }
-}
-// Settings: the dreams this account currently shows in the feed.
-let publicPosts = null,
-  publicPostsToken = 0;
-async function loadPublicPosts(force = false) {
-  const el = $("#public-posts");
-  if (!el || !signedIn()) return;
-  const token = ++publicPostsToken;
-  if (force || !publicPosts || publicPosts.uid !== cloud.uid()) {
-    try {
-      publicPosts = { uid: cloud.uid(), posts: await social.myPosts() };
-    } catch {
-      publicPosts = null;
-      if (token === publicPostsToken && $("#public-posts"))
-        $("#public-posts").innerHTML = "";
-      return;
+    if (record.shared) await social.publishRecord(record);
+    else if (wasShared) await social.makeRecordPrivate(record.id);
+  } catch (error) {
+    if (record.shared) {
+      await commit({
+        ...state,
+        records: state.records.map((r) =>
+          r.id === record.id ? { ...r, shared: false } : r,
+        ),
+      });
+      if (page === "record" && draft?.id === record.id) {
+        draft.shared = false;
+        render();
+      }
+      toast(error.userMessage || error.message);
+      await syncCloud();
     }
   }
-  if (token !== publicPostsToken || !$("#public-posts")) return;
-  const posts = publicPosts.posts.filter((p) => p.public && !p.hidden);
-  $("#public-posts").innerHTML =
-    `<h3>${ct("mine")}</h3>` +
-    (posts.length
-      ? posts
-          .map(
-            (p) =>
-              `<div class="public-post"><p class="prose">${esc(p.text.slice(0, 80))}${p.text.length > 80 ? "…" : ""}</p><button type="button" class="btn small ghost" data-unpublish="${esc(p.id)}">${ct("unpublish")}</button></div>`,
-          )
-          .join("")
-      : `<p class="help">${ct("emptyMine")}</p>`);
 }
 async function saveDiary() {
   capture();
@@ -1553,7 +1545,6 @@ async function deleteOpenEntry() {
 async function removeRecord(record) {
   if (record.kind === "dream") {
     await social.makeRecordPrivate(record.id);
-    publicPosts = null;
   }
   await commit({
     ...state,
@@ -1948,7 +1939,6 @@ async function deleteAccount() {
       options = { ...options, planCache: null };
       await write("yumetan.v4.options", options);
     }
-    publicPosts = null;
     if (syncTask) await syncTask.catch(() => {});
     await cloud.signOut();
     await switchAccount();
@@ -2089,24 +2079,6 @@ function stopVoice() {
   }
   const b = $("[data-action=voice]");
   if (b) b.textContent = t("voice");
-  if (window.speechSynthesis) window.speechSynthesis.cancel();
-}
-async function speak() {
-  const record =
-    page === "record" ? draft : state.records.find((r) => r.id === selectedId);
-  const a = record?.analysis;
-  const text =
-    a?.engine === "ai" && a.language === language()
-      ? [a.mental_state, a.fortune_overview, a.reply].filter(Boolean).join(" ")
-      : t(record?.typeTags?.length ? "reflectionText" : "noTheme");
-  if (native && plugins.TextToSpeech)
-    await plugins.TextToSpeech.speak({ text, lang: locales[language()] });
-  else if (window.speechSynthesis) {
-    speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = locales[language()];
-    speechSynthesis.speak(utterance);
-  }
 }
 const actions = {
   "intro-next": () => moveIntroduction(1),
@@ -2147,7 +2119,8 @@ const actions = {
       render();
     }
   },
-  analyze: analyzeDraft,
+  diagnose,
+  "save-reading": saveDream,
   recognize,
   "remove-photo": () => {
     capture();
@@ -2156,7 +2129,6 @@ const actions = {
     render();
   },
   voice: startVoice,
-  speak,
   sync: syncCloud,
   "auth-retry": async () => {
     if (!dirty || (await confirmDiscard(t))) location.reload();
@@ -2205,19 +2177,6 @@ document.addEventListener("click", (event) => {
   if (el.dataset.entry) {
     selectedId = el.dataset.entry;
     navigate("detail");
-    return;
-  }
-  if (el.dataset.visibility) {
-    run(() => chooseVisibility(el.dataset.visibility));
-    return;
-  }
-  if (el.dataset.unpublish) {
-    run(async () => {
-      disableActionButtons();
-      await social.unpublish(el.dataset.unpublish);
-      toast(ct("unpublished"));
-      await loadPublicPosts(true);
-    });
     return;
   }
   if (el.dataset.tag) {

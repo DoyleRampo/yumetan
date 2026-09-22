@@ -1,5 +1,9 @@
 import { finishIntroduction } from "./helpers/introduction.js";
-import { chooseDate, savedDreamDetails } from "./helpers/journal.js";
+import {
+  chooseDate,
+  savedDreamDetails,
+  submitDream,
+} from "./helpers/journal.js";
 import { test, expect } from "@playwright/test";
 const today = () =>
   new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
@@ -38,6 +42,13 @@ async function paidMember(page, plan = "starter") {
         usage: { day: {}, month: {} },
       },
     }),
+  );
+  // Sharing is on by default for paid members; the feed itself is not under test here.
+  await page.route("**/api/community/publish", (route) =>
+    route.fulfill({ json: { id: "post" } }),
+  );
+  await page.route("**/api/community/record/*", (route) =>
+    route.fulfill({ json: { post: null } }),
   );
 }
 async function start(page, lang = "ja") {
@@ -134,7 +145,7 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
   await page.locator("#hours").fill("8");
   await page.locator("#awakenings").fill("0");
   await page.locator("#rested").selectOption("5");
-  await page.locator("#dream-form button[type=submit]").click();
+  await submitDream(page);
   await savedDreamDetails(page);
   await expect(page.locator("main")).toContainText(
     "Yesterday I worked on a challenge.",
@@ -180,7 +191,7 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
     ),
   });
   await expect(page.locator(".photo")).toBeVisible();
-  await page.locator("#dream-form button[type=submit]").click();
+  await submitDream(page);
   await savedDreamDetails(page);
   await expect(page.locator(".photo")).toBeVisible();
   await page.locator("#header [data-go=settings]").click();
@@ -231,15 +242,22 @@ test("AI failures retain the unsaved dream; free members get a local reflection 
     r.fulfill({ status: 503, body: "{}" }),
   );
   await page.locator("nav [data-go=record]").click();
-  await expect(page.locator("[data-action=analyze]")).toHaveText(
-    "Read with AI",
+  await expect(page.locator("[data-action=diagnose]")).toHaveText(
+    "Read this dream",
   );
   await page.locator("#dream-text").fill("Do not lose this dream");
-  await page.locator("[data-action=analyze]").click();
+  await page.locator("[data-action=diagnose]").click();
+  // The AI failed: the on-device reflection stands in, the dream can still be
+  // saved, and going back returns the same text to the journal page.
+  await expect(page.locator("#toast")).toContainText("preserved");
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "reading");
+  await expect(page.locator(".reading-card h2")).toHaveText(
+    "A moment of reflection",
+  );
+  await page.locator(".back-link").click();
   await expect(page.locator("#dream-text")).toHaveValue(
     "Do not lose this dream",
   );
-  await expect(page.locator("#toast")).toContainText("preserved");
 });
 test("free members get an AI reading with each dream; the second reading of the day is refused", async ({
   page,
@@ -270,22 +288,30 @@ test("free members get an AI reading with each dream; the second reading of the 
       : r.fulfill({ status: 429, json: { code: "quotaReached" } });
   });
   await page.locator("nav [data-go=record]").click();
-  await expect(page.locator("[data-action=analyze]")).toHaveText(
-    "Read with AI",
-  );
   await page.locator("#dream-text").fill("A challenge on a mountain");
-  await page.locator("[data-action=analyze]").click();
+  await page.locator("[data-action=diagnose]").click();
   await expect(page.locator(".reading-card")).toContainText(
     "A gentle reflection for a free member.",
   );
   await expect(page.locator(".reading-upsell")).toHaveCount(0);
+  // Free: the share box is shown but off, pointing to the plans.
+  await expect(page.locator("#share-public")).toBeDisabled();
+  await expect(page.locator(".share-card")).toContainText("Starter plan");
   expect(calls).toBe(1);
-  await page.locator("[data-action=analyze]").click();
+  // Reopening an unchanged reading costs nothing; an edit asks the AI again.
+  await page.locator(".back-link").click();
+  await page.locator("[data-action=diagnose]").click();
+  expect(calls).toBe(1);
+  await page.locator(".back-link").click();
+  await page.locator("#dream-text").fill("A challenge on a mountain, edited");
+  await page.locator("[data-action=diagnose]").click();
   await expect(page.locator("#toast")).not.toHaveText("");
-  await expect(page.locator("#dream-text")).toHaveValue(
-    "A challenge on a mountain",
-  );
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "reading");
   expect(calls).toBe(2);
+  await page.locator(".back-link").click();
+  await expect(page.locator("#dream-text")).toHaveValue(
+    "A challenge on a mountain, edited",
+  );
 });
 test("without an account the reflection stays local with a sign-in hint", async ({
   page,
@@ -297,9 +323,8 @@ test("without an account the reflection stays local with a sign-in hint", async 
     return r.fulfill({ status: 403, json: { code: "paidRequired" } });
   });
   await page.locator("nav [data-go=record]").click();
-  await expect(page.locator("[data-action=analyze]")).toHaveText("Reflect");
   await page.locator("#dream-text").fill("A challenge on a mountain");
-  await page.locator("[data-action=analyze]").click();
+  await page.locator("[data-action=diagnose]").click();
   await expect(page.locator(".reading-card")).toContainText(
     "These themes appear in your dream",
   );
@@ -340,7 +365,7 @@ test.describe("offline cache", () => {
     await expect(page.locator("[data-action=record]")).toBeVisible();
     await page.locator("nav [data-go=record]").click();
     await page.locator("#dream-text").fill("An offline dream");
-    await page.locator("#dream-form button[type=submit]").click();
+    await submitDream(page);
     await savedDreamDetails(page);
     await expect(page.locator("main")).toContainText("An offline dream");
     await page.locator("nav [data-go=home]").click();
@@ -395,10 +420,11 @@ test("storage failure preserves draft and never reports success", async ({
       return original.call(this, key, value);
     };
   });
-  await page.locator("#dream-form button[type=submit]").click();
+  await submitDream(page);
   await expect(page.locator("#toast")).toHaveText(
     "Could not save. Check available device storage.",
   );
+  await page.locator(".back-link").click();
   await expect(page.locator("#dream-text")).toHaveValue(
     "Keep this when disk is full",
   );
@@ -455,7 +481,7 @@ test("AI reading shows state of mind and fortune, sends recent diaries, and OCR 
     "My challenge\nRecognized notebook text [?]",
   );
   await expect(page.locator("#toast")).toContainText("Review and correct");
-  await page.locator("[data-action=analyze]").click();
+  await page.locator("[data-action=diagnose]").click();
   await expect(page.locator("main")).toContainText("A gentle reflection.");
   await expect(page.locator(".reading-card")).toContainText("Quietly hopeful");
   await expect(page.locator(".reading-card")).toContainText("Partly cloudy");
@@ -476,11 +502,8 @@ test("AI reading shows state of mind and fortune, sends recent diaries, and OCR 
     "sk-test-fixture",
   );
   expect(reflectionRequest.typeTags).toContain("challenge");
-  // The reading is stored with the dream and survives reload. The account's
-  // first dream asks once whether dreams are shared; the save then resumes.
-  await page.locator("#dream-form button[type=submit]").click();
-  await expect(page.locator("#app")).toHaveAttribute("data-page", "visibility");
-  await page.locator("[data-visibility=private]").click();
+  // The reading is stored with the dream and survives reload.
+  await page.locator("[data-action=save-reading]").click();
   await savedDreamDetails(page);
   await expect(page.locator(".reading-card")).toContainText("Quietly hopeful");
   await page.reload();
@@ -527,7 +550,7 @@ test("account switching isolates journals and reload restores the active scope",
   await page.locator("[data-action=begin]").click();
   await page.locator("nav [data-go=record]").click();
   await page.locator("#dream-text").fill("Private dream of first account");
-  await page.locator("#dream-form button[type=submit]").click();
+  await submitDream(page);
   await page.locator("#header [data-go=settings]").click();
   await page.locator("[data-action=signout]").click();
   await page.locator("nav [data-go=record]").click();
@@ -732,7 +755,7 @@ test("paid members switch collections both ways without changing journals, type 
   await page.locator("#hours").fill("8");
   await page.locator("#awakenings").fill("0");
   await page.locator("#rested").selectOption("5");
-  await page.locator("#dream-form button[type=submit]").click();
+  await submitDream(page);
   const saved = await page.evaluate(() =>
     localStorage.getItem("yumetan.v4.member"),
   );
@@ -845,8 +868,7 @@ test("the dream level climbs with logged dreams and swiping in from the left edg
     await page.locator("nav [data-go=record]").click();
     if (i) await page.locator("[data-action=new-dream]").click();
     await page.locator("#dream-text").fill(`Dream number ${i + 1}`);
-    await page.locator("#dream-form button[type=submit]").click();
-    if (!i) await page.locator("[data-visibility=private]").click();
+    await submitDream(page);
     await savedDreamDetails(page);
     await expect(page.locator("main")).toContainText(`Dream number ${i + 1}`);
   }

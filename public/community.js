@@ -94,16 +94,17 @@ export function createCommunity({
     `<div class="row plan-cycle" role="group" aria-label="${t("plans")}">${b("monthly", "monthly", `aria-pressed="${cycle === "monthly"}"`)}${b("yearly", "yearly", `aria-pressed="${cycle === "yearly"}"`)}</div>`;
   const planPrice = (p) => `¥${p[cycle].toLocaleString(language())}`;
   const planName = (p) => localized(p.names, language());
-  // The subscribe call to action for free members. Purchases run in the store
-  // apps; elsewhere the button stays visible but disabled with the reason below.
-  const cta = (p, short = false) =>
-    p.id === "free" || p.id === plan() || plan() !== "free"
-      ? ""
-      : `<button type="button" class="btn primary plan-cta${short ? " short" : ""}" data-social="checkout" data-plan="${p.id}" ${!canBuy() ? "disabled" : ""}>${short ? t("subscribe") : t("subscribeTo").replace("{plan}", planName(p))}</button>`;
+  // The subscribe / switch call to action: every paid plan except the current
+  // one (Free is never "subscribed to": cancelling returns there by itself).
+  // Purchases run in the store apps; elsewhere the button stays visible but
+  // disabled with the reason below.
+  const cta = (p, short = false) => {
+    if (p.id === "free" || p.id === plan()) return "";
+    const switching = plan() !== "free";
+    return `<button type="button" class="btn primary plan-cta${short ? " short" : ""}" data-social="checkout" data-plan="${p.id}" ${!canBuy() ? "disabled" : ""}>${short ? t(switching ? "switchPlan" : "subscribe") : t(switching ? "switchTo" : "subscribeTo").replace("{plan}", planName(p))}</button>`;
+  };
   const ctaNote = () =>
-    plan() !== "free"
-      ? ""
-      : `<p class="help cta-note">${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : t("billingReturn")}</p>`;
+    `<p class="help cta-note">${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : plan() !== "free" ? t("switchNote") : t("billingReturn")}</p>`;
   const recommendation = () =>
     plan() !== "free"
       ? ""
@@ -423,19 +424,10 @@ export function createCommunity({
     capture,
     plan,
     refreshAccount,
-    // Settings: the dreams this account currently shows in the feed.
-    async myPosts() {
-      if (!signedIn()) return [];
-      return (await api("/api/community/mine")).posts;
-    },
-    async unpublish(id) {
-      await api("/api/community/posts/" + id + "/private", {});
-    },
-    // Publish a saved dream as-is (account visibility "public"). The server
-    // still requires a paid plan and applies the daily publishing allowance.
+    // Publish a saved dream as-is (its own "share" box). The server still
+    // requires a paid plan and applies the daily publishing allowance.
     async publishRecord(record) {
-      if (!signedIn() || plan() === "free" || !record?.text?.trim())
-        return false;
+      if (!signedIn() || !record?.text?.trim()) return false;
       await api("/api/community/publish", {
         recordId: record.id,
         alias: nickname().slice(0, 30),

@@ -1,5 +1,9 @@
 import { finishIntroduction } from "./helpers/introduction.js";
-import { chooseDate, savedDreamDetails } from "./helpers/journal.js";
+import {
+  chooseDate,
+  savedDreamDetails,
+  submitDream,
+} from "./helpers/journal.js";
 import { test, expect } from "@playwright/test";
 import { MemoryStore } from "../helpers/memory-store.mjs";
 import { createAccess } from "../../server/access.js";
@@ -26,13 +30,15 @@ async function boot(page) {
   }
   await page.locator("[data-action=begin]").click();
 }
-// A signed-in account is asked once, on its first dream, whether dreams are shared.
-async function saveFirstDream(page, text, visibility = "private") {
+// The share box sits on the reading page and is on by default for paid members.
+async function saveDream(page, text, share = false) {
   await page.locator("nav [data-go=record]").click();
   await page.locator("#dream-text").fill(text);
-  await page.locator("#dream-form button[type=submit]").click();
-  await expect(page.locator("#app")).toHaveAttribute("data-page", "visibility");
-  await page.locator(`[data-visibility=${visibility}]`).click();
+  await page.locator("[data-action=diagnose]").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "reading");
+  if (share) await page.locator("#share-public").check();
+  else await page.locator("#share-public").uncheck();
+  await page.locator("[data-action=save-reading]").click();
 }
 async function fixture(page, plan = "starter") {
   const store = new MemoryStore();
@@ -135,7 +141,7 @@ test("Free keeps one dream and one editable diary per date; plans and paid feed 
   await boot(page);
   await page.locator("nav [data-go=record]").click();
   await page.locator("#dream-text").fill("First dream");
-  await page.locator("#dream-form button[type=submit]").click();
+  await submitDream(page);
   // Saving clears the editor; an existing dream can still be edited.
   await page.locator("nav [data-go=record]").click();
   await savedDreamDetails(page);
@@ -144,7 +150,7 @@ test("Free keeps one dream and one editable diary per date; plans and paid feed 
   await expect(page.locator("[data-action=new-dream]")).toHaveCount(0);
 
   await page.locator("#dream-text").fill("Edited first dream");
-  await page.locator("#dream-form button[type=submit]").click();
+  await submitDream(page);
   await savedDreamDetails(page);
   await expect(page.locator("main")).toContainText("Edited first dream");
   await page.locator("nav [data-go=community]").click();
@@ -219,12 +225,16 @@ test("paid member reads another user, stamps, comments and reports through authe
   await expect(page.locator("[data-social=block]")).toHaveCount(0);
   expect((await s.store.list("communityReports")).length).toBe(1);
 });
-test("the first dream on an account asks about sharing; public accounts post their dreams to the feed and can withdraw them in Settings", async ({
+test("each dream has its own share box: ticking publishes it to the feed, unticking withdraws it, and Settings show no sharing section", async ({
   page,
 }) => {
   const s = await fixture(page);
   await boot(page);
-  await saveFirstDream(page, "A dream shared with everyone", "public");
+  await page.locator("nav [data-go=record]").click();
+  await page.locator("#dream-text").fill("A dream shared with everyone");
+  await page.locator("[data-action=diagnose]").click();
+  await expect(page.locator("#share-public")).toBeChecked();
+  await page.locator("[data-action=save-reading]").click();
   await savedDreamDetails(page);
   await expect(page.locator("main")).toContainText(
     "A dream shared with everyone",
@@ -233,32 +243,59 @@ test("the first dream on an account asks about sharing; public accounts post the
   expect(rows.length).toBe(1);
   expect(rows[0].text).toBe("A dream shared with everyone");
   expect(rows[0].alias).toBe("Dreamer");
-  // The second dream is not asked again.
+  // Reopening the dream shows the box ticked; unticking makes it private again.
+  await page.locator("[data-action=edit]").click();
+  await page.locator("[data-action=diagnose]").click();
+  await expect(page.locator("#share-public")).toBeChecked();
+  await page.locator("#share-public").uncheck();
+  await page.locator("[data-action=save-reading]").click();
+  await expect(page.locator("#dream-text")).toHaveValue("");
+  await expect
+    .poll(
+      async () => (await s.store.get("communityPosts/" + rows[0].id)).public,
+    )
+    .toBe(false);
+  // A second dream saved without the box stays private.
   await page.locator("nav [data-go=record]").click();
   await page.locator("[data-action=new-dream]").click();
-  await page.locator("#dream-text").fill("Second shared dream");
-  await page.locator("#dream-form button[type=submit]").click();
+  await page.locator("#dream-text").fill("Second, private dream");
+  await page.locator("[data-action=diagnose]").click();
+  await page.locator("#share-public").uncheck();
+  await page.locator("[data-action=save-reading]").click();
   await expect(page.locator("#dream-text")).toHaveValue("");
-  await expect(page.locator("#app")).toHaveAttribute("data-page", "record");
-  // Settings: the choice and the public dreams live there now.
+  expect(
+    (await s.store.list("communityPosts")).filter((p) => p.public).length,
+  ).toBe(0);
+  // Settings: only sign out and delete remain for the account, no sharing card.
   await page.locator("#header [data-go=settings]").click();
-  await expect(page.locator("[data-visibility=public]")).toHaveAttribute(
-    "aria-checked",
-    "true",
-  );
-  await expect(page.locator("#public-posts .public-post")).toHaveCount(1);
   await expect(page.locator("main")).not.toContainText("Account & sync");
+  await expect(page.locator("[data-visibility]")).toHaveCount(0);
   await expect(page.locator("[data-action=signout]")).toBeVisible();
   await expect(page.locator("[data-action=delete-account]")).toBeVisible();
   await expect(page.locator("[data-action=sync]")).toHaveCount(0);
-  await page.locator("[data-visibility=private]").click();
-  await expect(page.locator("[data-visibility=private]")).toHaveAttribute(
-    "aria-checked",
-    "true",
+});
+test("a paid member can switch to another paid plan; Free only offers details", async ({
+  page,
+}) => {
+  await fixture(page);
+  await boot(page);
+  await page.locator("#header [data-go=settings]").click();
+  await page.locator("[data-go=plans]").click();
+  await expect(page.locator(".plan-comparison thead th.current")).toContainText(
+    "Starter",
   );
-  await expect(page.locator("#public-posts .public-post")).toHaveCount(0);
-  expect((await s.store.get("communityPosts/" + rows[0].id)).public).toBe(
-    false,
+  await expect(page.locator(".plan-cta-row .plan-cta")).toHaveCount(1);
+  await expect(page.locator(".plan-cta-row .plan-cta")).toHaveText("Switch");
+  await expect(page.locator(".plan-cta-row td").first()).toBeEmpty();
+  await expect(page.locator(".plan-links [data-plan=free]")).toBeVisible();
+  await page.locator(".plan-links [data-plan=standard]").click();
+  await expect(page.locator(".plan-card .plan-cta")).toHaveText(
+    "Switch to Standard",
+  );
+  // In the browser the store is not available, so the button explains that.
+  await expect(page.locator(".plan-card .plan-cta")).toBeDisabled();
+  await expect(page.locator(".plan-card .cta-note")).toContainText(
+    "iOS / Android",
   );
 });
 test("sharing needs explicit consent; only public copy is sent and expired owners can unpublish", async ({
@@ -266,7 +303,7 @@ test("sharing needs explicit consent; only public copy is sent and expired owner
 }) => {
   const s = await fixture(page);
   await boot(page);
-  await saveFirstDream(page, "Private original dream");
+  await saveDream(page, "Private original dream");
   await savedDreamDetails(page);
   expect((await s.store.list("communityPosts")).length).toBe(0);
   await page.locator("[data-go=share]").click();
@@ -297,7 +334,9 @@ test("sharing needs explicit consent; only public copy is sent and expired owner
     false,
   );
 });
-test("saving as a paid member never spends a GPT call", async ({ page }) => {
+test("the diagnosis is the only AI call; saving from the reading page spends none, even when the AI was unavailable", async ({
+  page,
+}) => {
   await fixture(page);
   await boot(page);
   let calls = 0;
@@ -305,10 +344,10 @@ test("saving as a paid member never spends a GPT call", async ({ page }) => {
     calls++;
     return r.fulfill({ status: 503, json: { code: "aiUnavailable" } });
   });
-  await saveFirstDream(page, "Save locally");
+  await saveDream(page, "Save locally");
   await savedDreamDetails(page);
   await expect(page.locator("main")).toContainText("Save locally");
-  expect(calls).toBe(0);
+  expect(calls).toBe(1);
 });
 
 test("real HTTP APIs never authorize by claimed plan, user ID or own key and do not cache private data", async ({
@@ -369,7 +408,7 @@ test("free limits lead to the plans page: the day's dream allowance, a fourth di
   await boot(page);
   await page.locator("nav [data-go=record]").click();
   await page.locator("#dream-text").fill("Only dream of the day");
-  await page.locator("#dream-form button[type=submit]").click();
+  await submitDream(page);
   await savedDreamDetails(page);
   // The "new dream" chip becomes a plans link once the free allowance is used.
   await page.locator("nav [data-go=record]").click();

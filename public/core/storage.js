@@ -123,6 +123,7 @@ export function normalizeRecord(raw) {
           .filter((id) => TYPES.some((t) => t.id === id)),
       ),
     ],
+    shared: raw.shared === true,
     sleep: validateSleep(raw.sleep)
       ? {
           hours: raw.sleep.hours,
