@@ -1,6 +1,7 @@
 import UIKit
 import Capacitor
 import LineSDK
+import GoogleSignIn
 import AuthenticationServices
 import CryptoKit
 
@@ -22,6 +23,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         if LoginManager.shared.isSetupFinished,
            let url = URLContexts.first?.url,
            LoginManager.shared.application(UIApplication.shared, open: url) {
+            return
+        }
+        if let url = URLContexts.first?.url, GIDSignIn.sharedInstance.handle(url) {
             return
         }
         SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
@@ -95,6 +99,48 @@ public class LineLoginPlugin: CAPPlugin, CAPBridgedPlugin {
         LoginManager.shared.logout { _ in call.resolve() }
     }
 }
+// Google Sign-In through the Google SDK's in-app sheet. The ID token (and access
+// token) go to the JavaScript side, which signs in to Firebase with them.
+@objc(GoogleLoginPlugin)
+public class GoogleLoginPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "GoogleLoginPlugin"
+    public let jsName = "GoogleLogin"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "login", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "logout", returnType: CAPPluginReturnPromise)
+    ]
+    @objc func login(_ call: CAPPluginCall) {
+        guard let clientId = call.getString("clientId"), !clientId.isEmpty else {
+            call.reject("Google client ID is missing", "authNotConfigured"); return
+        }
+        DispatchQueue.main.async {
+            guard let controller = self.bridge?.viewController else {
+                call.reject("No presenting view controller", "authFailed"); return
+            }
+            GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientId)
+            GIDSignIn.sharedInstance.signIn(withPresenting: controller) { result, error in
+                if let error = error as NSError? {
+                    let cancelled = error.code == GIDSignInError.canceled.rawValue
+                    call.reject(error.localizedDescription, cancelled ? "auth/popup-closed-by-user" : "authFailed")
+                    return
+                }
+                guard let user = result?.user, let idToken = user.idToken?.tokenString else {
+                    call.reject("Google did not return an ID token", "authFailed"); return
+                }
+                call.resolve([
+                    "idToken": idToken,
+                    "accessToken": user.accessToken.tokenString,
+                    "email": user.profile?.email ?? "",
+                    "displayName": user.profile?.name ?? ""
+                ])
+            }
+        }
+    }
+    @objc func logout(_ call: CAPPluginCall) {
+        GIDSignIn.sharedInstance.signOut()
+        call.resolve()
+    }
+}
 // Sign in with Apple through the system sheet. The identity token and the raw
 // nonce go to the JavaScript side, which signs in to Firebase with them.
 @objc(AppleLoginPlugin)
@@ -164,5 +210,6 @@ class YumetanBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(AuthBrowserPlugin())
         bridge?.registerPluginInstance(LineLoginPlugin())
         bridge?.registerPluginInstance(AppleLoginPlugin())
+        bridge?.registerPluginInstance(GoogleLoginPlugin())
     }
 }

@@ -64,6 +64,13 @@ export const messages = {
     "登录后，可将记录保存在账号中。",
     "Log in to save your entries to your account.",
   ],
+  introSkip: ["スキップ", "건너뛰기", "跳过", "Skip"],
+  introRegister: [
+    "登録へ進む",
+    "등록으로",
+    "前往注册",
+    "Continue to registration",
+  ],
   introSignedIn: [
     "ログイン済みです。診断に進みましょう。",
     "로그인했어요. 테스트를 시작해요.",
@@ -104,12 +111,6 @@ export const messages = {
   more: ["詳しく見る", "자세히", "查看详情", "Details"],
   typeAbout: ["タイプについて", "유형 안내", "关于类型", "About dream types"],
   typeFeature: ["夢の特徴", "꿈 특징", "梦境特点", "Dream tendency"],
-  accountOptional: [
-    "ログイン（あとでもOK）",
-    "로그인 (나중에 가능)",
-    "登录（可稍后）",
-    "Sign in (optional)",
-  ],
   recordPrivate: [
     "自分だけの記録です。",
     "나만의 기록이에요.",

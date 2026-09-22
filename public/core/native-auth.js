@@ -194,3 +194,29 @@ export async function appleNativeLogin({ cloud, link, upgrade }) {
     displayName,
   });
 }
+
+// Google Sign-In through the Google SDK sheet inside the app (iOS GoogleLogin
+// plugin). The ID token signs in to Firebase directly; Safari is never opened.
+export function googleNativeAvailable(config = window.YUMETAN_CONFIG) {
+  return Boolean(
+    window.Capacitor?.Plugins?.GoogleLogin && config?.googleIosClientId,
+  );
+}
+export async function googleNativeLogin({ cloud, link, upgrade, config }) {
+  let result;
+  try {
+    result = await window.Capacitor.Plugins.GoogleLogin.login({
+      clientId: String(config.googleIosClientId),
+    });
+  } catch (error) {
+    throw authError(error?.code || "auth/popup-closed-by-user");
+  }
+  if (!result?.idToken) throw authError("authFailed");
+  return cloud.signInCredential("google", {
+    idToken: result.idToken,
+    accessToken: result.accessToken || "",
+    link,
+    upgrade,
+    displayName: result.displayName || "",
+  });
+}

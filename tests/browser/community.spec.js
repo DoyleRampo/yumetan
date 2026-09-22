@@ -16,10 +16,10 @@ async function local(page) {
 async function boot(page) {
   await page.goto("/");
   await page.locator("#language").selectOption("en");
+  await finishIntroduction(page);
   await page.locator("#nickname").fill("Dreamer");
   await page.locator("#ageGroup").selectOption("20代");
   await page.locator("#profile-form button[type=submit]").click();
-  await finishIntroduction(page);
   for (let i = 0; i < 16; i++) {
     await page.locator(`[data-answer="${i === 11 ? 2 : 0}"]`).click();
     await page.locator("[data-action=quiz-next]").click();

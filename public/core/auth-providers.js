@@ -53,7 +53,7 @@ export async function credentialLogin(
   A,
   auth,
   name,
-  { idToken, rawNonce, link = false, upgrade = false } = {},
+  { idToken, rawNonce, accessToken, link = false, upgrade = false } = {},
 ) {
   if (!AUTH_PROVIDERS[name]) throw new Error("auth/invalid-provider-id");
   if (!idToken)
@@ -61,6 +61,7 @@ export async function credentialLogin(
   const credential = new A.OAuthProvider(AUTH_PROVIDERS[name]).credential({
     idToken,
     rawNonce,
+    ...(accessToken ? { accessToken } : {}),
   });
   if (!link && !upgrade) return A.signInWithCredential(auth, credential);
   try {

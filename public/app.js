@@ -16,6 +16,8 @@ import {
   lineNativeLogin,
   appleNativeAvailable,
   appleNativeLogin,
+  googleNativeAvailable,
+  googleNativeLogin,
 } from "./core/native-auth.js";
 import { createCommunity, communityText } from "./community.js";
 import { createPurchases } from "./core/purchases.js";
@@ -467,19 +469,12 @@ async function navigate(next, force = false, back = false) {
   social.leave();
   dirty = false;
   draft = null;
-  if (!state.profile && next !== "onboard") next = "onboard";
-  else if (
-    state.profile &&
-    !state.profile.typeAnswers &&
-    !["onboard", "quiz", "result", "intro", "welcome-login"].includes(next)
-  )
-    next = firstRunPage();
-  if (
-    !state.profile?.typeAnswers &&
-    next === "quiz" &&
-    ["intro", "welcome-login"].includes(firstRunPage())
-  )
-    next = firstRunPage();
+  const first = firstRunPage();
+  if (first !== "home") {
+    // Introduction, login and registration steps cannot be skipped.
+    const allowed = first === "quiz" ? ["quiz", "result", "onboard"] : [first];
+    if (!allowed.includes(next)) next = first;
+  }
   if (ROOTS.includes(next)) navStack = [];
   else if (!back && next !== page && !["quiz", "result"].includes(page))
     navStack.push(page);
@@ -499,11 +494,18 @@ async function navigate(next, force = false, back = false) {
   return true;
 }
 
+// Records never live only on the device: whenever Firebase is configured, an
+// account is required before registration. Order for a new user:
+// introduction → login → registration → 16-type quiz → home.
+const cloudConfigured = () =>
+  Boolean(window.FIREBASE_CONFIG?.apiKey) || Boolean(cloud);
 function firstRunPage() {
+  const phase = options.introduction?.phase;
+  // An account that finished setup goes straight in (also while offline).
+  if (state.profile?.typeAnswers && (signedIn() || !cloud)) return "home";
+  if (!state.profile && phase !== "login" && phase !== "done") return "intro";
+  if (cloudConfigured() && !signedIn()) return "welcome-login";
   if (!state.profile) return "onboard";
-  if (state.profile.typeAnswers) return "home";
-  if (options.introduction?.phase === "tour") return "intro";
-  if (options.introduction?.phase === "login") return "welcome-login";
   return "quiz";
 }
 async function saveIntroduction(introduction) {
@@ -519,17 +521,17 @@ function introductionView() {
     `<img class="intro-character" src="${getCharacter("challenge", "animal").image}" width="768" height="768" alt=""><span class="intro-badge">16 TYPES</span>`,
     `<div class="intro-growth"><span>Lv.1</span><b>✦</b><span>Lv.2</span><div class="intro-meter"><i></i></div></div>`,
   ];
-  return `<section class="introduction narrow" data-intro-step="${step}"><div class="intro-progress" role="group" aria-label="${esc(t("introProgress"))}">${Array.from({ length: 4 }, (_, i) => `<span class="intro-dot ${i === step ? "current" : ""}" aria-label="${i + 1} / 4" ${i === step ? 'aria-current="step"' : ""}></span>`).join("")}</div><div class="intro-slide"><div class="intro-art intro-art-${step}" aria-hidden="true">${arts[step]}</div><div class="intro-copy" aria-live="polite"><p class="eyebrow">${step + 1} / 4</p><h1 tabindex="-1">${t(`intro${step + 1}Title`)}</h1><p>${t(`intro${step + 1}Text`)}</p></div></div><div class="intro-actions"><button type="button" class="btn ghost" data-action="intro-back" ${step === 0 ? "disabled" : ""}>${t("back")}</button><button type="button" class="btn primary" data-action="intro-next">${t(step === 3 ? "introLogin" : "next")}</button></div></section>`;
+  return `<section class="introduction narrow" data-intro-step="${step}"><div class="intro-progress" role="group" aria-label="${esc(t("introProgress"))}">${Array.from({ length: 4 }, (_, i) => `<span class="intro-dot ${i === step ? "current" : ""}" aria-label="${i + 1} / 4" ${i === step ? 'aria-current="step"' : ""}></span>`).join("")}</div><div class="intro-slide"><div class="intro-art intro-art-${step}" aria-hidden="true">${arts[step]}</div><div class="intro-copy" aria-live="polite"><p class="eyebrow">${step + 1} / 4</p><h1 tabindex="-1">${t(`intro${step + 1}Title`)}</h1><p>${t(`intro${step + 1}Text`)}</p></div></div><button type="button" class="btn small ghost intro-skip" data-action="intro-skip">${t("introSkip")}</button><div class="intro-actions"><button type="button" class="btn ghost" data-action="intro-back" ${step === 0 ? "disabled" : ""}>${t("back")}</button><button type="button" class="btn primary" data-action="intro-next">${t(step === 3 ? (cloudConfigured() ? "introLogin" : "introStart") : "next")}</button></div>${step === 0 ? `<div class="intro-language">${languageField()}</div>` : ""}</section>`;
 }
 function introductionLoginView() {
-  return `<section class="narrow intro-login"><h1>${t("signIn")}</h1><p class="muted">${t("introLoginHint")}</p>${signedIn() ? `<div class="card"><p>${t("introSignedIn")}</p><button class="btn primary full" data-action="intro-continue">${t("startQuiz")}</button></div>` : accountView(true)}</section>`;
+  return `<section class="narrow intro-login"><h1>${t("signIn")}</h1><p class="muted">${t("introLoginHint")}</p>${signedIn() ? `<div class="card"><p>${t("introSignedIn")}</p><button class="btn primary full" data-action="intro-continue">${t(state.profile ? "startQuiz" : "introRegister")}</button></div>` : accountView(true)}${languageField()}</section>`;
 }
 async function moveIntroduction(offset) {
   if (page !== "intro") return;
   const step = Math.max(0, Math.min(3, options.introduction?.step || 0));
   if (step === 3 && offset > 0) {
     await saveIntroduction({ phase: "login", step: 3 });
-    await navigate("welcome-login", true);
+    await navigate(firstRunPage(), true);
   } else {
     await saveIntroduction({
       phase: "tour",
@@ -539,9 +541,14 @@ async function moveIntroduction(offset) {
     $(".intro-copy h1")?.focus({ preventScroll: true });
   }
 }
+async function skipIntroduction() {
+  if (page !== "intro") return;
+  await saveIntroduction({ phase: "login", step: 3 });
+  await navigate(firstRunPage(), true);
+}
 async function continueIntroduction() {
   await saveIntroduction({ phase: "done", step: 3 });
-  await navigate(state.profile?.typeAnswers ? "home" : "quiz", true);
+  await navigate(firstRunPage(), true);
 }
 // Carry the just-entered registration profile to a new account. Existing guest
 // journals still use the established explicit import consent.
@@ -559,16 +566,16 @@ async function completeIntroductionLogin(sourceKey, guest) {
 
 function profileView() {
   const p = draft || state.profile || {};
-  return `<div class="narrow"><p class="eyebrow">WELCOME TO YOUR DREAM WORLD</p><h1>${t("welcome")}</h1><p class="muted">${t("profileHint")}</p>${!state.profile ? `<details class="onboard-account"><summary>${t("accountOptional")}</summary>${accountView(true)}</details>` : ""}<form id="profile-form" class="card">
+  return `<div class="narrow"><p class="eyebrow">WELCOME TO YOUR DREAM WORLD</p><h1>${t("welcome")}</h1><p class="muted">${t("profileHint")}</p><form id="profile-form" class="card">
  ${input("nickname", "nickname", p.nickname, "text", 'required maxlength="20" autocomplete="nickname"')}
  <label class="field"><span>${t("age")}</span><select id="ageGroup" class="input">${["10", "20", "30", "40", "50", "60"].map((a) => `<option value="${a === "60" ? "60代以上" : a + "代"}" ${p.ageGroup === (a === "60" ? "60代以上" : a + "代") ? "selected" : ""}>${t("age" + a)}</option>`).join("")}</select></label>
- ${languageField()}<button class="btn primary full" type="submit">${t(state.profile?.typeAnswers ? "save" : "introStart")}</button></form><details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
+ ${languageField()}<button class="btn primary full" type="submit">${t(state.profile?.typeAnswers ? "save" : "startQuiz")}</button></form></div>`;
 }
 function quizView() {
   const q = TYPES[quizIndex];
   return `<div class="narrow"><p class="eyebrow">FIND YOUR DREAM TYPE</p><h1>${t("quiz")}</h1><p class="muted">${t("quizHint")}</p><div class="row between"><span>${quizIndex + 1} / 16</span><span>${Math.round(((quizIndex + 1) / 16) * 100)}%</span></div><progress class="progress" max="16" value="${quizIndex + 1}" aria-label="${t("quiz")}"></progress>
  <div class="card quiz-card"><h2>${localized(q.questions, language())}</h2><div class="quiz-answers">${[2, 1, 0].map((v, i) => `<button class="btn ${quizAnswers[quizIndex] === v ? "selected" : ""}" data-answer="${v}" aria-pressed="${quizAnswers[quizIndex] === v}">${t(["often", "sometimes", "rarely"][i])}</button>`).join("")}</div></div>
- <div class="row between">${button("back", "quiz-back", "ghost")}<button class="btn primary" data-action="quiz-next" ${quizAnswers[quizIndex] === null ? "disabled" : ""}>${t(quizIndex === 15 ? "result" : "next")}</button></div><details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
+ <div class="row between">${button("back", "quiz-back", "ghost")}<button class="btn primary" data-action="quiz-next" ${quizAnswers[quizIndex] === null ? "disabled" : ""}>${t(quizIndex === 15 ? "result" : "next")}</button></div></div>`;
 }
 function resultView() {
   const result = pendingResult || currentType(),
@@ -607,7 +614,7 @@ function catalogView() {
           .join("")}</tbody></table></section>`,
     )
     .join("")}</div>
-  <details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details><div class="row">${button("retake", "retake", "ghost")}</div>`;
+  <div class="row">${button("retake", "retake", "ghost")}</div>`;
 }
 function typeDetailView() {
   const type =
@@ -791,7 +798,7 @@ function accountView(onboard = false) {
   const enabled = cloud?.state.enabled,
     signed = enabled && !cloud.isAnonymous();
   const providers = cloud?.providers?.() || [];
-  return `<section class="card account-card"><h2>${t("account")}</h2><p class="help">${at(signed ? "loginHint" : "guestHint")}</p><p class="status" id="account-sync-status" role="status">${enabled ? at(syncStatus) : offlineStatus()}</p>
+  return `<section class="card account-card"><h2>${t("account")}</h2><p class="help">${at(signed ? "loginHint" : onboard ? "loginRequired" : "guestHint")}</p><p class="status" id="account-sync-status" role="status">${enabled ? at(syncStatus) : offlineStatus()}</p>
   ${signed ? `<p>${esc(cloud.email() || cloud.displayName?.() || state.profile?.nickname || "Yumetan")}</p><div class="row">${button("signOut", "signout", "ghost")}${button("sync", "sync", "ghost")}</div><h3>${at("link")}</h3><p class="help">${at("linkHint")}</p>` : `<p class="help">${at("loginHint")}</p>`}
   <div class="auth-buttons">${["google", "apple", "line"]
     .map((provider) => {
@@ -806,7 +813,7 @@ function accountView(onboard = false) {
   ${signed && pendingGuestKey ? `<button type="button" class="btn ghost" data-action="import-guest">${at("importLater")}</button>` : ""}
   ${!enabled ? `<button type="button" class="btn ghost" data-action="auth-retry">${at("reconnect")}</button>` : ""}
   ${!signed && enabled ? `<details><summary>${at("email")}</summary><form id="account-form">${input("email", "email", "", "email", 'required autocomplete="email"')}${input("password", "password", "", "password", 'minlength="6" autocomplete="current-password"')}<div class="row"><button type="submit" class="btn primary">${t("signIn")}</button>${button("signUp", "signup", "ghost")}${button("resetPassword", "reset-password", "small ghost")}</div></form></details>` : ""}
-  ${onboard && !signed ? `<button type="button" class="btn ghost full" data-action="guest">${at("guest")}</button>` : ""}</section>`;
+</section>`;
 }
 // Distinguish "still connecting" from a real failure (with Firebase's error code).
 let cloudPending = false;
@@ -968,10 +975,8 @@ function bindForms() {
     $("#profile-form").onsubmit = (e) =>
       run(async () => {
         e.preventDefault();
-        const isRegistration = !state.profile;
         capture();
         if (!draft.nickname.trim()) throw new Error(t("required"));
-        if (isRegistration) await saveIntroduction({ phase: "tour", step: 0 });
         await commit({
           ...state,
           profile: normalizeProfile({
@@ -1535,6 +1540,19 @@ async function account(mode, provider = null) {
     else if (
       mode === "provider" &&
       native &&
+      provider === "google" &&
+      googleNativeAvailable()
+    )
+      // Google Sign-In SDK sheet inside the app; no Safari round trip.
+      login = googleNativeLogin({
+        cloud,
+        link,
+        upgrade: cloud.isAnonymous() && !!cloud.uid(),
+        config: window.YUMETAN_CONFIG,
+      });
+    else if (
+      mode === "provider" &&
+      native &&
       provider === "line" &&
       lineNativeAvailable()
     )
@@ -1760,6 +1778,7 @@ const actions = {
   "intro-next": () => moveIntroduction(1),
   "intro-back": () => moveIntroduction(-1),
   "intro-continue": continueIntroduction,
+  "intro-skip": skipIntroduction,
   home: () => navigate("home"),
   record: () => navigate("record"),
   diary: () => navigate("diary"),
@@ -1805,14 +1824,6 @@ const actions = {
   voice: startVoice,
   speak,
   sync: syncCloud,
-  guest: async () => {
-    if (page === "welcome-login") {
-      await continueIntroduction();
-      return;
-    }
-    $("#nickname")?.focus();
-    $("#profile-form")?.scrollIntoView({ behavior: "smooth" });
-  },
   "auth-retry": async () => {
     if (!dirty || (await confirmDiscard(t))) location.reload();
   },
@@ -1977,7 +1988,8 @@ async function attachLateCloud(pending) {
   await loadScope();
   bindCloud();
   if (!cloud.isAnonymous()) await refreshPlan().catch(() => {});
-  if (["home", "quiz", "onboard"].includes(page)) page = firstRunPage();
+  if (["home", "quiz", "onboard", "intro", "welcome-login"].includes(page))
+    page = firstRunPage();
   render();
   syncCloud();
 }

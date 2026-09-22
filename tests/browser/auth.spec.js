@@ -1,4 +1,5 @@
 import { savedDreamDetails } from "./helpers/journal.js";
+import { passTour } from "./helpers/introduction.js";
 import { test, expect } from "@playwright/test";
 import { mergeAccount } from "../../public/core/account-sync.js";
 const profile = (nickname) => ({
@@ -19,10 +20,11 @@ const dream = (id, text) => ({
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aEAAAAABJRU5ErkJggg==",
 });
 async function setup(page, db = new Map(), readyDelay = 0) {
+  // Firebase is configured, so an account is required before registration.
   await page.route("**/firebase-config.js*", (r) =>
     r.fulfill({
       contentType: "text/javascript",
-      body: "window.FIREBASE_CONFIG={};",
+      body: "window.FIREBASE_CONFIG={apiKey:'test',projectId:'test'};",
     }),
   );
   await page.route("**/cloud.js*", (r) =>
@@ -53,19 +55,24 @@ signOut:async()=>{uid='guest-'+crypto.randomUUID();localStorage.setItem('auth.te
   );
   return db;
 }
-test("three social logins and guest are available before registration in four languages", async ({
+test("the login wall offers the three social logins and no guest mode before registration in four languages", async ({
   page,
 }) => {
   await setup(page);
   await page.goto("/");
+  await page.locator("[data-action=intro-skip]").click();
+  await expect(page.locator("#app")).toHaveAttribute(
+    "data-page",
+    "welcome-login",
+  );
   for (const lang of ["ja", "en", "ko", "zh"]) {
     await page.locator("#language").selectOption(lang);
-    await page.locator(".onboard-account > summary").click();
     for (const provider of ["google", "apple", "line"])
       await expect(
         page.locator(`[data-auth-provider=${provider}]`),
       ).toBeEnabled();
-    await expect(page.locator("[data-action=guest]")).toBeVisible();
+    await expect(page.locator("[data-action=guest]")).toHaveCount(0);
+    await expect(page.locator("#nickname")).toHaveCount(0);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -73,8 +80,13 @@ test("three social logins and guest are available before registration in four la
     ).toBeTruthy();
     await expect(page.locator("main")).not.toContainText("undefined");
   }
-  await page.locator("[data-action=guest]").click();
-  await expect(page.locator("#nickname")).toBeFocused();
+  // Registration follows the login; the account is new so the form is empty.
+  await page.locator("[data-auth-provider=google]").click();
+  await expect(page.locator("#nickname")).toBeVisible();
+  await expect(page.locator("main")).not.toContainText(
+    "ログイン（あとでもOK）",
+  );
+  await expect(page.locator("main")).not.toContainText("タイプについて");
   await page.screenshot({
     path: "test-results/login-mobile.png",
     fullPage: true,
@@ -105,8 +117,10 @@ test("login restores account on a new device; logout isolates data and LINE choo
     [second, "apple"],
   ]) {
     await page.goto("/");
-    await page.locator(".onboard-account > summary").click();
+    await passTour(page);
     await page.locator(`[data-auth-provider=${provider}]`).click();
+    // An account that already registered skips the form and lands on home.
+    await expect(page.locator("#app")).toHaveAttribute("data-page", "home");
     await expect(page.locator("main")).toContainText("アカウントA");
     await page.locator("nav [data-go=record]").click();
     await savedDreamDetails(page);
@@ -115,9 +129,11 @@ test("login restores account on a new device; logout isolates data and LINE choo
   }
   await first.locator("#header [data-go=settings]").click();
   await first.locator("[data-action=signout]").click();
-  await expect(first.locator("#nickname")).toBeVisible();
+  await expect(first.locator("#app")).toHaveAttribute(
+    "data-page",
+    "welcome-login",
+  );
   await expect(first.locator("main")).not.toContainText("Aだけの夢");
-  await first.locator(".onboard-account > summary").click();
   await first.locator("[data-auth-provider=line]").click();
   await expect(first.locator("main")).toContainText("アカウントB");
   await first.locator("nav [data-go=record]").click();
@@ -149,8 +165,7 @@ test("guest records import only after consent; account linking and cancellation 
   ]);
   await setup(page, db);
   await page.goto("/");
-  await expect(page.locator("#header [data-go=settings]")).toBeVisible();
-  await page.locator("#header [data-go=settings]").click();
+  await passTour(page);
   page.once("dialog", (d) => d.accept());
   await page.locator("[data-auth-provider=google]").click();
   await expect(page.locator("main")).toContainText("会員");
@@ -185,7 +200,7 @@ test("declining guest import leaves both accounts intact", async ({ page }) => {
   ]);
   await setup(page, db);
   await page.goto("/");
-  await page.locator("#header [data-go=settings]").click();
+  await passTour(page);
   page.once("dialog", (d) => d.dismiss());
   await page.locator("[data-auth-provider=apple]").click();
   await page.locator("nav [data-go=record]").click();
@@ -206,7 +221,7 @@ test("a slow cloud connection enables the social logins later without a reload",
   await setup(page, new Map(), 4500);
   await page.goto("/");
   await page.evaluate(() => (window.__sameDocument = true));
-  await page.locator(".onboard-account > summary").click();
+  await page.locator("[data-action=intro-skip]").click();
   await expect(page.locator("[data-auth-provider=google]")).toBeDisabled();
   await expect(page.locator("#account-sync-status")).toContainText(
     "接続しています",

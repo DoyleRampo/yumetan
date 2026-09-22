@@ -2,8 +2,10 @@
 
 ## 利用者の操作
 
+- 新規ユーザーの順序は **オンボーディング（4 ページ、スキップ可）→ ログイン → ユーザー登録（呼び名・年代・言語）→ 16 タイプ診断 → ホーム**。Firebase が設定されている環境ではログインなしに登録へ進めない（ゲストモードは無い）。記録は常にアカウントの領域に保存され、端末だけに残るデータは作らない。
+- 一度登録したアカウントで再ログインすると、登録画面と診断は表示せずにそのままホームへ進む（プロフィール・記録はアカウントから復元）。
+- 「タイプについて」の説明は 16 タイプ診断の結果画面にだけ表示する。
 - 初期画面または設定から **LINE / Apple / Google** でログイン。従来のメール/パスワードも利用可能。
-- **ゲストで使う** から登録なしで記録可能。Firebase匿名認証が有効ならゲストUIDに同期、接続できないときは端末内に保存。
 - ゲストから初めて外部アカウントを作る場合は、Firebaseのリンク機能でUIDと記録を維持する。
 - すでに存在するアカウントへログインする場合は、ゲスト記録を取り込むか確認する。既存プロフィール・同日の既存日記は保持。拒否しても元のキャッシュは残り、設定の「ゲストの記録を取り込む」から再実行できる。
 - ログイン済みの設定では別のログイン方法を追加できる。Appleの匿名メールを含む連携は確認後に実行。他のアカウントで利用中の認証情報は勝手に統合しない。
@@ -45,6 +47,14 @@
 4. 認証ページとAPIを同じHTTPSオリジンで配信。モバイルの `API_URL` はそのオリジンを指定。
 
 公式: [Googleログイン](https://firebase.google.com/docs/auth/web/google-signin)、[匿名認証とアカウント連携](https://firebase.google.com/docs/auth/web/anonymous-auth)、[プロバイダ連携](https://firebase.google.com/docs/auth/web/account-linking)。
+
+### Google（iOSアプリ: Google Sign-In SDK のアプリ内シート）
+
+iOS アプリでは Safari に遷移せず、Google Sign-In SDK（`GoogleSignIn` pod）のシートでログインし、返ってきた ID トークンで Firebase に直接ログインします（`GoogleLogin` プラグイン、`ios/App/App/SceneDelegate.swift`）。
+
+1. Firebase Console → プロジェクトの設定 → iOS アプリ `com.doyle.yumetan` の `GoogleService-Info.plist` をダウンロードし、`CLIENT_ID`（`…apps.googleusercontent.com`）を控える。
+2. GitHub Secrets に `GOOGLE_IOS_CLIENT_ID` としてその値を登録する。`scripts/build-mobile.mjs` が `config.js` に埋め込み、`scripts/ios-google-signin.mjs` がビルド時に `Info.plist` へ逆順クライアント ID（`com.googleusercontent.apps.…`）の URL スキームを追加する。
+3. 未設定なら従来どおりブラウザ経由（`/auth.html`）にフォールバックする。
 
 ### Apple（iOSアプリ: システムのサインインシート）
 

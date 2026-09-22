@@ -137,6 +137,8 @@ Xcode・Android Studio・署名環境は別途必要です。Webファイル変�
 | --- | --- |
 | `API_URL` | アプリが接続する公開サーバーの URL |
 | `REVENUECAT_IOS_KEY` | RevenueCat の iOS 公開キー（`appl_…`。`test_` は不可） |
+| `LINE_CHANNEL_ID` | LINE ログインチャネルの ID（LINE アプリへ直接遷移するログイン用） |
+| `GOOGLE_IOS_CLIENT_ID` | Firebase に登録した iOS アプリの OAuth クライアント ID（`GoogleService-Info.plist` の `CLIENT_ID`、`…apps.googleusercontent.com`）。アプリ内で完結する Google ログイン用 |
 | `IOS_TEAM_ID` | Apple Developer の Team ID（10桁） |
 | `IOS_DIST_CERT_P12` | **Apple Distribution** 証明書（Apple Development ではない）を Keychain Access から秘密鍵ごと .p12 で書き出し、`base64 -i 証明書.p12` した文字列 |
 | `IOS_DIST_CERT_PASSWORD` | .p12 書き出し時のパスワード |

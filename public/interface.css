@@ -872,6 +872,17 @@ body[data-screen="intro"] #app {
 .intro-login > h1 {
   margin-top: 12px;
 }
+.intro-login > .field {
+  margin-top: 16px;
+}
+.intro-skip {
+  justify-self: end;
+  margin: 0 0 8px auto;
+}
+.intro-language {
+  width: min(500px, 100%);
+  margin: 4px auto 12px;
+}
 @keyframes intro-enter {
   from {
     opacity: 0;

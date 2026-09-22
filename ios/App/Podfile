@@ -23,6 +23,8 @@ target 'App' do
   capacitor_pods
   # LINE Login SDK: app-to-app login through the LINE app (see LineLoginPlugin in SceneDelegate.swift)
   pod 'LineSDKSwift', '~> 5.8'
+  # Google Sign-In SDK: in-app Google login sheet (see GoogleLoginPlugin in SceneDelegate.swift)
+  pod 'GoogleSignIn', '~> 8.0'
 end
 
 post_install do |installer|

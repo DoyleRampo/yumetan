@@ -44,10 +44,10 @@ async function start(page, lang = "ja") {
   await localOnly(page);
   await page.goto("/");
   await page.locator("#language").selectOption(lang);
+  await finishIntroduction(page);
   await page.locator("#nickname").fill("Dreamer");
   await page.locator("#ageGroup").selectOption("20代");
   await page.locator("#profile-form button[type=submit]").click();
-  await finishIntroduction(page);
   await expect(page.locator('[data-answer="2"]')).toBeVisible();
   for (let i = 0; i < 16; i++) {
     await page.locator(`[data-answer="${i === 11 ? 2 : 0}"]`).click();
@@ -209,9 +209,9 @@ test("partial questionnaire survives refresh and back navigation", async ({
 }) => {
   await localOnly(page);
   await page.goto("/");
+  await finishIntroduction(page);
   await page.locator("#nickname").fill("Test");
   await page.locator("#profile-form button").click();
-  await finishIntroduction(page);
   await page.locator('[data-answer="1"]').click();
   await page.locator("[data-action=quiz-next]").click();
   await page.reload();
@@ -279,6 +279,16 @@ test.describe("offline cache", () => {
     await page.evaluate(() => navigator.serviceWorker.ready);
     await page.reload();
     await page.waitForFunction(() => navigator.serviceWorker.controller);
+    // The service worker caches the real firebase-config.js (page routes never
+    // see worker fetches). Pin the empty config so the offline reload stays a
+    // local-only build instead of hitting the login wall.
+    await page.addInitScript(() =>
+      Object.defineProperty(window, "FIREBASE_CONFIG", {
+        value: {},
+        writable: false,
+        configurable: false,
+      }),
+    );
     await context.setOffline(true);
     await page.reload();
     await expect(page.locator("[data-action=record]")).toBeVisible();
@@ -458,9 +468,9 @@ test("account switching isolates journals and reload restores the active scope",
   );
   await page.goto("/");
   await page.locator("#language").selectOption("en");
+  await finishIntroduction(page);
   await page.locator("#nickname").fill("First account");
   await page.locator("#profile-form button").click();
-  await finishIntroduction(page);
   for (let i = 0; i < 16; i++) {
     await page.locator('[data-answer="0"]').click();
     await page.locator("[data-action=quiz-next]").click();

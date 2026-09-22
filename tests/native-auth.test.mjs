@@ -126,3 +126,51 @@ test("timeoutSignal works without AbortSignal.timeout (iOS 15 WebView)", async (
     AbortSignal.timeout = original;
   }
 });
+test("Google native login signs in with the SDK's tokens and never opens a browser", async () => {
+  const { googleNativeAvailable, googleNativeLogin } =
+    await import("../public/core/native-auth.js");
+  const config = { googleIosClientId: "123-abc.apps.googleusercontent.com" };
+  assert.equal(googleNativeAvailable(config), false);
+  globalThis.window.Capacitor.Plugins.GoogleLogin = {
+    login: async ({ clientId }) => ({
+      idToken: "google-jwt",
+      accessToken: "google-access",
+      displayName: "Yume",
+      clientId,
+    }),
+  };
+  assert.equal(googleNativeAvailable(config), true);
+  assert.equal(googleNativeAvailable({}), false);
+  const calls = [];
+  const user = await googleNativeLogin({
+    cloud: {
+      signInCredential: async (name, opts) => {
+        calls.push([name, opts]);
+        return { uid: "google-user" };
+      },
+    },
+    link: false,
+    upgrade: true,
+    config,
+  });
+  assert.equal(user.uid, "google-user");
+  assert.deepEqual(calls[0], [
+    "google",
+    {
+      idToken: "google-jwt",
+      accessToken: "google-access",
+      link: false,
+      upgrade: true,
+      displayName: "Yume",
+    },
+  ]);
+  assert.equal(opened.length, 1, "the browser handoff was not used");
+  globalThis.window.Capacitor.Plugins.GoogleLogin = {
+    login: async () => {
+      throw { code: "auth/popup-closed-by-user" };
+    },
+  };
+  await assert.rejects(googleNativeLogin({ cloud: {}, config }), {
+    code: "auth/popup-closed-by-user",
+  });
+});

@@ -57,8 +57,15 @@ if (!lineChannelId)
   console.warn(
     "LINE_CHANNEL_ID 未設定: LINE ログインはブラウザ経由（Identity Platform）になります。",
   );
+// Google iOS OAuth client ID (public). With it the iOS app signs in through the
+// Google Sign-In sheet; without it Google falls back to the browser flow.
+const googleIosClientId = String(process.env.GOOGLE_IOS_CLIENT_ID || "").trim();
+if (!googleIosClientId)
+  console.warn(
+    "GOOGLE_IOS_CLIENT_ID 未設定: iOS の Google ログインはブラウザ経由になります。",
+  );
 fs.writeFileSync(
   path.join("dist", "config.js"),
-  `window.YUMETAN_CONFIG = ${JSON.stringify({ apiBase: apiUrl, revenueCat, lineChannelId })};\n`,
+  `window.YUMETAN_CONFIG = ${JSON.stringify({ apiBase: apiUrl, revenueCat, lineChannelId, googleIosClientId })};\n`,
 );
 console.log(`dist/ を作成しました（接続先: ${apiUrl}）`);

@@ -1,6 +1,7 @@
 import UIKit
 import Capacitor
 import LineSDK
+import GoogleSignIn
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -37,6 +38,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
         // The LINE app returns the login result through the line3rdp.<bundle id> URL scheme.
         if LoginManager.shared.isSetupFinished, LoginManager.shared.application(app, open: url, options: options) {
+            return true
+        }
+        // Google Sign-In returns through the com.googleusercontent.apps.<client id> scheme.
+        if GIDSignIn.sharedInstance.handle(url) {
             return true
         }
         // Called when the app was launched with a url. Feel free to add additional processing here,

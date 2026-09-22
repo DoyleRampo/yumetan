@@ -36,6 +36,12 @@ const strings = {
     "로그인하면 다른 기기에서도 꿈·일기·사진·캐릭터를 이어서 사용할 수 있어요.",
     "登录同一账号，可在其他设备恢复梦境、日记、照片和角色。",
   ],
+  loginRequired: [
+    "記録はアカウントに保存され、機種変更や再インストール後も引き継げます。ログインして始めましょう。",
+    "Your records are saved to your account and survive a new phone or reinstall. Sign in to begin.",
+    "기록은 계정에 저장되어 기기 변경이나 재설치 후에도 이어져요. 로그인하고 시작하세요.",
+    "记录保存在账号中，更换设备或重新安装后也能继续。请登录后开始。",
+  ],
   guestHint: [
     "ゲストでも記録できます。機種変更や再インストールに備えて、あとからアカウントに連携してください。",
     "Guests can keep records. Link an account before changing devices or reinstalling.",
