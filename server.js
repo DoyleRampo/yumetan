@@ -76,6 +76,10 @@ app.get("/api/health", (req, res) =>
   res.json({
     ok: true,
     aiConfigured: Boolean(process.env.OPENAI_API_KEY),
+    // Firebase Admin credentials present for the login handoff (/api/auth/*).
+    authConfigured: Boolean(
+      services.store && services.verify && services.mint && services.getUser,
+    ),
     model: ai.model,
     hasServerKey: Boolean(process.env.OPENAI_API_KEY),
     acceptsUserKey: false,
@@ -147,7 +151,12 @@ app.use(
 app.use((err, req, res, next) => {
   const status = err.status || 500;
   if (status >= 500)
-    console.error("Request failed", { status, name: err.name });
+    console.error("Request failed", {
+      status,
+      name: err.name,
+      message: err.message,
+      path: req.path,
+    });
   res.status(status).json({
     error: err.code || (status === 400 ? "invalidInput" : "serviceUnavailable"),
     code: err.code || (status === 400 ? "invalidInput" : "serviceUnavailable"),

@@ -79,6 +79,12 @@ const strings = {
     "기기에 저장됨 · 클라우드 동기화 대기",
     "已保存至设备 · 等待云端同步",
   ],
+  connecting: [
+    "サーバーに接続しています…",
+    "Connecting to the server…",
+    "서버에 연결하는 중…",
+    "正在连接服务器…",
+  ],
   waiting: [
     "ブラウザでログインし、完了後にアプリへ戻ってください。",
     "Sign in in your browser, then return to the app.",

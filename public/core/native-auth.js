@@ -5,17 +5,54 @@ const random = () =>
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
-async function request(base, action, body) {
-  const response = await fetch(base + "/api/auth/" + action, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15000),
-  });
-  const value = await response.json();
-  if (!response.ok)
-    throw Object.assign(new Error(value.code), { code: value.code });
-  return value;
+const authError = (code) => Object.assign(new Error(code), { code });
+// AbortSignal.timeout is missing on iOS 15 WebViews; never let that break login.
+export function timeoutSignal(ms) {
+  if (typeof AbortSignal.timeout === "function") return AbortSignal.timeout(ms);
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const transient = (error) =>
+  error?.name === "AbortError" || error?.name === "TypeError";
+// The API runs on a free Render instance that sleeps when idle and needs up to
+// a minute to answer the first request. Wake it before starting a login so the
+// real request does not time out; failures here are ignored (the login request
+// still runs and reports its own error).
+export const timing = { attempts: 6, delay: 2000 };
+export async function warmUp(
+  origin,
+  { attempts = timing.attempts, delay = timing.delay } = {},
+) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(origin + "/api/health", {
+        signal: timeoutSignal(15000),
+      });
+      if (res.ok) return true;
+    } catch {}
+    if (i < attempts - 1) await sleep(delay * (i + 1));
+  }
+  return false;
+}
+async function request(base, action, body, retries = 1) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await fetch(base + "/api/auth/" + action, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: timeoutSignal(20000),
+      });
+      const value = await response.json().catch(() => ({}));
+      if (!response.ok) throw authError(value.code || "authFailed");
+      return value;
+    } catch (error) {
+      if (!transient(error) || attempt >= retries) throw error;
+      await warmUp(base, { attempts: 3, delay: 2000 });
+    }
+  }
 }
 export async function startNativeAuth({
   cloud,
@@ -26,10 +63,7 @@ export async function startNativeAuth({
   sourceKey,
 }) {
   const url = new URL(base);
-  if (url.protocol !== "https:")
-    throw Object.assign(new Error("authNotConfigured"), {
-      code: "authNotConfigured",
-    });
+  if (url.protocol !== "https:") throw authError("authNotConfigured");
   const verifier = random(),
     bytes = new Uint8Array(
       await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
@@ -38,6 +72,7 @@ export async function startNativeAuth({
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
+  await warmUp(url.origin);
   const result = await request(url.origin, "start", {
     provider,
     link,
@@ -67,7 +102,7 @@ export async function finishNativeAuth(cloud) {
   if (!pending) return null;
   if (pending.expires < Date.now()) {
     await write(key, null);
-    throw Object.assign(new Error("authExpired"), { code: "authExpired" });
+    throw authError("authExpired");
   }
   const result = await request(pending.base, "consume", {
     id: pending.id,
@@ -96,39 +131,43 @@ export function lineNativeAvailable(config = window.YUMETAN_CONFIG) {
 }
 export async function lineNativeLogin({ cloud, link, base, config }) {
   const url = new URL(base);
-  if (url.protocol !== "https:")
-    throw Object.assign(new Error("authNotConfigured"), {
-      code: "authNotConfigured",
-    });
+  if (url.protocol !== "https:") throw authError("authNotConfigured");
+  // Wake the server while the user is busy in the LINE app.
+  const warm = warmUp(url.origin);
   let result;
   try {
     result = await window.Capacitor.Plugins.LineLogin.login({
       channelId: String(config.lineChannelId),
     });
   } catch (error) {
-    throw Object.assign(new Error(error?.code || "auth/popup-closed-by-user"), {
-      code: error?.code || "auth/popup-closed-by-user",
-    });
+    throw authError(error?.code || "auth/popup-closed-by-user");
   }
-  if (!result?.idToken)
-    throw Object.assign(new Error("authFailed"), { code: "authFailed" });
+  if (!result?.idToken) throw authError("authFailed");
+  await warm;
   const headers = { "Content-Type": "application/json" };
   if (link) headers.Authorization = "Bearer " + (await cloud.idToken());
-  const response = await fetch(url.origin + "/api/auth/line", {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      idToken: result.idToken,
-      nonce: result.nonce,
-      link,
-    }),
-    signal: AbortSignal.timeout(20000),
+  const body = JSON.stringify({
+    idToken: result.idToken,
+    nonce: result.nonce,
+    link,
   });
+  let response;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      response = await fetch(url.origin + "/api/auth/line", {
+        method: "POST",
+        headers,
+        body,
+        signal: timeoutSignal(20000),
+      });
+      break;
+    } catch (error) {
+      if (!transient(error) || attempt >= 1) throw authError("authFailed");
+      await warmUp(url.origin, { attempts: 3, delay: 2000 });
+    }
+  }
   const value = await response.json().catch(() => ({}));
-  if (!response.ok)
-    throw Object.assign(new Error(value.code || "authFailed"), {
-      code: value.code || "authFailed",
-    });
+  if (!response.ok) throw authError(value.code || "authFailed");
   return cloud.signInToken(value.token);
 }
 
@@ -141,9 +180,7 @@ export async function appleNativeLogin({ cloud, link, upgrade }) {
   try {
     result = await window.Capacitor.Plugins.AppleLogin.login();
   } catch (error) {
-    throw Object.assign(new Error(error?.code || "auth/popup-closed-by-user"), {
-      code: error?.code || "auth/popup-closed-by-user",
-    });
+    throw authError(error?.code || "auth/popup-closed-by-user");
   }
   const displayName = [result.givenName, result.familyName]
     .filter(Boolean)

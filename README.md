@@ -71,7 +71,7 @@ npm start
 
 主なAPI（会員・投稿・AI・課金の操作には非匿名のFirebase Bearerトークンが必要）:
 
-- `GET /api/health`：接続設定の有無（秘密値は返しません）
+- `GET /api/health`：接続設定の有無（秘密値は返しません）。`authConfigured` が false ならサーバーに Firebase Admin の認証情報（`FIREBASE_SERVICE_ACCOUNT_JSON`）が無く、アプリ内ログインは失敗します
 - `GET /api/account`：会員状態・使用数・次回AI枠更新
 - `POST /api/billing/sync`：ストア購入・復元後にRevenueCatの契約状態をサーバーへ反映
 - `POST /api/billing/revenuecat`：RevenueCat Webhook（Authorizationヘッダーの共有秘密で検証）

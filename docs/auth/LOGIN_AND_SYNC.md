@@ -102,6 +102,8 @@ WebView内のOAuthポップアップは使用せず、独自の小さな `AuthBr
 - サーバーはFirebaseトークン、認証時刻、対象プロバイダ、無効ユーザー、連携時の元UIDを確認する。クライアントが送ったUIDだけでログインしない。
 - `authHandoffs` と `authRateLimits` は既存Firestoreクライアントルールで許可されないサーバー専用領域。
 - 起動前の未完了フローは5分まで復帰可能。他アカウントへの切り替え後に以前の認証結果を適用しない。
+- Render の無料インスタンスは休止から復帰するまで 50 秒以上かかる。アプリはログイン開始前に `GET /api/health` で最大約 1 分サーバーを起こし、認証リクエストは 20 秒のタイムアウト後に 1 回だけ再試行する（`public/core/native-auth.js`）。`AbortSignal.timeout` が無い iOS 15 の WebView でも動作する。
+- `GET /api/health` の `authConfigured` でサーバー側の Firebase Admin 認証情報の有無を確認できる。
 
 ## 検証と残る本番確認
 

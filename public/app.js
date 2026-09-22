@@ -1535,6 +1535,8 @@ async function account(mode, provider = null) {
         config: window.YUMETAN_CONFIG,
       });
     else if (mode === "provider" && native) {
+      // The free API instance may need up to a minute to wake up.
+      toast(at("connecting"));
       await startNativeAuth({
         cloud,
         provider,
