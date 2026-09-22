@@ -1,9 +1,14 @@
-import { loadingMarkup } from "./core/loading.js";
+import { loadingMarkup, beginLoading } from "./core/loading.js";
 import { PLANS, STAMPS } from "./core/plans.js";
+import { planFromCustomerInfo } from "./core/purchases.js";
 import { communityMessages } from "./core/community-i18n.js";
 import { localized } from "./core/types.js";
 export const communityText = (key, lang) =>
   localized(communityMessages[key] || communityMessages.error, lang);
+// After a store purchase RevenueCat may need a moment before the server can
+// see the subscription: the plan is re-checked this many times, this far apart.
+export const SYNC_ATTEMPTS = 6;
+export const SYNC_INTERVAL = 2500;
 export function createCommunity({
   api,
   language,
@@ -20,6 +25,9 @@ export function createCommunity({
   isNative,
   purchases,
   uid = () => null,
+  onAccount = () => {},
+  onPurchased = () => {},
+  wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }) {
   let account = { plan: "free" },
     current = "",
@@ -29,8 +37,6 @@ export function createCommunity({
     posts = [],
     next = null,
     detail = null,
-    mine = [],
-    blocks = [],
     shareRecord = null,
     sharing = null,
     shareDraft = null,
@@ -41,10 +47,16 @@ export function createCommunity({
   const t = (key) => communityText(key, language());
   const b = (label, action, attrs = "") =>
     `<button type="button" class="btn ghost" data-social="${action}" ${attrs}>${t(label)}</button>`;
-  const plan = () =>
-    account.paidUntil && account.paidUntil <= Date.now()
-      ? "free"
-      : account.plan || "free";
+  const planOf = (a) =>
+    a?.paidUntil && a.paidUntil <= Date.now() ? "free" : a?.plan || "free";
+  const plan = () => planOf(account);
+  // `verified` marks a plan the server itself reported (not a reset or a
+  // failed request), which is the only kind worth remembering offline.
+  const setAccount = (next, verified = true) => {
+    account = next || { plan: "free" };
+    onAccount(account, verified);
+    return account;
+  };
   // Purchases run only inside the store apps, and only once the server can verify them.
   const canBuy = () =>
     Boolean(isNative() && purchases?.available() && account.billingConfigured);
@@ -56,13 +68,17 @@ export function createCommunity({
       : busy
         ? loadingMarkup(language(), "load")
         : "";
+  // Timeline cards show only who dreamed (the 16-type character and the
+  // nickname) and the dream itself, like a social post.
+  const author = (p) =>
+    `<img class="post-avatar" src="${character(p.typeId, p.characterSet).image}" width="48" height="48" alt="" decoding="async">`;
   // Free members: today's teaser (20 characters per post); every link leads to the plans.
   const teaserCard = (p) =>
-    `<article class="card feed-card teaser-card"><div class="post-author"><img src="${character(p.typeId, p.characterSet).image}" width="48" height="48" alt=""><div><strong>${esc(p.alias)}</strong><small>${esc(new Date(p.publishedAt).toLocaleDateString(language()))}</small></div></div><p class="prose teaser-text">${esc(p.excerpt)}<button type="button" class="link-button" data-social="plans">${t("readMore")}</button></p></article>`;
+    `<article class="card feed-card teaser-card">${author(p)}<div class="post-body"><strong class="post-name">${esc(p.alias)}</strong><p class="prose post-text teaser-text">${esc(p.excerpt)}<button type="button" class="link-button" data-social="plans">${t("readMore")}</button></p></div></article>`;
   const teaserView = () =>
     `<div class="teaser"><span class="eyebrow">MEMBERS' DREAMS</span><h2>${t("communityIntro")}</h2><p class="help">${t("teaserHint")}</p><div class="feed-list">${(teaser?.posts || []).map(teaserCard).join("") || (!busy ? `<p class="empty">${t("emptyTeaser")}</p>` : "")}</div><button type="button" class="btn primary full" data-social="plans">${t("seeMore")}</button><p class="help">${t("paidRequired")}</p></div>`;
-  const postCard = (p) =>
-    `<article class="card feed-card"><div class="post-author"><img src="${character(p.typeId, p.characterSet).image}" width="48" height="48" alt=""><div><strong>${esc(p.alias)}</strong><small>${esc(new Date(p.publishedAt).toLocaleDateString(language()))}</small></div></div><h2>${esc(p.title)}</h2><p class="prose">${esc(p.text)}</p><div class="row">${STAMPS.map((s) => `<span>${s} ${Number(p.reactions[s] || 0)}</span>`).join("")}</div><p class="help">${t("comments")}: ${p.commentCount}</p>${b("comments", "post", `data-id="${esc(p.id)}"`)}</article>`;
+  const postCard = (p, open = true) =>
+    `<article class="card feed-card${open ? " post-open" : ""}" ${open ? `data-social="post" data-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(p.alias)} · ${t("openPost")}"` : ""}>${author(p)}<div class="post-body"><strong class="post-name">${esc(p.alias)}</strong><p class="prose post-text">${esc(p.text)}</p></div></article>`;
   const planFields = [
     ["dreamLimit", "dreams"],
     ["diaryLimit", "diary"],
@@ -125,18 +141,20 @@ export function createCommunity({
   function detailView() {
     if (!detail) return `<h1>${t("community")}</h1>${status()}`;
     const { post: p } = detail;
-    return `<div class="narrow">${status()}${postCard(p)}<div class="card"><div class="row stamps">${STAMPS.map((s) => `<button class="btn ghost" data-social="stamp" data-stamp="${s}" aria-pressed="${detail.reaction === s}" ${p.mine ? "disabled" : ""}>${s}</button>`).join("")}</div><h2>${t("comments")}</h2>${detail.comments.map((c) => `<article class="comment"><strong>${esc(c.alias)}</strong><p class="prose">${esc(c.text)}</p>${c.mine || p.mine ? b("removeComment", "delete-comment", `data-id="${c.id}"`) : b("commentReport", "report-comment", `data-id="${c.id}"`)}</article>`).join("")}${detail.next ? b("nextPage", "comments-next") : ""}<form id="comment-form"><label class="field"><span>${t("comments")}</span><textarea id="comment-text" rows="3" maxlength="500" required>${esc(commentDraft)}</textarea></label><p class="help">${t("copyLimit")}</p><button class="btn primary" type="submit">${t("sendComment")}</button></form></div>${!p.mine ? `<div class="card"><label class="field"><span>${t("reportReason")}</span><select id="report-reason">${["privacy", "abuse", "spam", "other"].map((r) => `<option value="${r}">${t(r)}</option>`).join("")}</select></label>${b("report", "report")}${b("block", "block")}</div>` : ""}</div>`;
+    return `<div class="narrow">${status()}${postCard(p, false)}<div class="card"><div class="row stamps">${STAMPS.map((s) => `<button class="btn ghost" data-social="stamp" data-stamp="${s}" aria-pressed="${detail.reaction === s}" ${p.mine ? "disabled" : ""}>${s} ${Number(p.reactions?.[s] || 0)}</button>`).join("")}</div><h2>${t("comments")}</h2>${detail.comments.map((c) => `<article class="comment"><strong>${esc(c.alias)}</strong><p class="prose">${esc(c.text)}</p>${c.mine || p.mine ? b("removeComment", "delete-comment", `data-id="${c.id}"`) : b("commentReport", "report-comment", `data-id="${c.id}"`)}</article>`).join("")}${detail.next ? b("nextPage", "comments-next") : ""}<form id="comment-form"><label class="field"><span>${t("comments")}</span><textarea id="comment-text" rows="3" maxlength="500" required>${esc(commentDraft)}</textarea></label><p class="help">${t("copyLimit")}</p><button class="btn primary" type="submit">${t("sendComment")}</button></form></div>${!p.mine ? `<div class="card"><label class="field"><span>${t("reportReason")}</span><select id="report-reason">${["privacy", "abuse", "spam", "other"].map((r) => `<option value="${r}">${t(r)}</option>`).join("")}</select></label>${b("report", "report")}</div>` : ""}</div>`;
   }
   function view(page) {
     if (page === "plans") return plansView();
     if (page === "plan-details") return planDetailsView();
     if (page === "share") return shareView();
     if (page === "community-post") return detailView();
-    return `<h1>${t("community")}</h1><p>${t("communityIntro")}</p><div class="row">${b("refresh", "refresh")}${b("plans", "plans")}${signedIn() ? `${b("mine", "mine")}${b("blocks", "blocks")}` : ""}</div>${status()}${plan() === "free" ? (signedIn() ? teaserView() : paywall()) : `<p class="help">${t("readNote")}</p><div class="feed-list">${posts.map(postCard).join("") || (!busy ? `<p class="empty">${t("emptyFeed")}</p>` : "")}</div>${next ? b("nextPage", "next") : ""}`}<section id="social-extra">${mine.length ? `<h2>${t("mine")}</h2>${mine.map((p) => `<div class="card"><h3>${esc(p.title)}</h3>${b("unpublish", "unpublish", `data-id="${p.id}"`)}</div>`).join("")}` : ""}${blocks.length ? `<h2>${t("blocks")}</h2>${blocks.map((x) => `<div class="card">${esc(x.alias)} ${b("unblock", "unblock", `data-id="${esc(x.id)}"`)}</div>`).join("")}` : ""}</section>`;
+    // The timeline: no toolbar, just the dreams. A failed load offers a retry.
+    return `<h1>${t("community")}</h1><p class="help">${t("communityIntro")}</p>${status()}${error ? `<div class="row">${b("refresh", "refresh")}</div>` : ""}${plan() === "free" ? (signedIn() ? teaserView() : paywall()) : `<div class="feed-list timeline">${posts.map((p) => postCard(p)).join("") || (!busy ? `<p class="empty">${t("emptyFeed")}</p>` : "")}</div>${next ? b("nextPage", "next") : ""}`}`;
   }
   async function refreshAccount() {
-    account = signedIn() ? await api("/api/account") : { plan: "free" };
-    return account;
+    return setAccount(
+      signedIn() ? await api("/api/account") : { plan: "free" },
+    );
   }
   async function enter(page, record) {
     current = page;
@@ -146,8 +164,6 @@ export function createCommunity({
     posts = [];
     next = null;
     detail = null;
-    mine = [];
-    blocks = [];
     if (page === "share") {
       shareRecord = record;
       sharing = null;
@@ -157,7 +173,7 @@ export function createCommunity({
     try {
       const result = signedIn() ? await api("/api/account") : { plan: "free" };
       if (token !== version) return;
-      account = result;
+      setAccount(result);
       if (page === "share" && signedIn() && record) {
         const r = await api(
           "/api/community/record/" + encodeURIComponent(record.id),
@@ -191,7 +207,7 @@ export function createCommunity({
     } catch (e) {
       if (token === version) {
         error = e.message;
-        account = { plan: "free" };
+        setAccount({ plan: "free" }, false);
       }
     } finally {
       if (token === version) {
@@ -210,6 +226,56 @@ export function createCommunity({
     detail = r;
     error = "";
   }
+  // Ask the server to verify the store subscription until it shows up as a
+  // paid plan (RevenueCat can lag a few seconds behind the store).
+  async function syncUntilActive() {
+    let last = null,
+      failure = null;
+    for (let i = 0; i < SYNC_ATTEMPTS; i++) {
+      if (i) await wait(SYNC_INTERVAL);
+      try {
+        last = await api("/api/billing/sync", {});
+        failure = null;
+      } catch (e) {
+        failure = e;
+        continue;
+      }
+      if (planOf(last) !== "free") break;
+    }
+    if (!last) throw failure;
+    return last;
+  }
+  async function checkout(action, planId) {
+    if (!canBuy() || !signedIn()) throw new Error(t("billingUnavailable"));
+    // The whole screen shows what is happening from the first tap until the
+    // plan is active: first the store, then the server verification.
+    const stop = beginLoading(language(), "store", null, { overlay: true });
+    try {
+      let done;
+      try {
+        done =
+          action === "checkout"
+            ? await purchases.buy(uid(), planId, cycle)
+            : await purchases.restore(uid());
+      } catch (e) {
+        throw new Error(t(e?.code || "purchaseFailed"));
+      }
+      if (!done) {
+        toast(t("purchaseCancelled"));
+        return;
+      }
+      stop.update("plan");
+      // What the store confirmed shows immediately (display perks only); the
+      // server-verified plan below is what grants quotas and the feed.
+      const confirmed = planFromCustomerInfo(done);
+      if (confirmed) onPurchased(confirmed);
+      setAccount(await syncUntilActive());
+      toast(t(plan() === "free" ? "purchasePending" : "purchaseActivated"));
+      render();
+    } finally {
+      stop();
+    }
+  }
   function capture() {
     if (document.querySelector("#comment-text"))
       commentDraft = document.querySelector("#comment-text").value;
@@ -221,147 +287,98 @@ export function createCommunity({
       };
   }
   function bind() {
-    document.querySelectorAll("[data-social]").forEach(
-      (el) =>
-        (el.onclick = () =>
-          run(async () => {
-            capture();
-            const action = el.dataset.social;
-            if (["plans", "settings", "feed"].includes(action)) {
-              navigate(action === "feed" ? "community" : action);
-              return;
-            }
-            if (action === "plan-detail") {
-              selectedPlan = PLANS[el.dataset.plan]
-                ? el.dataset.plan
-                : "starter";
-              navigate("plan-details");
-              return;
-            }
-            if (action === "monthly" || action === "yearly") {
-              cycle = action;
-              render();
-              return;
-            }
-            if (action === "refresh") {
-              await enter(current, shareRecord);
-              return;
-            }
-            if (action === "checkout" || action === "restore") {
-              if (!canBuy() || !signedIn())
-                throw new Error(t("billingUnavailable"));
-              let done;
-              try {
-                done =
-                  action === "checkout"
-                    ? await purchases.buy(uid(), el.dataset.plan, cycle)
-                    : await purchases.restore(uid());
-              } catch (e) {
-                throw new Error(t(e?.code || "purchaseFailed"));
-              }
-              if (!done) {
-                toast(t("purchaseCancelled"));
-                return;
-              }
-              // The store receipt never grants access by itself; the server verifies it.
-              account = await api("/api/billing/sync", {});
-              toast(t(plan() === "free" ? "purchasePending" : "purchaseDone"));
-              render();
-              return;
-            }
-            if (action === "manage") {
-              if (/^https:\/\//.test(account.managementUrl || ""))
-                window.open(account.managementUrl, "_blank", "noopener");
-              return;
-            }
-            if (action === "next") {
-              const r = await api(
-                "/api/community/feed?after=" + encodeURIComponent(next),
-              );
-              posts = r.posts;
-              next = r.next;
-            }
-            if (action === "post") {
-              await loadPost(el.dataset.id);
-              navigate("community-post");
-              return;
-            }
-            if (action === "comments-next")
-              await loadPost(detail.post.id, detail.next);
-            if (action === "stamp") {
-              await api(
-                "/api/community/posts/" + detail.post.id + "/reaction",
-                {
-                  stamp:
-                    detail.reaction === el.dataset.stamp
-                      ? null
-                      : el.dataset.stamp,
-                },
-              );
-              await loadPost(detail.post.id);
-            }
-            if (action === "delete-comment") {
-              await api(
-                "/api/community/posts/" +
-                  detail.post.id +
-                  "/comments/" +
-                  el.dataset.id +
-                  "/delete",
-                {},
-              );
-              await loadPost(detail.post.id);
-            }
-            if (action === "report" || action === "report-comment") {
-              await api("/api/community/posts/" + detail.post.id + "/report", {
-                reason:
-                  document.querySelector("#report-reason")?.value || "other",
-                ...(action === "report-comment"
-                  ? { commentId: el.dataset.id }
-                  : {}),
-              });
-              toast(t("reportSent"));
-              return;
-            }
-            if (action === "block") {
-              if (!confirm(t("blockConfirm"))) return;
-              await api(
-                "/api/community/posts/" + detail.post.id + "/block",
-                {},
-              );
-              toast(t("blocked"));
-              navigate("community");
-              return;
-            }
-            if (action === "mine") {
-              mine = (await api("/api/community/mine")).posts;
-              blocks = [];
-            }
-            if (action === "blocks") {
-              blocks = (await api("/api/community/blocks")).blocks;
-              mine = [];
-            }
-            if (action === "unblock") {
-              await api(
-                "/api/community/blocks/" +
-                  encodeURIComponent(el.dataset.id) +
-                  "/remove",
-                {},
-              );
-              blocks = blocks.filter((x) => x.id !== el.dataset.id);
-            }
-            if (action === "unpublish") {
-              await api(
-                "/api/community/posts/" + el.dataset.id + "/private",
-                {},
-              );
-              toast(t("unpublished"));
-              if (current === "share") {
-                sharing = null;
-              } else mine = mine.filter((p) => p.id !== el.dataset.id);
-            }
+    document.querySelectorAll("[data-social]").forEach((el) => {
+      const activate = () =>
+        run(async () => {
+          capture();
+          const action = el.dataset.social;
+          if (["plans", "settings", "feed"].includes(action)) {
+            navigate(action === "feed" ? "community" : action);
+            return;
+          }
+          if (action === "plan-detail") {
+            selectedPlan = PLANS[el.dataset.plan] ? el.dataset.plan : "starter";
+            navigate("plan-details");
+            return;
+          }
+          if (action === "monthly" || action === "yearly") {
+            cycle = action;
             render();
-          })),
-    );
+            return;
+          }
+          if (action === "refresh") {
+            await enter(current, shareRecord);
+            return;
+          }
+          if (action === "checkout" || action === "restore") {
+            await checkout(action, el.dataset.plan);
+            return;
+          }
+          if (action === "manage") {
+            if (/^https:\/\//.test(account.managementUrl || ""))
+              window.open(account.managementUrl, "_blank", "noopener");
+            return;
+          }
+          if (action === "next") {
+            const r = await api(
+              "/api/community/feed?after=" + encodeURIComponent(next),
+            );
+            posts = r.posts;
+            next = r.next;
+          }
+          if (action === "post") {
+            await loadPost(el.dataset.id);
+            navigate("community-post");
+            return;
+          }
+          if (action === "comments-next")
+            await loadPost(detail.post.id, detail.next);
+          if (action === "stamp") {
+            await api("/api/community/posts/" + detail.post.id + "/reaction", {
+              stamp:
+                detail.reaction === el.dataset.stamp ? null : el.dataset.stamp,
+            });
+            await loadPost(detail.post.id);
+          }
+          if (action === "delete-comment") {
+            await api(
+              "/api/community/posts/" +
+                detail.post.id +
+                "/comments/" +
+                el.dataset.id +
+                "/delete",
+              {},
+            );
+            await loadPost(detail.post.id);
+          }
+          if (action === "report" || action === "report-comment") {
+            await api("/api/community/posts/" + detail.post.id + "/report", {
+              reason:
+                document.querySelector("#report-reason")?.value || "other",
+              ...(action === "report-comment"
+                ? { commentId: el.dataset.id }
+                : {}),
+            });
+            toast(t("reportSent"));
+            return;
+          }
+          if (action === "unpublish") {
+            await api("/api/community/posts/" + el.dataset.id + "/private", {});
+            toast(t("unpublished"));
+            if (current === "share") sharing = null;
+          }
+          render();
+        });
+      el.onclick = activate;
+      // Whole-card posts are not buttons; keyboard users open them the same way.
+      if (el.tagName !== "BUTTON")
+        el.onkeydown = (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            activate();
+          }
+        };
+    });
     const form = document.querySelector("#share-form");
     if (form)
       form.onsubmit = (e) => {
@@ -406,13 +423,35 @@ export function createCommunity({
     capture,
     plan,
     refreshAccount,
+    // Settings: the dreams this account currently shows in the feed.
+    async myPosts() {
+      if (!signedIn()) return [];
+      return (await api("/api/community/mine")).posts;
+    },
+    async unpublish(id) {
+      await api("/api/community/posts/" + id + "/private", {});
+    },
+    // Publish a saved dream as-is (account visibility "public"). The server
+    // still requires a paid plan and applies the daily publishing allowance.
+    async publishRecord(record) {
+      if (!signedIn() || plan() === "free" || !record?.text?.trim())
+        return false;
+      await api("/api/community/publish", {
+        recordId: record.id,
+        alias: nickname().slice(0, 30),
+        title: record.text.trim().slice(0, 60),
+        text: record.text.trim().slice(0, 4000),
+        typeId: currentType(),
+        characterSet: character(null).setId,
+        consent: true,
+      });
+      return true;
+    },
     reset() {
       version++;
-      account = { plan: "free" };
+      setAccount({ plan: "free" }, false);
       posts = [];
       detail = null;
-      mine = [];
-      blocks = [];
       shareDraft = null;
     },
     leave() {

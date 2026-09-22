@@ -55,18 +55,9 @@ export function registerCommunity(
       activePlan(await access.member(p.owner), now()) === "free"
     )
       throw fault(404, "postUnavailable");
-    if (
-      (await access.member(p.owner)).suspended ||
-      (await blocked(uid, p.owner))
-    )
+    if ((await access.member(p.owner)).suspended)
       throw fault(404, "postUnavailable");
     return p;
-  }
-  async function blocked(a, b) {
-    return Boolean(
-      (await store.get(`communityBlocks/${a}/targets/${b}`)) ||
-      (await store.get(`communityBlocks/${b}/targets/${a}`)),
-    );
   }
   route("get", "/api/community/mine", async (req, user) => {
     const posts = await store.list("communityPosts", {
@@ -258,7 +249,7 @@ export function registerCommunity(
     });
     const comments = [];
     for (const c of rows)
-      if (!c.hidden && !(await blocked(user.uid, c.owner)))
+      if (!c.hidden)
         comments.push({
           id: c.id,
           text: c.text,
@@ -392,29 +383,6 @@ export function registerCommunity(
         status: "open",
         at: new Date(now()).toISOString(),
       }),
-    );
-    return { ok: true };
-  });
-  route("post", "/api/community/posts/:id/block", async (req, user) => {
-    await access.paid(user.uid);
-    const p = await visible(user.uid, pathId(req));
-    if (p.owner === user.uid) throw fault(400, "invalidInput");
-    await store.transaction(async (tx) =>
-      tx.set(`communityBlocks/${user.uid}/targets/${p.owner}`, {
-        alias: p.alias,
-        at: new Date(now()).toISOString(),
-      }),
-    );
-    return { ok: true };
-  });
-  route("get", "/api/community/blocks", async (req, user) => ({
-    blocks: await store.list(`communityBlocks/${user.uid}/targets`, {
-      limit: 100,
-    }),
-  }));
-  route("post", "/api/community/blocks/:id/remove", async (req, user) => {
-    await store.transaction(async (tx) =>
-      tx.delete(`communityBlocks/${user.uid}/targets/${pathId(req)}`),
     );
     return { ok: true };
   });

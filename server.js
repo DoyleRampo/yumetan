@@ -12,6 +12,7 @@ import { createAccess, fault } from "./server/access.js";
 import { createBilling } from "./server/billing.js";
 import { createAI } from "./server/openai.js";
 import { registerCommunity } from "./server/community.js";
+import { createAccountService } from "./server/account.js";
 try {
   process.loadEnvFile();
 } catch {}
@@ -23,7 +24,8 @@ const knowledge = await fs.readFile(
 const services = firebaseServices() || {};
 const access = createAccess(services),
   billing = createBilling({ access }),
-  ai = createAI({ access });
+  ai = createAI({ access }),
+  accounts = createAccountService(services);
 const app = express();
 app.disable("x-powered-by");
 app.use("/api", (req, res, next) => {
@@ -93,6 +95,13 @@ app.get(
   "/api/account",
   asyncRoute(async (req, res) =>
     res.json(await billing.account((await user(req)).uid)),
+  ),
+);
+// Deletes the signed-in account: journals, posts, membership and the auth user.
+app.post(
+  "/api/account/delete",
+  asyncRoute(async (req, res) =>
+    res.json(await accounts.remove((await user(req)).uid)),
   ),
 );
 app.post(

@@ -35,7 +35,10 @@ AI読み解きは全プランで夢の記録とセットです。回数は夢の
 
 ## 公開とプライバシー
 
-- 新しい夢と既存の夢は自動公開しません。保存した夢の詳細 → 公開設定で、公開用の文章・呼び名を確認し、同意して公開。
+- アカウントごとに「公開設定」（公開 / 非公開）を持ちます。アカウントで初めて夢を保存するときに選択画面が出て、以後は設定画面で変更できます（`profile.visibility`、アカウント間で同期）。
+- 公開設定が「公開」のアカウントでは、保存した夢の本文がそのままニックネーム・タイプ・キャラクターとともにみんなの夢へ投稿されます（有料プランのみ。日次の公開枠を超えた分や判定サービスの失敗時は投稿されず、夢の保存だけが行われます）。「非公開」に切り替えると、そのアカウントの公開中の投稿はすべて非公開に戻ります。
+- 保存した夢の詳細 → 公開設定からは、従来どおり公開用の文章・呼び名を編集して個別に公開・非公開にできます。設定画面の「公開中の夢」からも個別に非公開へ戻せます。
+- みんなの夢の一覧は、投稿者のキャラクター（16タイプ）・ニックネーム・夢の本文だけを表示します。カードを開くとスタンプ・コメント・通報ができます。
 - 公開は有料会員に対してのみ。検索エンジンや匿名ユーザーには返しません。
 - 投稿には公開用の本文・タイトル・ニックネーム・タイプ・選んだキャラクターだけを複製。日記、AI分析、睡眠データ、年代、メールアドレス、添付写真は含めません。
 - 夢を編集しても公開済み文章は変わりません。再度公開設定から明示的に更新します。
@@ -43,7 +46,8 @@ AI読み解きは全プランで夢の記録とセットです。回数は夢の
 - 支払期間終了/支払失敗後は、その作者の投稿も他ユーザーから非表示になります。有料状態に戻ると公開設定のままの投稿は再び見えます。無料に戻った本人も「自分の公開設定」から非公開にできます。
 - ログイン中に夢を削除するときは先に公開状況をオンライン確認し、該当投稿を非公開にします。通信失敗時は削除を止め、公開投稿だけが取り残されることを防ぎます。
 - 投稿APIには `Cache-Control: no-store`。Service WorkerでもAPIをキャッシュしません。ただし、閲覧済み文章のスクリーンショットなどを取り消すことはできません。
-- 投稿/コメントはOpenAI Moderationで確認してから公開。判定サービスの失敗時は公開しません。ブロック・通報・コメント削除に対応し、運営者による通報確認と非表示処理を用意しています。
+- 投稿/コメントはOpenAI Moderationで確認してから公開。判定サービスの失敗時は公開しません。通報・コメント削除に対応し、運営者による通報確認と非表示処理を用意しています。ユーザー同士のブロック機能はいったん外しています（`communityBlocks` は使いません）。
+- アカウント削除（設定 → アカウントを削除）は `POST /api/account/delete` で、本人の `/users/{uid}` 配下、公開投稿（コメント・スタンプ含む）、`memberships`・`communityStats`・当日/当月の `usage` を消してから Firebase Auth のユーザーを削除します。サーバーに届かない場合は端末側で `deleteUser` を試み、再ログインが必要ならその旨を表示します。
 
 ## GPT費用の考え方
 
@@ -87,7 +91,7 @@ AI読み解きは全プランで夢の記録とセットです。回数は夢の
 | `usage` / `serviceBudgets` | 日次/月次回数とGPT費用予約 |
 | `communityPosts` と `comments` / `reactions` サブコレクション | 公開用コピーと交流 |
 | `communityStats` | 同時公開数 |
-| `communityBlocks` / `communityReports` | ブロック・通報 |
+| `communityReports` | 通報 |
 
 期限/回数はサーバー時刻で判定し、ブラウザのプラン名・UIDヘッダー・APIキーは権限の根拠にしません。Firebase IDトークンは失効を含め検証します。
 
@@ -108,7 +112,7 @@ AI読み解きは全プランで夢の記録とセットです。回数は夢の
 
 - Apps: iOS / Android のアプリを登録し、App Store Connect の In-App Purchase Key と Google Play のサービスアカウントを接続。
 - Products: ストアの4製品を取り込む。
-- Entitlements: `starter` と `standard` の2つを作り、月/年の製品をそれぞれ紐づける。サーバーはこのEntitlement名でプランを決め、製品IDから月/年を判定します。
+- Entitlements: `starter` と `standard` の2つを作り、月/年の製品をそれぞれ紐づける。サーバーはこのEntitlement名でプランを決め、製品IDから月/年を判定します。Entitlementが未設定でも、有効なサブスクリプションの製品IDに `starter` / `standard` が含まれていれば、サーバーはその製品からプランを判定します（TestFlight の Sandbox 購入も同じ）。
 - Offerings: `default` に4製品のPackageを追加（カスタム識別子 `starter_monthly` / `starter_yearly` / `standard_monthly` / `standard_yearly`）。初期のTest Store用Package（Monthly / Yearly / Lifetime）は削除してよい。
 - API keys: 各アプリの公開SDKキー（`appl_…` / `goog_…`）はアプリのビルド時に `REVENUECAT_IOS_KEY` / `REVENUECAT_ANDROID_KEY` として `npm run mobile:build` へ渡す。秘密APIキー（`sk_…`）はサーバーの `REVENUECAT_SECRET_API_KEY` にだけ設定。
 - Test Store 用キー（`test_…`、RevenueCat → API keys → Test Store）は **Debugビルド専用**。TestFlight や App Store 向けの Release ビルドに入れると、SDKが起動時に「Wrong API Key」を表示してアプリを終了させます（[RevenueCat Test Store](https://www.revenuecat.com/docs/test-and-launch/sandbox/test-store)）。`npm run mobile:build` は `test_` キーを拒否し、シミュレータ等で Test Store を使うときだけ `REVENUECAT_ALLOW_TEST_STORE=1` を付けてビルドしてください。TestFlight で実機確認するときは `appl_…` キーで `npm run mobile:sync` し直してから Xcode でアーカイブします（Sandboxテスターで購入テストできます）。
@@ -117,7 +121,7 @@ AI読み解きは全プランで夢の記録とセットです。回数は夢の
 
 **サーバーの動作**
 
-- アプリはRevenueCatの App User ID にFirebase UIDを使います。購入・復元後に `POST /api/billing/sync` を呼び、サーバーがRevenueCat REST API（`GET /v1/subscribers/{uid}`）で契約を照会して `memberships/{uid}` を更新します。
+- アプリはRevenueCatの App User ID にFirebase UIDを使います。購入・復元後に `POST /api/billing/sync` を呼び、サーバーがRevenueCat REST API（`GET /v1/subscribers/{uid}`）で契約を照会して `memberships/{uid}` を更新します。ストア側の反映が遅れることがあるため、アプリは「登録する」を押してから反映されるまで全画面のローディング（ストアに接続 → プランを反映）を表示し、有料プランになるまで最大6回（2.5秒間隔）同期を繰り返します。ストアが返した購入情報（CustomerInfo）のプランは、サーバー反映を待つ間もアプリ内の表示・端末内の記録枠に使います。
 - Webhookは Authorization ヘッダーを定数時間比較で検証し、イベント本文の権利情報は信用せず、含まれるユーザーIDについて同じ照会を行います。匿名ID（`$RCAnonymousID:…`）は無視します。`TEST` イベントは受理のみ。
 - 期限切れ・未知の製品は無料扱い。解約予定は `cancelAtPeriodEnd` として表示。古い照会結果が後から届いても上書きしません（`request_date_ms` で判定）。
 - Sandbox購入も有効化します（Sandboxテスター/ライセンステスターは開発者が登録した人だけが使えるため）。本番配布前にSandboxで購入・復元・解約・期限切れ・Webhook再送を確認してください。

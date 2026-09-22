@@ -58,7 +58,7 @@ npm start
 
 - 無料でも日付ごとに夢1件・日記1ページ。過去の記録の閲覧・編集・端末内分析は継続できます。
 - 有料会員は「みんなの夢」で他ユーザーの公開投稿を閲覧し、スタンプとコメントで交流できます。
-- 夢は初期状態で非公開。保存後の詳細 → 公開設定で、公開用ニックネーム・タイトル・本文を確認し、同意して公開します。元の日記・写真・睡眠・AI分析は公開しません。
+- アカウントごとに公開 / 非公開を選びます（初めて夢を保存するときに選択、設定画面で変更可）。「公開」のアカウントでは保存した夢の本文がキャラクター・ニックネームとともに「みんなの夢」へ投稿されます（有料プランのみ）。日記・写真・睡眠・AI分析は公開しません。
 - プランは端末の値で認可せず、Firebase IDトークンとサーバー専用会員情報で確認。RevenueCatのWebhookとサーバーからの契約照会により反映します。
 - AI読み解きは全プランで夢1件につき1回（夢の日付ごと、フリー1件/日・スターター3件/日・スタンダード10件/日）。手書きOCRは有料プランのみ。フリー会員の「みんなの夢」はその日の投稿からランダム3件・冒頭20文字だけの紹介で、「続きを読む」「もっと見る」はプラン画面へ。保存は常にローカル処理で、AI呼び出しは明示操作時だけです。
 - 購入はiOS / Androidアプリ内のストア課金（App Store / Google Play、RevenueCat経由）だけです。Webでは購入ボタンを表示せず、アプリで購入したプランを同じアカウントで利用できます。
@@ -78,7 +78,7 @@ npm start
 - `GET /api/community/feed`、`POST /api/community/publish`、`GET /api/community/mine`
 - `POST /api/community/posts/:id/private`、`GET /api/community/posts/:id`
 - `POST /api/community/posts/:id/reaction`、`POST /api/community/posts/:id/comments`
-- 通報・ブロック・コメント削除、運営者専用の通報確認/非表示API
+- 通報・コメント削除、運営者専用の通報確認/非表示API（ユーザー同士のブロックは現在なし）
 - `POST /api/auth/line`：LINE IDトークン → Firebaseカスタムトークン（iOSネイティブLINEログイン）
 - `POST /api/reflect`（`text`・`date`・`typeTags`・`diary`・`recentDiaries`・`sleep`・`dreamType`）、`POST /api/handwriting`：GPT-5.6 Luna。読み解きは `mood_weather`・`mood_label`・`mental_state`・`fortune_overview`・`fortune_mood`・`lucky_hint`・`advice` を返します
 - `GET /api/sleep-knowledge`：参照文献と暫定評価ルール

@@ -26,6 +26,14 @@ async function boot(page) {
   }
   await page.locator("[data-action=begin]").click();
 }
+// A signed-in account is asked once, on its first dream, whether dreams are shared.
+async function saveFirstDream(page, text, visibility = "private") {
+  await page.locator("nav [data-go=record]").click();
+  await page.locator("#dream-text").fill(text);
+  await page.locator("#dream-form button[type=submit]").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "visibility");
+  await page.locator(`[data-visibility=${visibility}]`).click();
+}
 async function fixture(page, plan = "starter") {
   const store = new MemoryStore();
   for (const uid of ["alice", "bob"])
@@ -164,7 +172,7 @@ test("Free keeps one dream and one editable diary per date; plans and paid feed 
     fullPage: true,
   });
 });
-test("paid member reads another user, stamps, comments, reports and blocks through authenticated server handlers", async ({
+test("paid member reads another user, stamps, comments and reports through authenticated server handlers", async ({
   page,
 }) => {
   const s = await fixture(page);
@@ -177,6 +185,20 @@ test("paid member reads another user, stamps, comments, reports and blocks throu
   await expect(page.locator(".feed-card")).toHaveCount(1);
   await expect(page.locator(".feed-card")).toContainText("<img src=x");
   await expect(page.locator(".feed-card .prose img")).toHaveCount(0);
+  // Timeline cards: the author's character, nickname and the dream only.
+  await expect(page.locator(".feed-card .post-avatar")).toHaveAttribute(
+    "src",
+    /characters\/.*challenge\.webp$/,
+  );
+  await expect(page.locator(".feed-card .post-name")).toHaveText(
+    "Night walker",
+  );
+  await expect(page.locator(".feed-card")).not.toContainText("A moonlit walk");
+  await expect(page.locator(".feed-card h2")).toHaveCount(0);
+  for (const action of ["refresh", "plans", "mine", "blocks"])
+    await expect(page.locator(`main [data-social=${action}].btn`)).toHaveCount(
+      0,
+    );
   await page.screenshot({
     path: "test-results/feed-mobile.png",
     fullPage: true,
@@ -194,19 +216,57 @@ test("paid member reads another user, stamps, comments, reports and blocks throu
   );
   await page.locator("[data-social=report]").click();
   await expect(page.locator("#toast")).toContainText("Reported");
-  page.on("dialog", (d) => d.accept());
-  await page.locator("[data-social=block]").click();
-  await expect(page.locator(".feed-card")).toHaveCount(0);
+  await expect(page.locator("[data-social=block]")).toHaveCount(0);
   expect((await s.store.list("communityReports")).length).toBe(1);
+});
+test("the first dream on an account asks about sharing; public accounts post their dreams to the feed and can withdraw them in Settings", async ({
+  page,
+}) => {
+  const s = await fixture(page);
+  await boot(page);
+  await saveFirstDream(page, "A dream shared with everyone", "public");
+  await savedDreamDetails(page);
+  await expect(page.locator("main")).toContainText(
+    "A dream shared with everyone",
+  );
+  const rows = await s.store.list("communityPosts");
+  expect(rows.length).toBe(1);
+  expect(rows[0].text).toBe("A dream shared with everyone");
+  expect(rows[0].alias).toBe("Dreamer");
+  // The second dream is not asked again.
+  await page.locator("nav [data-go=record]").click();
+  await page.locator("[data-action=new-dream]").click();
+  await page.locator("#dream-text").fill("Second shared dream");
+  await page.locator("#dream-form button[type=submit]").click();
+  await expect(page.locator("#dream-text")).toHaveValue("");
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "record");
+  // Settings: the choice and the public dreams live there now.
+  await page.locator("#header [data-go=settings]").click();
+  await expect(page.locator("[data-visibility=public]")).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expect(page.locator("#public-posts .public-post")).toHaveCount(1);
+  await expect(page.locator("main")).not.toContainText("Account & sync");
+  await expect(page.locator("[data-action=signout]")).toBeVisible();
+  await expect(page.locator("[data-action=delete-account]")).toBeVisible();
+  await expect(page.locator("[data-action=sync]")).toHaveCount(0);
+  await page.locator("[data-visibility=private]").click();
+  await expect(page.locator("[data-visibility=private]")).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expect(page.locator("#public-posts .public-post")).toHaveCount(0);
+  expect((await s.store.get("communityPosts/" + rows[0].id)).public).toBe(
+    false,
+  );
 });
 test("sharing needs explicit consent; only public copy is sent and expired owners can unpublish", async ({
   page,
 }) => {
   const s = await fixture(page);
   await boot(page);
-  await page.locator("nav [data-go=record]").click();
-  await page.locator("#dream-text").fill("Private original dream");
-  await page.locator("#dream-form button[type=submit]").click();
+  await saveFirstDream(page, "Private original dream");
   await savedDreamDetails(page);
   expect((await s.store.list("communityPosts")).length).toBe(0);
   await page.locator("[data-go=share]").click();
@@ -245,9 +305,7 @@ test("saving as a paid member never spends a GPT call", async ({ page }) => {
     calls++;
     return r.fulfill({ status: 503, json: { code: "aiUnavailable" } });
   });
-  await page.locator("nav [data-go=record]").click();
-  await page.locator("#dream-text").fill("Save locally");
-  await page.locator("#dream-form button[type=submit]").click();
+  await saveFirstDream(page, "Save locally");
   await savedDreamDetails(page);
   await expect(page.locator("main")).toContainText("Save locally");
   expect(calls).toBe(0);

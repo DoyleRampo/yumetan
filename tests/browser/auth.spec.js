@@ -144,7 +144,7 @@ test("login restores account on a new device; logout isolates data and LINE choo
   await c1.close();
   await c2.close();
 });
-test("guest records import only after consent; account linking and cancellation keep the same records", async ({
+test("guest records import only after consent; settings offer only sign out and deletion", async ({
   page,
 }) => {
   const db = new Map([
@@ -174,16 +174,11 @@ test("guest records import only after consent; account linking and cancellation 
   await page.locator("nav [data-go=record]").click();
   await page.locator("[data-open-days=dream]").click();
   await expect(page.locator(".day-record")).toHaveCount(2);
+  // Settings no longer link further sign-in methods: only sign out and delete.
   await page.locator("#header [data-go=settings]").click();
-  page.once("dialog", (d) => d.accept());
-  await page.locator("[data-auth-provider=apple]").click();
-  expect(
-    await page.evaluate(() => window.__authCalls.at(-1).opts.link),
-  ).toBeTruthy();
-  await page.evaluate(() => (window.__cancel = true));
-  page.once("dialog", (d) => d.accept());
-  await page.locator("[data-auth-provider=line]").click();
-  await expect(page.locator("#toast")).toContainText("キャンセル");
+  await expect(page.locator("[data-auth-provider]")).toHaveCount(0);
+  await expect(page.locator("[data-action=signout]")).toBeVisible();
+  await expect(page.locator("[data-action=delete-account]")).toBeVisible();
   await page.locator("nav [data-go=record]").click();
   await page.locator("[data-open-days=dream]").click();
   await expect(page.locator(".day-record")).toHaveCount(2);

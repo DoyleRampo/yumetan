@@ -73,6 +73,20 @@ export function createCloudClient({ A, fs, auth, db }) {
       return res.user;
     },
     resetPassword: (email) => A.sendPasswordResetEmail(auth, email),
+    // Used only when the server could not delete the account: Firebase requires
+    // a recent sign-in for this, which surfaces as auth/requires-recent-login.
+    async deleteAccount() {
+      if (!state.user || state.user.isAnonymous)
+        throw Object.assign(new Error("auth/no-current-user"), {
+          code: "auth/no-current-user",
+        });
+      await A.deleteUser(state.user);
+      state.user = null;
+      try {
+        state.user = (await A.signInAnonymously(auth)).user;
+      } catch {}
+      return state.user;
+    },
     async signOut() {
       await A.signOut(auth);
       state.user = null;

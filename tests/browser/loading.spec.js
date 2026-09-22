@@ -26,7 +26,8 @@ test("launch animation is visible before JavaScript starts, including reduced mo
   await page.goto("/");
   const loader = page.locator(".launch-loading .dream-loading");
   await expect(loader).toBeVisible();
-  await expect(loader).toContainText("夢の世界を準備しています");
+  await expect(loader).toContainText("ユメタンへようこそ");
+  await expect(loader).toContainText("夢の世界へ、ようこそ");
   await expect(page.locator(".dream-loading__moon")).toHaveCSS(
     "animation-name",
     "dream-moon",

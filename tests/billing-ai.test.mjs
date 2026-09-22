@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { z } from "zod/v4";
 import { MemoryStore } from "./helpers/memory-store.mjs";
 import { createAccess } from "../server/access.js";
-import { createBilling } from "../server/billing.js";
+import { createBilling, membershipFromSubscriber } from "../server/billing.js";
 import { createAI } from "../server/openai.js";
 const now = Date.parse("2026-09-17T00:00:00Z");
 const env = {
@@ -310,4 +310,60 @@ test("provider errors, refused/truncated responses and oversized input do not re
     ],
   });
   await assert.rejects(ai.call(req), (e) => e.code === "aiFailed");
+});
+
+test("a subscription whose entitlement is missing still grants the plan its product names", () => {
+  const expires = iso(now + 86400000 * 30);
+  const granted = membershipFromSubscriber(
+    {
+      entitlements: {},
+      subscriptions: {
+        "com.doyle.yumetan.standard.yearly": {
+          expires_date: expires,
+          store: "app_store",
+          is_sandbox: true,
+        },
+        "com.doyle.yumetan.starter.monthly": {
+          expires_date: expires,
+          store: "app_store",
+        },
+      },
+    },
+    now,
+  );
+  assert.equal(granted.plan, "standard");
+  assert.equal(granted.cycle, "yearly");
+  assert.equal(granted.paidUntil, Date.parse(expires));
+  assert.equal(granted.sandbox, true);
+  // Expired products and products naming no plan grant nothing.
+  assert.equal(
+    membershipFromSubscriber(
+      {
+        subscriptions: {
+          "com.doyle.yumetan.starter.monthly": { expires_date: iso(now - 1) },
+          "com.doyle.yumetan.lifetime": { expires_date: expires },
+        },
+      },
+      now,
+    ).plan,
+    "free",
+  );
+  // A configured entitlement decides its plan, even when it has expired.
+  assert.equal(
+    membershipFromSubscriber(
+      {
+        entitlements: {
+          starter: {
+            expires_date: iso(now - 1),
+            product_identifier: "com.doyle.yumetan.starter.monthly",
+          },
+        },
+        subscriptions: {
+          "com.doyle.yumetan.starter.monthly": { expires_date: expires },
+        },
+      },
+      now,
+    ).plan,
+    "free",
+  );
 });

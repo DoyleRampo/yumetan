@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createPurchases, usableApiKey } from "../public/core/purchases.js";
+import {
+  createPurchases,
+  usableApiKey,
+  planFromCustomerInfo,
+  planFromProduct,
+} from "../public/core/purchases.js";
 
 const cap = (platform = "ios") => ({
   isNativePlatform: () => true,
@@ -75,4 +80,89 @@ test("a public key configures once per user and logs in on user change", async (
     ["configure", "restore", "restore", "logIn", "restore"],
   );
   assert.equal(Purchases.calls[0][1].apiKey, "appl_public");
+});
+
+test("a purchase resolves to the store's customer info, a cancellation to false", async () => {
+  const info = { activeSubscriptions: ["com.doyle.yumetan.starter.monthly"] };
+  let cancel = false;
+  const Purchases = {
+    ...fakePlugin(),
+    async getOfferings() {
+      return {
+        current: {
+          availablePackages: [
+            { product: { identifier: "com.doyle.yumetan.starter.monthly" } },
+          ],
+        },
+      };
+    },
+    async purchasePackage() {
+      if (cancel) throw { code: "1", data: { userCancelled: true } };
+      return { customerInfo: info };
+    },
+  };
+  const p = createPurchases({
+    cap: cap(),
+    plugins: { Purchases },
+    config: { revenueCat: { ios: "appl_public" } },
+  });
+  assert.equal(await p.buy("uid1", "starter", "monthly"), info);
+  cancel = true;
+  assert.equal(await p.buy("uid1", "starter", "monthly"), false);
+});
+
+test("the plan the store confirmed is read from entitlements or active products", () => {
+  const now = Date.parse("2026-09-22T00:00:00Z"),
+    later = now + 86400000 * 30;
+  assert.equal(
+    planFromProduct("com.doyle.yumetan.standard.yearly"),
+    "standard",
+  );
+  assert.equal(planFromProduct("yumetan_starter_monthly"), "starter");
+  assert.equal(planFromProduct("com.doyle.yumetan.lifetime"), null);
+  assert.deepEqual(
+    planFromCustomerInfo(
+      {
+        entitlements: {
+          active: {
+            starter: {
+              productIdentifier: "com.doyle.yumetan.starter.monthly",
+              expirationDateMillis: later,
+            },
+          },
+        },
+        activeSubscriptions: ["com.doyle.yumetan.starter.monthly"],
+      },
+      now,
+    ),
+    { plan: "starter", paidUntil: later },
+  );
+  // No entitlement configured yet: the active product still names the plan.
+  assert.deepEqual(
+    planFromCustomerInfo(
+      {
+        entitlements: { active: {} },
+        activeSubscriptions: ["com.doyle.yumetan.standard.monthly"],
+        allExpirationDates: {
+          "com.doyle.yumetan.standard.monthly": new Date(later).toISOString(),
+        },
+      },
+      now,
+    ),
+    { plan: "standard", paidUntil: later },
+  );
+  assert.equal(
+    planFromCustomerInfo(
+      {
+        entitlements: { active: {} },
+        activeSubscriptions: ["com.doyle.yumetan.starter.monthly"],
+        allExpirationDates: {
+          "com.doyle.yumetan.starter.monthly": new Date(now - 1).toISOString(),
+        },
+      },
+      now,
+    ),
+    null,
+  );
+  assert.equal(planFromCustomerInfo(true), null);
 });

@@ -476,8 +476,11 @@ test("AI reading shows state of mind and fortune, sends recent diaries, and OCR 
     "sk-test-fixture",
   );
   expect(reflectionRequest.typeTags).toContain("challenge");
-  // The reading is stored with the dream and survives reload.
+  // The reading is stored with the dream and survives reload. The account's
+  // first dream asks once whether dreams are shared; the save then resumes.
   await page.locator("#dream-form button[type=submit]").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "visibility");
+  await page.locator("[data-visibility=private]").click();
   await savedDreamDetails(page);
   await expect(page.locator(".reading-card")).toContainText("Quietly hopeful");
   await page.reload();
@@ -843,6 +846,7 @@ test("the dream level climbs with logged dreams and swiping in from the left edg
     if (i) await page.locator("[data-action=new-dream]").click();
     await page.locator("#dream-text").fill(`Dream number ${i + 1}`);
     await page.locator("#dream-form button[type=submit]").click();
+    if (!i) await page.locator("[data-visibility=private]").click();
     await savedDreamDetails(page);
     await expect(page.locator("main")).toContainText(`Dream number ${i + 1}`);
   }

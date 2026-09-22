@@ -161,10 +161,10 @@ export const communityMessages = {
     "Your plan is now active.",
   ],
   purchasePending: [
-    "ストアの処理を確認中です。しばらくしてから「更新する」を押してください。",
-    "스토어 처리를 확인 중이에요. 잠시 후 새로고침을 눌러 주세요.",
-    "正在确认商店处理，请稍后点击刷新。",
-    "Waiting for the store to confirm. Tap Refresh in a moment.",
+    "購入は完了しました。ストア側の反映を待っています。しばらくしてからプラン画面を開き直すか「購入を復元」を押してください。",
+    "구매는 완료됐어요. 스토어 반영을 기다리는 중이에요. 잠시 후 요금제 화면을 다시 열거나 구매 복원을 눌러 주세요.",
+    "购买已完成，正在等待商店同步。请稍后重新打开套餐页面或点击恢复购买。",
+    "Your purchase went through and is waiting for the store to sync. Reopen the plans in a moment or tap Restore purchases.",
   ],
   productUnavailable: [
     "このプランは現在ストアで購入できません。時間をおいて再試行してください。",
@@ -291,7 +291,26 @@ export const communityMessages = {
     "Each list or detail opening counts the posts displayed. Only paid members can read post content.",
   ],
   remaining: ["使用数 / 上限", "사용 / 한도", "已用/上限", "Used / limit"],
-  mine: ["自分の公開設定", "내 공개 설정", "我的发布设置", "My sharing"],
+  mine: ["公開中の夢", "공개 중인 꿈", "公开中的梦", "Your public dreams"],
+  emptyMine: [
+    "公開中の夢はありません。",
+    "공개 중인 꿈이 없어요.",
+    "没有公开中的梦。",
+    "No public dreams right now.",
+  ],
+  openPost: ["投稿をひらく", "게시물 열기", "打开帖子", "Open post"],
+  purchaseActivated: [
+    "プランが有効になりました。すぐにお使いいただけます。",
+    "요금제가 활성화되었어요. 바로 이용할 수 있어요.",
+    "套餐已生效，可以立即使用。",
+    "Your plan is active and ready to use.",
+  ],
+  autoPublished: [
+    "みんなの夢に公開しました",
+    "모두의 꿈에 공개했어요",
+    "已公开到大家的梦",
+    "Shared to the dream feed",
+  ],
   emptyFeed: [
     "まだ投稿がありません。",
     "아직 게시물이 없어요.",
@@ -350,14 +369,6 @@ export const communityMessages = {
   comments: ["コメント", "댓글", "评论", "Comments"],
   sendComment: ["コメントする", "댓글 달기", "发表评论", "Comment"],
   report: ["通報", "신고", "举报", "Report"],
-  block: ["この投稿者をブロック", "작성자 차단", "屏蔽作者", "Block author"],
-  blocks: [
-    "ブロック中のユーザー",
-    "차단한 사용자",
-    "已屏蔽用户",
-    "Blocked users",
-  ],
-  unblock: ["解除", "해제", "解除", "Unblock"],
   reportReason: ["通報理由", "신고 이유", "举报原因", "Report reason"],
   privacy: ["個人情報", "개인정보", "个人信息", "Personal information"],
   abuse: [
@@ -374,7 +385,6 @@ export const communityMessages = {
     "已向运营方举报",
     "Reported to moderators",
   ],
-  blocked: ["ブロックしました", "차단했어요", "已屏蔽", "Author blocked"],
   communityRules: [
     "お互いの夢を尊重し、病気や未来を断定しないでください。実名・連絡先・他人の秘密を書かないでください。不適切な投稿は通報・ブロックできます。",
     "서로의 꿈을 존중하고 질병이나 미래를 단정하지 마세요. 실명, 연락처, 타인의 비밀을 쓰지 마세요. 부적절한 게시물은 신고·차단할 수 있어요.",
@@ -426,12 +436,6 @@ export const communityMessages = {
     "다른 유료 회원이 볼 수 있어요. 공개할까요?",
     "其他付费会员将可查看这段文字，确认发布？",
     "Other paid members will be able to read this text. Publish?",
-  ],
-  blockConfirm: [
-    "この投稿者の投稿とコメントを非表示にしますか？",
-    "이 작성자의 게시물과 댓글을 숨길까요?",
-    "要隐藏此作者的帖子和评论吗？",
-    "Hide this author’s posts and comments?",
   ],
   removeComment: ["コメントを削除", "댓글 삭제", "删除评论", "Delete comment"],
   error: [

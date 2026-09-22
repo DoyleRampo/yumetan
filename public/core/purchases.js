@@ -3,6 +3,7 @@
 // the server after it verifies the subscriber, so nothing here is trusted for access.
 // Store product IDs as registered in App Store Connect / Google Play.
 export const productId = (plan, cycle) => `com.doyle.yumetan.${plan}.${cycle}`;
+const PLAN_ORDER = ["standard", "starter"];
 const cancelled = (e) =>
   e?.code === "1" ||
   e?.data?.userCancelled === true ||
@@ -16,6 +17,49 @@ export const usableApiKey = (key, allowTestStore = false) => {
   if (k.startsWith("test_") && !allowTestStore) return "";
   return k;
 };
+// The plan a product ID names (com.doyle.yumetan.<plan>.<cycle> or any ID
+// containing the plan word). Mirrors server/billing.js.
+export const planFromProduct = (product) =>
+  PLAN_ORDER.find((plan) =>
+    new RegExp(`(^|[._-])${plan}([._-]|$)`, "i").test(String(product || "")),
+  ) || null;
+// What the store itself just confirmed: read from the CustomerInfo the SDK
+// returns after a purchase or restore. Used only to show the plan right away
+// while the server catches up; quotas still follow the server-verified plan.
+export function planFromCustomerInfo(info, now = Date.now()) {
+  if (!info || typeof info !== "object") return null;
+  const found = [];
+  const active = info.entitlements?.active || {};
+  for (const [id, e] of Object.entries(active)) {
+    const plan = planFromProduct(id) || planFromProduct(e?.productIdentifier);
+    const until =
+      Number(e?.expirationDateMillis) || Date.parse(e?.expirationDate || "");
+    if (plan && (!Number.isFinite(until) || until > now))
+      found.push({
+        plan,
+        paidUntil: Number.isFinite(until) ? until : now + 86400000,
+      });
+  }
+  const expirations = info.allExpirationDates || {};
+  for (const product of info.activeSubscriptions || []) {
+    const plan = planFromProduct(product);
+    if (!plan) continue;
+    const until = Date.parse(
+      expirations[product] || info.latestExpirationDate || "",
+    );
+    if (Number.isFinite(until) && until <= now) continue;
+    found.push({
+      plan,
+      paidUntil: Number.isFinite(until) ? until : now + 86400000,
+    });
+  }
+  found.sort(
+    (a, b) =>
+      PLAN_ORDER.indexOf(a.plan) - PLAN_ORDER.indexOf(b.plan) ||
+      b.paidUntil - a.paidUntil,
+  );
+  return found[0] || null;
+}
 export function createPurchases({ cap, plugins = {}, config } = {}) {
   const native = Boolean(cap?.isNativePlatform?.());
   const platform = native ? cap.getPlatform() : "";
@@ -45,6 +89,8 @@ export function createPurchases({ cap, plugins = {}, config } = {}) {
   }
   return {
     available,
+    // Resolves to the store's CustomerInfo (or true when the plugin returns
+    // none) after a completed purchase, and to false when the user cancelled.
     async buy(uid, plan, cycle) {
       const p = await ready(uid);
       const offerings = await p.getOfferings();
@@ -69,8 +115,9 @@ export function createPurchases({ cap, plugins = {}, config } = {}) {
         throw Object.assign(new Error("productUnavailable"), {
           code: "productUnavailable",
         });
+      let result;
       try {
-        await p.purchasePackage({ aPackage: pkg });
+        result = await p.purchasePackage({ aPackage: pkg });
       } catch (e) {
         if (cancelled(e)) return false;
         throw Object.assign(new Error("purchaseFailed"), {
@@ -78,12 +125,12 @@ export function createPurchases({ cap, plugins = {}, config } = {}) {
           cause: e,
         });
       }
-      return true;
+      return result?.customerInfo || true;
     },
     async restore(uid) {
       const p = await ready(uid);
-      await p.restorePurchases();
-      return true;
+      const result = await p.restorePurchases();
+      return result?.customerInfo || true;
     },
   };
 }

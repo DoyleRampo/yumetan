@@ -30,11 +30,7 @@ export function membershipFromSubscriber(subscriber, at) {
     const sub = subscriptions[product] || subscriptions[base] || {};
     return {
       plan,
-      cycle: /(yearly|annual|year)/i.test(base)
-        ? "yearly"
-        : /(monthly|month)/i.test(base)
-          ? "monthly"
-          : null,
+      cycle: cycleFromProduct(base),
       status: "active",
       paidUntil: expires,
       cancelAtPeriodEnd: Boolean(sub.unsubscribe_detected_at),
@@ -43,6 +39,36 @@ export function membershipFromSubscriber(subscriber, at) {
       sandbox: Boolean(sub.is_sandbox),
     };
   }
+  // Entitlements are the preferred source, but a RevenueCat project whose
+  // entitlements are not (yet) named after the plans still has the store
+  // subscription itself: an active product naming a plan grants that plan.
+  // A plan whose entitlement does exist (even expired) was decided above.
+  let best = null;
+  for (const [product, sub] of Object.entries(subscriptions)) {
+    const base = String(product).split(":")[0];
+    const plan = planFromProduct(base);
+    if (!plan || entitlements[plan] || !sub || typeof sub !== "object")
+      continue;
+    const expires = sub.expires_date ? Date.parse(sub.expires_date) : NaN;
+    if (!Number.isFinite(expires) || expires <= at) continue;
+    if (sub.refunded_at) continue;
+    if (
+      !best ||
+      ENTITLEMENTS.indexOf(plan) < ENTITLEMENTS.indexOf(best.plan) ||
+      (plan === best.plan && expires > best.paidUntil)
+    )
+      best = {
+        plan,
+        cycle: cycleFromProduct(base),
+        status: "active",
+        paidUntil: expires,
+        cancelAtPeriodEnd: Boolean(sub.unsubscribe_detected_at),
+        productId: base,
+        store: sub.store || null,
+        sandbox: Boolean(sub.is_sandbox),
+      };
+  }
+  if (best) return best;
   return {
     plan: "free",
     cycle: null,
@@ -54,6 +80,17 @@ export function membershipFromSubscriber(subscriber, at) {
     sandbox: false,
   };
 }
+// Product IDs follow com.doyle.yumetan.<plan>.<cycle>, but any ID naming a plan counts.
+export const planFromProduct = (product) =>
+  ENTITLEMENTS.find((plan) =>
+    new RegExp(`(^|[._-])${plan}([._-]|$)`, "i").test(String(product || "")),
+  ) || null;
+export const cycleFromProduct = (product) =>
+  /(yearly|annual|year)/i.test(product)
+    ? "yearly"
+    : /(monthly|month)/i.test(product)
+      ? "monthly"
+      : null;
 export function createBilling({
   access,
   env = process.env,

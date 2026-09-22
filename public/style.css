@@ -1931,3 +1931,113 @@ nav button:focus-visible {
     font-size: 18px;
   }
 }
+
+/* Timeline: who dreamed (16-type character, nickname) and the dream, nothing else. */
+.feed-list.timeline {
+  margin-top: 16px;
+}
+.feed-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+}
+.feed-card + .feed-card {
+  margin-top: 10px;
+}
+.post-avatar {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #2c2848;
+  border: 1px solid var(--line);
+}
+.post-body {
+  min-width: 0;
+  flex: 1;
+}
+.post-name {
+  display: block;
+  font-size: 15px;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+.post-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.post-open {
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.post-open:hover,
+.post-open:focus-visible {
+  border-color: var(--gold);
+  background: #26224a;
+}
+.post-open:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* Sharing choice: first dream on an account, and Settings. */
+.visibility-options {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+}
+.visibility-option {
+  display: grid;
+  gap: 4px;
+  text-align: start;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #1a1830;
+  color: var(--ink);
+}
+.visibility-option strong {
+  font-size: 16px;
+}
+.visibility-option span {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.visibility-option[aria-checked="true"] {
+  border-color: var(--gold);
+  background: #2f2a1c;
+  box-shadow: inset 0 0 0 1px var(--gold);
+}
+.visibility-option[aria-checked="true"]::before {
+  content: "✓ ";
+  color: var(--gold);
+}
+.visibility-page {
+  padding-top: 24px;
+}
+.public-post {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.public-post .prose {
+  margin: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+#public-posts h3 {
+  margin: 16px 0 6px;
+  font-size: 15px;
+}
+.account-actions .btn {
+  flex: 1;
+}

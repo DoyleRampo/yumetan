@@ -24,6 +24,12 @@ export function firebaseServices(env = process.env) {
     verify: (token) => getAuth(app).verifyIdToken(token, true),
     mint: (uid, claims) => getAuth(app).createCustomToken(uid, claims),
     getUser: (uid) => getAuth(app).getUser(uid),
+    deleteUser: (uid) => getAuth(app).deleteUser(uid),
+    // Removes a document together with every nested collection.
+    purge: (path) => {
+      const db = getFirestore(app, env.FIRESTORE_DATABASE_ID || "(default)");
+      return db.recursiveDelete(db.doc(path));
+    },
   };
 }
 export class FirestoreStore {

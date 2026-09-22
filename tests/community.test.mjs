@@ -225,7 +225,7 @@ test("stamps replace one per user; comments retry once, retain ownership and can
     (e) => e.status === 404,
   );
 });
-test("blocks, reports and moderator hiding apply to feed and direct detail", async () => {
+test("reports and moderator hiding apply to feed and direct detail", async () => {
   const s = setup();
   s.paid("alice");
   s.paid("bob");
@@ -249,21 +249,10 @@ test("blocks, reports and moderator hiding apply to feed and direct detail", asy
   const reports = (await s.call("GET", "/api/moderation/reports", "mod"))
     .reports;
   assert.equal(reports.length, 1);
-  await s.call("POST", "/api/community/posts/:id/block", "bob", {}, { id });
+  // Blocking was removed: the post stays visible until a moderator hides it.
   assert.equal(
     (await s.call("GET", "/api/community/feed", "bob")).posts.length,
-    0,
-  );
-  await assert.rejects(
-    s.call("GET", "/api/community/posts/:id", "bob", {}, { id }),
-    (e) => e.status === 404,
-  );
-  await s.call(
-    "POST",
-    "/api/community/blocks/:id/remove",
-    "bob",
-    {},
-    { id: "alice" },
+    1,
   );
   await s.call(
     "POST",
@@ -275,6 +264,10 @@ test("blocks, reports and moderator hiding apply to feed and direct detail", asy
   assert.equal(
     (await s.call("GET", "/api/community/feed", "bob")).posts.length,
     0,
+  );
+  await assert.rejects(
+    s.call("GET", "/api/community/posts/:id", "bob", {}, { id }),
+    (e) => e.status === 404,
   );
 });
 test("read caps are atomic, not reset by reload; daily and monthly rollovers use UTC", async () => {
