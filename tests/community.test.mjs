@@ -764,3 +764,47 @@ test("an error is worded for the feature that met it", () => {
     for (const key of Object.values(table))
       assert.equal(communityMessages[key]?.length, 4, key);
 });
+// Firestore/gRPC errors carry a numeric `code` (9 is a missing index). The
+// server passed it through, and the app, with no message for 9, showed only
+// "Unable to complete" on the community page.
+test("only the server's own error codes reach the app", async () => {
+  const { errorResponse } = await import("../server/errors.js");
+  const { fault } = await import("../server/access.js");
+  // The shape @grpc/grpc-js gives a failed Firestore call.
+  const grpc = Object.assign(
+    new Error("9 FAILED_PRECONDITION: The query requires an index."),
+    { code: 9, details: "The query requires an index.", metadata: {} },
+  );
+  assert.deepEqual(errorResponse(grpc), {
+    status: 500,
+    code: "serviceUnavailable",
+  });
+  assert.deepEqual(errorResponse(Object.assign(new Error(), { code: 7 })), {
+    status: 500,
+    code: "serviceUnavailable",
+  });
+  // A library's own string code without an HTTP status is not the app's either.
+  assert.deepEqual(
+    errorResponse(Object.assign(new Error(), { code: "ECONNRESET" })),
+    { status: 500, code: "serviceUnavailable" },
+  );
+  // The server's own faults pass through unchanged.
+  assert.deepEqual(errorResponse(fault(429, "quotaReached")), {
+    status: 429,
+    code: "quotaReached",
+  });
+  assert.deepEqual(errorResponse(fault(404, "postUnavailable")), {
+    status: 404,
+    code: "postUnavailable",
+  });
+  // A malformed JSON body (express) keeps its 400.
+  assert.deepEqual(
+    errorResponse(
+      Object.assign(new Error(), { status: 400, type: "entity.parse.failed" }),
+    ),
+    { status: 400, code: "invalidInput" },
+  );
+  // Whatever it answers, the app has words for it.
+  for (const e of [grpc, fault(429, "quotaReached"), new Error()])
+    assert.ok(communityMessages[errorResponse(e).code]);
+});

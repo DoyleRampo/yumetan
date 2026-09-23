@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { registerFeatures } from "./server-features.js";
 import { firebaseServices } from "./server/store.js";
 import { createAccess, fault } from "./server/access.js";
+import { errorResponse } from "./server/errors.js";
 import { createBilling } from "./server/billing.js";
 import { createAI } from "./server/openai.js";
 import { registerCommunity } from "./server/community.js";
@@ -171,18 +172,17 @@ app.use(
   }),
 );
 app.use((err, req, res, next) => {
-  const status = err.status || 500;
+  const { status, code } = errorResponse(err);
   if (status >= 500)
     console.error("Request failed", {
       status,
       name: err.name,
+      // A Firestore error's own code (9 = missing index, 7 = no permission).
+      code: err.code,
       message: err.message,
       path: req.path,
     });
-  res.status(status).json({
-    error: err.code || (status === 400 ? "invalidInput" : "serviceUnavailable"),
-    code: err.code || (status === 400 ? "invalidInput" : "serviceUnavailable"),
-  });
+  res.status(status).json({ error: code, code });
 });
 app.listen(Number(process.env.PORT || 3000), "0.0.0.0", () =>
   console.log("Yumetan API ready"),
