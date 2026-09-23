@@ -58,7 +58,7 @@ iOS アプリでは Safari に遷移せず、Google Sign-In SDK（`GoogleSignIn`
 
 ### Apple（iOSアプリ: システムのサインインシート）
 
-iOSアプリでは `AuthenticationServices` の標準シートで Sign in with Apple を行い、返ってきた ID トークンと nonce で Firebase に直接ログインします（`AppleLogin` プラグイン、`ios/App/App/SceneDelegate.swift`）。ブラウザも Services ID も使いません。ゲストからのログインは Firebase のリンクで UID を維持し、既に使われている Apple ID なら「取り込み確認」に進みます。
+iOSアプリでは `AuthenticationServices` の標準シートで Sign in with Apple を行い、返ってきた ID トークンと nonce で Firebase に直接ログインします（`AppleLogin` プラグイン、`ios/App/App/SceneDelegate.swift`）。ブラウザも Services ID も使いません。ゲストからのログインは LINE と同様に Firebase の「リンク」を使わず、その Apple ID のアカウントへ直接ログインしてから「ゲストの記録を取り込む」確認で引き継ぎます（登録済みの Apple ID をリンクしようとすると「使用中」エラーになり、nonce 付きトークンをその後に再利用できないため）。設定からの「Apple を連携」はログイン中のアカウントへのリンクです。
 
 必要な設定:
 
@@ -77,7 +77,7 @@ iOSアプリでは `AuthenticationServices` の標準シートで Sign in with A
 | `auth/apple-invalid-response` / `auth/apple-failed` | Apple がトークンを返さなかった | 同上。Apple 側の一時障害なら再試行 |
 | `auth/operation-not-allowed` | Firebase で Apple プロバイダが無効 | Firebase Console → Authentication → Sign-in method → Apple を有効化 |
 | `auth/invalid-credential` | Firebase がトークンを拒否（対象 ID の不一致など） | Firebase のプロジェクト設定に iOS アプリ `com.doyle.yumetan` が登録されているか。Web/Android は Services ID・Team ID・Key ID・秘密鍵が正しいか |
-| `auth/missing-or-invalid-nonce` | nonce の不一致 | アプリを最新版に更新（旧版はゲストから既存の Apple アカウントへ入り直すときにこのコードで失敗した。Firebase が「使用中」エラーに付ける復元用資格情報は pendingToken だけで nonce を持たず、再ログインで拒否される） |
+| `auth/missing-or-invalid-nonce` | nonce の不一致、またはトークンの再利用 | アプリを最新版に更新（2026-09-23 09:15 JST より前のビルドは、ゲストから既存の Apple アカウントへ入り直すときにこのコードで失敗した。Firebase が「使用中」エラーに付ける復元用資格情報は pendingToken だけで nonce を持たず、再ログインで拒否される。現在はリンクを経由しない） |
 | `auth/apple-nonce-mismatch` | アプリ内で SHA-256(raw nonce) とトークンの nonce が一致しない | アプリの不具合。iOS プラグインと JS の nonce の受け渡しを確認 |
 | `auth/credential-already-in-use` / `auth/email-already-in-use` | 別アカウントで使用中 | 元のログイン方法でログインし、設定から連携 |
 | `auth/network-request-failed` | 通信失敗 | 通信状態。サーバー停止中でも Apple ログイン自体は Firebase と直接通信する |

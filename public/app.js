@@ -1942,11 +1942,12 @@ async function account(mode, provider = null) {
       provider === "apple" &&
       appleNativeAvailable()
     )
-      login = appleNativeLogin({
-        cloud,
-        link,
-        upgrade: cloud.isAnonymous() && !!cloud.uid(),
-      });
+      // A guest signs in to the Apple account directly instead of linking the
+      // anonymous user: a link attempt on an Apple ID that already has an account
+      // fails with credential-already-in-use, and the nonce-bound token cannot be
+      // reliably reused afterwards (auth/missing-or-invalid-nonce). Guest records
+      // are carried over by the import prompt, as with LINE.
+      login = appleNativeLogin({ cloud, link, upgrade: false });
     else if (
       mode === "provider" &&
       native &&
