@@ -7,6 +7,8 @@ import { createAccess, memberPath, dayKey } from "../server/access.js";
 import { registerCommunity } from "../server/community.js";
 import {
   PLANS,
+  STAMPS,
+  STAMP_IDS,
   TEASER_CHARS,
   canSaveRecord,
   activePlan,
@@ -69,7 +71,7 @@ function setup() {
       status: "active",
       paidUntil: at + 86400000 * 40,
     });
-  return { store, access, call, paid, setTime: (v) => (clock = v) };
+  return { store, access, call, paid, routes, setTime: (v) => (clock = v) };
 }
 const post = (recordId = randomUUID(), text = "A calm dream") => ({
   recordId,
@@ -163,16 +165,11 @@ test("reading the feed rejects guests, forged identities and free accounts; publ
     s.call("POST", "/api/community/publish", "blocked", post()),
     (e) => e.status === 403,
   );
-  // Free accounts still cannot stamp or comment on another member's post.
+  // Free accounts only look: no stamp, and no other member's post page.
   s.paid("alice");
   const other = await s.call("POST", "/api/community/publish", "alice", post());
   for (const [method, path, body] of [
-    ["POST", "/api/community/posts/:id/reaction", { stamp: "🌙" }],
-    [
-      "POST",
-      "/api/community/posts/:id/comments",
-      { text: "hello", alias: "me", requestId: randomUUID() },
-    ],
+    ["POST", "/api/community/posts/:id/reaction", { stamp: "heart" }],
     ["GET", "/api/community/posts/:id", {}],
   ])
     await assert.rejects(
@@ -265,7 +262,7 @@ test("simultaneous publications and duplicate retries obey daily and active limi
     (e) => e.status === 422,
   );
 });
-test("stamps replace one per user; comments retry once, retain ownership and cannot cross privacy", async () => {
+test("a paid member gives one stamp per post; everyone sees the counts", async () => {
   const s = setup();
   s.paid("alice");
   s.paid("bob");
@@ -276,55 +273,97 @@ test("stamps replace one per user; comments retry once, retain ownership and can
     "alice",
     post(),
   );
-  for (const stamp of ["🌙", "✨", "✨"])
-    await s.call(
+  const stamp = (uid, value) =>
+    s.call(
       "POST",
       "/api/community/posts/:id/reaction",
-      "bob",
-      { stamp },
+      uid,
+      { stamp: value },
       { id },
     );
-  const p = await s.store.get("communityPosts/" + id);
-  assert.equal(p.reactions["🌙"], 0);
-  assert.equal(p.reactions["✨"], 1);
-  const requestId = randomUUID();
-  const data = { requestId, text: "Lovely", alias: "B" };
-  await Promise.all([
-    s.call("POST", "/api/community/posts/:id/comments", "bob", data, { id }),
-    s.call("POST", "/api/community/posts/:id/comments", "bob", data, { id }),
+  // All twelve stamps are offered, each with an emoji and four names.
+  assert.deepEqual(STAMP_IDS, [
+    "funny",
+    "amazing",
+    "wonder",
+    "mystery",
+    "scary",
+    "fun",
+    "same",
+    "similar",
+    "wantToSee",
+    "good",
+    "seen",
+    "heart",
   ]);
-  assert.equal((await s.store.get("communityPosts/" + id)).commentCount, 1);
-  await assert.rejects(
-    s.call(
-      "POST",
-      "/api/community/posts/:id/comments/:commentId/delete",
-      "eve",
-      {},
-      { id, commentId: requestId },
-    ),
-    (e) => e.status === 404,
-  );
-  await s.call(
-    "POST",
-    "/api/community/posts/:id/comments/:commentId/delete",
-    "alice",
+  for (const x of STAMPS)
+    assert.ok(x.emoji && x.names.length === 4 && x.names.every(Boolean));
+  // A new stamp replaces the member's earlier one; the answer is the counts.
+  await stamp("bob", "heart");
+  assert.deepEqual(await stamp("bob", "funny"), {
+    reactions: { funny: 1 },
+    stamp: "funny",
+  });
+  assert.deepEqual((await stamp("eve", "funny")).reactions, { funny: 2 });
+  // Taking a stamp back costs nothing from the day's allowance.
+  assert.deepEqual((await stamp("bob", null)).reactions, { funny: 1 });
+  assert.equal((await s.store.get(`usage/bob_d_${dayKey(at)}`)).reactions, 2);
+  // Stamps no longer offered (the old ones) and unknown values are refused,
+  // and nobody stamps their own post.
+  for (const value of ["🌙", "love", ""])
+    await assert.rejects(stamp("bob", value), (e) => e.status === 400);
+  await assert.rejects(stamp("alice", "heart"), (e) => e.status === 400);
+  // Counts under the post, with the reader's own stamp, in the timeline and on
+  // the post's page; counts stored under old stamps are left out.
+  const stored = await s.store.get("communityPosts/" + id);
+  s.store.data.set("communityPosts/" + id, {
+    ...stored,
+    reactions: { ...stored.reactions, "🌙": 4 },
+  });
+  const feed = await s.call("GET", "/api/community/feed", "eve");
+  assert.deepEqual(feed.posts[0].reactions, { funny: 1 });
+  assert.equal(feed.posts[0].stamp, "funny");
+  const page = await s.call(
+    "GET",
+    "/api/community/posts/:id",
+    "eve",
     {},
-    { id, commentId: requestId },
+    { id },
   );
-  assert.equal((await s.store.get("communityPosts/" + id)).commentCount, 0);
+  assert.equal(page.reaction, "funny");
+  assert.deepEqual(page.post.reactions, { funny: 1 });
+  // A free member sees the counts in the teaser too.
+  const teaser = await s.call(
+    "GET",
+    "/api/community/teaser",
+    "free",
+    {},
+    {},
+    { day: "2026-09-17", tz: "0" },
+  );
+  assert.deepEqual(teaser.posts.find((p) => p.id === id).reactions, {
+    funny: 1,
+  });
+  // A post made private takes no more stamps.
   await s.call("POST", "/api/community/posts/:id/private", "alice", {}, { id });
-  await assert.rejects(
-    s.call(
-      "POST",
-      "/api/community/posts/:id/reaction",
-      "bob",
-      { stamp: "🌙" },
-      { id },
-    ),
-    (e) => e.status === 404,
-  );
+  await assert.rejects(stamp("bob", "heart"), (e) => e.status === 404);
 });
-test("reports and moderator hiding apply to feed and direct detail", async () => {
+test("comments, reports and blocks are gone", () => {
+  const s = setup();
+  for (const route of [
+    "POST /api/community/posts/:id/comments",
+    "POST /api/community/posts/:id/comments/:commentId/delete",
+    "POST /api/community/posts/:id/report",
+    "POST /api/community/posts/:id/block",
+    "GET /api/community/blocks",
+    "POST /api/community/blocks/:id/remove",
+    "GET /api/moderation/reports",
+    "POST /api/moderation/reports/:id",
+  ])
+    assert.equal(s.routes.has(route), false, route);
+  assert.equal("comments" in PLANS.starter, false);
+});
+test("a hidden post leaves the timeline and its page", async () => {
   const s = setup();
   s.paid("alice");
   s.paid("bob");
@@ -334,32 +373,13 @@ test("reports and moderator hiding apply to feed and direct detail", async () =>
     "alice",
     post(),
   );
-  await s.call(
-    "POST",
-    "/api/community/posts/:id/report",
-    "bob",
-    { reason: "privacy" },
-    { id },
-  );
-  await assert.rejects(
-    s.call("GET", "/api/moderation/reports", "bob"),
-    (e) => e.status === 403,
-  );
-  const reports = (await s.call("GET", "/api/moderation/reports", "mod"))
-    .reports;
-  assert.equal(reports.length, 1);
-  // Blocking was removed: the post stays visible until a moderator hides it.
   assert.equal(
     (await s.call("GET", "/api/community/feed", "bob")).posts.length,
     1,
   );
-  await s.call(
-    "POST",
-    "/api/moderation/reports/:id",
-    "mod",
-    { action: "hide" },
-    { id: reports[0].id },
-  );
+  // An operator hides a post by setting `hidden` on it.
+  const p = await s.store.get("communityPosts/" + id);
+  s.store.data.set("communityPosts/" + id, { ...p, hidden: true });
   assert.equal(
     (await s.call("GET", "/api/community/feed", "bob")).posts.length,
     0,
@@ -527,92 +547,10 @@ test("free members get a fixed random teaser of today's posts, 15 characters eac
     3,
   );
 });
-test("any member can report and block; a block hides both members from each other", async () => {
-  const s = setup();
-  s.paid("alice");
-  s.paid("bob");
-  const { id } = await s.call(
-    "POST",
-    "/api/community/publish",
-    "alice",
-    post(),
-  );
-  const mine = await s.call("POST", "/api/community/publish", "free", post());
-  // Reporting needs no paid plan: a free member sees the teaser and can report.
-  await s.call(
-    "POST",
-    "/api/community/posts/:id/report",
-    "free",
-    { reason: "abuse" },
-    { id },
-  );
-  assert.equal((await s.store.list("communityReports")).length, 1);
-  // Blocking needs no paid plan either.
-  await s.call("POST", "/api/community/posts/:id/block", "free", {}, { id });
-  assert.deepEqual(
-    (await s.call("GET", "/api/community/blocks", "free")).blocks,
-    [{ id: "alice", alias: "Dreamer" }],
-  );
-  // The blocked author's post is gone from the blocker's feed and detail...
-  s.paid("free");
-  assert.deepEqual(
-    (await s.call("GET", "/api/community/feed", "free")).posts.map((p) => p.id),
-    [mine.id],
-  );
-  for (const [method, path, body] of [
-    ["GET", "/api/community/posts/:id", {}],
-    ["POST", "/api/community/posts/:id/reaction", { stamp: "🌙" }],
-    [
-      "POST",
-      "/api/community/posts/:id/comments",
-      { text: "hi", alias: "me", requestId: randomUUID() },
-    ],
-  ])
-    await assert.rejects(
-      s.call(method, path, "free", body, { id }),
-      (e) => e.status === 404,
-    );
-  // ...and the blocker's own post is gone from the blocked author's feed.
-  assert.equal(
-    (await s.call("GET", "/api/community/feed", "alice")).posts.filter(
-      (p) => p.id === mine.id,
-    ).length,
-    0,
-  );
-  // Others are unaffected, and blocking yourself or a private post is refused.
-  assert.equal(
-    (await s.call("GET", "/api/community/feed", "bob")).posts.length,
-    2,
-  );
-  for (const uid of ["alice", "free"])
-    await assert.rejects(
-      s.call(
-        "POST",
-        "/api/community/posts/:id/block",
-        uid,
-        {},
-        { id: uid === "alice" ? id : mine.id },
-      ),
-      (e) => e.status === 404,
-    );
-  // Unblocking brings the posts back.
-  await s.call(
-    "POST",
-    "/api/community/blocks/:id/remove",
-    "free",
-    {},
-    { id: "alice" },
-  );
-  assert.equal(
-    (await s.call("GET", "/api/community/feed", "free")).posts.length,
-    2,
-  );
-});
-// The community page loads the plan first, then the block list, then the
-// dreams. A failure in one of the later steps used to reset the plan to free
-// and abandon the page, so a paid member lost the timeline they had just been
-// confirmed for, and a free member lost the teaser to an unrelated error.
-test("a failed block list or timeline keeps the plan the server confirmed", async () => {
+// The community page loads the plan first, then the dreams. A failed
+// timeline used to reset the plan to free, so a paid member lost the timeline
+// they had just been confirmed for.
+test("a failed timeline keeps the plan the server confirmed", async () => {
   const paidAccount = { plan: "starter", paidUntil: Date.now() + 86400000 };
   const page = (replies) => {
     const asked = [];
@@ -646,17 +584,14 @@ test("a failed block list or timeline keeps the plan the server confirmed", asyn
   });
   const paid = page({
     "/api/account": paidAccount,
-    "/api/community/blocks": { blocks: [] },
     "/api/community/feed": failed,
   });
   await paid.community.enter("community");
   assert.equal(paid.community.plan(), "starter");
   assert.match(paid.community.view("community"), /boom/);
-  // A block list the server cannot answer does not cost a free member the
-  // teaser: the dreams still load.
+  // A free member gets the teaser.
   const free = page({
     "/api/account": { plan: "free" },
-    "/api/community/blocks": failed,
     "/api/community/teaser": { day: "2026-09-17", total: 1, posts: [] },
   });
   await free.community.enter("community");
@@ -715,7 +650,7 @@ test("a plan switch keeps syncing until the server reports the plan bought", asy
     });
     await community.enter("plans");
     community.bind();
-    await button.onclick();
+    await button.onclick({ stopPropagation() {} });
     assert.equal(syncs, 3);
     assert.equal(community.plan(), "standard");
     assert.equal(toasts.at(-1), communityText("purchaseActivated", "ja"));
@@ -744,10 +679,6 @@ test("an error is worded for the feature that met it", () => {
   assert.match(
     say("quotaReached", "/api/community/posts/abc/reaction"),
     /スタンプ/,
-  );
-  assert.match(
-    say("quotaReached", "/api/community/posts/abc/comments"),
-    /コメント/,
   );
   assert.match(
     say("quotaReached", "/api/community/feed?after=x"),

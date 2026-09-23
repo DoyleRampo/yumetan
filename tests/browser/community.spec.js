@@ -180,7 +180,15 @@ test("Free keeps one dream and one editable diary per date; plans and paid feed 
     fullPage: true,
   });
 });
-test("paid member reads another user, stamps, comments and reports through authenticated server handlers", async ({
+// Holds the pointer on an element for a long press, then lets go.
+async function longPress(page, locator) {
+  const box = await locator.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+}
+test("paid member reads another user and reacts with stamps by button, long press and count", async ({
   page,
 }) => {
   const s = await fixture(page);
@@ -190,8 +198,9 @@ test("paid member reads another user, stamps, comments and reports through authe
   );
   await boot(page);
   await page.locator("nav [data-go=community]").click();
-  await expect(page.locator(".feed-card")).toHaveCount(1);
-  await expect(page.locator(".feed-card")).toContainText("<img src=x");
+  const card = page.locator(".feed-card");
+  await expect(card).toHaveCount(1);
+  await expect(card).toContainText("<img src=x");
   await expect(page.locator(".feed-card .prose img")).toHaveCount(0);
   // Timeline cards: the author's character, nickname and the dream only.
   await expect(page.locator(".feed-card .post-avatar")).toHaveAttribute(
@@ -201,38 +210,63 @@ test("paid member reads another user, stamps, comments and reports through authe
   await expect(page.locator(".feed-card .post-name")).toHaveText(
     "Night walker",
   );
-  await expect(page.locator(".feed-card")).not.toContainText("A moonlit walk");
+  await expect(card).not.toContainText("A moonlit walk");
   await expect(page.locator(".feed-card h2")).toHaveCount(0);
-  for (const action of ["refresh", "plans", "mine", "blocks"])
+  for (const action of ["refresh", "plans"])
     await expect(page.locator(`main [data-social=${action}].btn`)).toHaveCount(
       0,
     );
+  // No comments, reports or blocks anywhere.
+  for (const gone of ["report", "quick-report", "block", "unblock"])
+    await expect(page.locator(`[data-social=${gone}]`)).toHaveCount(0);
+  await expect(page.locator("#comment-form")).toHaveCount(0);
   await page.screenshot({
     path: "test-results/feed-mobile.png",
     fullPage: true,
   });
-  await page.locator("[data-social=post]").click();
-  await page.locator('[data-stamp="✨"]').click();
-  await expect(page.locator('[data-stamp="✨"]')).toHaveAttribute(
+  // The reaction button opens all twelve stamps.
+  await card.locator(".stamp-add").click();
+  const sheet = page.locator(".stamp-sheet");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator(".stamp-option")).toHaveCount(12);
+  await expect(sheet).toContainText("Want to see it");
+  await page.screenshot({ path: "test-results/stamp-sheet.png" });
+  await sheet.locator('[data-stamp="heart"]').click();
+  await expect(sheet).toHaveCount(0);
+  const heart = card.locator('.stamp-chip[data-stamp="heart"]');
+  await expect(heart).toContainText("❤️");
+  await expect(heart).toContainText("1");
+  await expect(heart).toHaveAttribute("aria-pressed", "true");
+  expect((await s.store.get("communityPosts/" + id)).reactions.heart).toBe(1);
+  // A long press opens the stamps too, and does not open the post.
+  await longPress(page, card.locator(".post-text"));
+  await expect(sheet).toBeVisible();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "community");
+  await sheet.locator('[data-stamp="funny"]').click();
+  await expect(card.locator('.stamp-chip[data-stamp="funny"]')).toHaveAttribute(
     "aria-pressed",
     "true",
   );
-  await page.locator("#comment-text").fill("Such a beautiful dream");
-  await page.locator("#comment-form button").click();
-  await expect(page.locator(".comment")).toContainText(
-    "Such a beautiful dream",
+  // The new stamp replaced the heart.
+  await expect(heart).toHaveCount(0);
+  await page.screenshot({ path: "test-results/stamp-counts.png" });
+  // Tapping one's own stamp takes it back.
+  await card.locator('.stamp-chip[data-stamp="funny"]').click();
+  await expect(card.locator(".stamp-chip")).toHaveCount(0);
+  await expect(card.locator(".stamp-add")).toBeVisible();
+  expect((await s.store.get("communityPosts/" + id)).reactions.funny).toBe(0);
+  // The post's own page has the same stamps.
+  await card.click();
+  await expect(page.locator("#app")).toHaveAttribute(
+    "data-page",
+    "community-post",
   );
-  await page.locator("[data-social=report]").click();
-  await expect(page.locator("#toast")).toContainText("Reported");
-  expect((await s.store.list("communityReports")).length).toBe(1);
-  // The reader can also block the author, which empties the timeline.
-  page.on("dialog", (d) => d.accept());
-  await page.locator("[data-social=block]").click();
-  await expect(page.locator("#app")).toHaveAttribute("data-page", "community");
-  await expect(page.locator(".feed-card")).toHaveCount(0);
-  await expect(page.locator(".blocked-list")).toContainText(
-    "Blocked members (1)",
+  await page.locator(".stamp-add").click();
+  await page.locator('.stamp-sheet [data-stamp="scary"]').click();
+  await expect(page.locator('.stamp-chip[data-stamp="scary"]')).toContainText(
+    "1",
   );
+  await expect(page.locator("#comment-form")).toHaveCount(0);
 });
 test("each dream has its own share box: ticking publishes it to the feed, unticking withdraws it, and Settings show no sharing section", async ({
   page,
@@ -445,7 +479,9 @@ test("a free member publishes a dream and reads it whole in the feed, marked as 
   await expect(mine.locator(".post-badge")).toHaveText("You");
   await expect(mine.locator(".link-button")).toHaveCount(0);
   await expect(page.locator("main")).not.toContainText("stays shortened here");
-  // Opening it shows the comments it received; replying needs a plan.
+  // Nobody stamps their own post.
+  await expect(mine.locator(".stamp-add")).toHaveCount(0);
+  // Opening it shows the post itself.
   await mine.click();
   await expect(page.locator("#app")).toHaveAttribute(
     "data-page",
@@ -488,33 +524,36 @@ test("free limits lead to the plans page: the day's dream allowance, a fourth di
     "Diary save 4 goes to plans",
   );
 });
-test("a free member can report a teaser and block its author, then undo the block", async ({
+test("a free member sees the stamps a teaser received but cannot react", async ({
   page,
 }) => {
   const s = await fixture(page, "free");
-  await s.publish(
+  const id = await s.publish(
     "alice",
-    "A dream from someone this reader would rather not see.",
+    "A dream from another member, with reactions already.",
   );
+  const stored = await s.store.get("communityPosts/" + id);
+  s.store.data.set("communityPosts/" + id, {
+    ...stored,
+    reactions: { heart: 2, wonder: 1 },
+  });
   await boot(page);
-  page.on("dialog", (d) => d.accept());
   await page.locator("nav [data-go=community]").click();
-  await expect(page.locator(".teaser-card")).toHaveCount(1);
-  // Reporting is available on the free plan, straight from the teaser.
-  await page.locator('.teaser-card [data-social="quick-report"]').click();
-  await expect(page.locator("#toast")).toContainText("Reported");
-  expect((await s.store.list("communityReports")).length).toBe(1);
-  // Blocking is too, and it takes the author out of the feed.
-  await page.locator('.teaser-card [data-social="block"]').click();
-  await expect(page.locator("#toast")).toContainText("Blocked");
-  await expect(page.locator(".teaser-card")).toHaveCount(0);
-  const blocked = page.locator(".blocked-list");
-  await expect(blocked).toContainText("Blocked members (1)");
-  // The block can be undone, which brings the post back.
-  await blocked.locator("summary").click();
-  await page.locator('[data-social="unblock"]').click();
-  await expect(page.locator(".teaser-card")).toHaveCount(1);
-  await expect(page.locator(".blocked-list")).toHaveCount(0);
+  const teaser = page.locator(".teaser-card");
+  await expect(teaser).toHaveCount(1);
+  // The counts are shown, as plain labels, and there is no reaction button.
+  await expect(teaser.locator(".stamp-chip")).toHaveCount(2);
+  await expect(teaser.locator("button.stamp-chip")).toHaveCount(0);
+  await expect(teaser.locator(".stamp-chip").first()).toContainText("🔮");
+  await expect(teaser.locator(".stamp-add")).toHaveCount(0);
+  for (const gone of ["quick-report", "block"])
+    await expect(page.locator(`[data-social=${gone}]`)).toHaveCount(0);
+  // A long press says stamps come with a paid plan.
+  await longPress(page, teaser.locator(".post-title"));
+  await expect(page.locator("#toast")).toContainText(
+    "Reacting with stamps comes with a paid plan",
+  );
+  await expect(page.locator(".stamp-sheet")).toHaveCount(0);
 });
 test("the plans page states the renewal terms and links to the terms of use and privacy policy", async ({
   page,

@@ -58,7 +58,7 @@ npm start
 
 - 無料でも日付ごとに夢1件・日記1ページ。過去の記録の閲覧・編集・端末内分析は継続できます。
 - 夢の公開はフリープランでもできます。読み解きページで「この夢をみんなの夢に公開する」にチェックして保存すると、夢の本文がキャラクター・ニックネームとともに「みんなの夢」へ投稿されます。チェックを外せば非公開に戻ります。日記・写真・睡眠・AI分析は公開しません。
-- 有料会員は「みんなの夢」で他ユーザーの公開投稿を全文で読み、スタンプとコメントで交流できます。フリー会員は、その日の投稿からランダムに3件・夢の本文は15文字まで（名前とタイトルはそのまま）。自分が公開した夢はフリーでも全文で並び、「自分」の印がつきます。
+- 有料会員は「みんなの夢」で他ユーザーの公開投稿を全文で読み、12種類のスタンプで反応できます（投稿を長押しするか、スマイルの「＋」ボタン）。投稿の下には、ついたスタンプの種類と数が表示されます。フリー会員は反応の数を見るだけです。フリー会員は、その日の投稿からランダムに3件・夢の本文は15文字まで（名前とタイトルはそのまま）。自分が公開した夢はフリーでも全文で並び、「自分」の印がつきます。
 - プランは端末の値で認可せず、Firebase IDトークンとサーバー専用会員情報で確認。RevenueCatのWebhookとサーバーからの契約照会により反映します。
 - AI読み解きは全プランで夢1件につき1回（夢の日付ごと、フリー1件/日・スターター3件/日・スタンダード10件/日）。手書きOCRは有料プランのみ。フリー会員の「みんなの夢」は、他の人の投稿はその日からランダム3件・夢の本文15文字までの紹介で、「続きを読む」「もっと見る」はプラン画面へ（自分の投稿は全文）。夢の記録は「この夢を診断」→ 診断結果ページで「保存する」の流れで、AIを呼ぶのは診断のときだけ（診断結果が残っている夢の開き直しや保存では呼びません）。AIが使えないときは端末内の振り返りで診断して保存できます。読み解きページでは「この夢をみんなの夢に公開する」（有料会員は初期状態でオン、フリー会員は初期状態でオフ）を選べます。設定の「使い方とサポート」に、記録のしかた・みんなの夢・プランと解約の手順・データの扱い・問い合わせ先をまとめたページがあります。
 - 購入はiOS / Androidアプリ内のストア課金（App Store / Google Play、RevenueCat経由）だけです。Webでは購入ボタンを表示せず、アプリで購入したプランを同じアカウントで利用できます。
@@ -77,8 +77,7 @@ npm start
 - `POST /api/billing/revenuecat`：RevenueCat Webhook（Authorizationヘッダーの共有秘密で検証）
 - `GET /api/community/feed`、`POST /api/community/publish`、`GET /api/community/mine`
 - `POST /api/community/posts/:id/private`、`GET /api/community/posts/:id`
-- `POST /api/community/posts/:id/reaction`、`POST /api/community/posts/:id/comments`
-- 通報・コメント削除、運営者専用の通報確認/非表示API（ユーザー同士のブロックは現在なし）
+- `POST /api/community/posts/:id/reaction`（`{ stamp: "heart" }` などのスタンプID、`null` で取り消し。答えは投稿のスタンプ数）
 - `POST /api/auth/line`：LINE IDトークン → Firebaseカスタムトークン（iOSネイティブLINEログイン）
 - `POST /api/reflect`（`text`・`date`・`typeTags`・`diary`・`recentDiaries`・`sleep`・`dreamType`）、`POST /api/handwriting`：GPT-5.6 Luna。読み解きは `mood_weather`・`mood_label`・`mental_state`・`fortune_overview`・`fortune_mood`・`lucky_hint`・`advice` を返します
 - `GET /api/sleep-knowledge`：参照文献と暫定評価ルール

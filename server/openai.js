@@ -225,7 +225,7 @@ export function createAI({
       return value;
     },
     async moderate(text) {
-      // Social content is sent only when the user explicitly publishes/comments.
+      // Social content is sent only when the user explicitly publishes a dream.
       if (!client) throw fault(503, "moderationUnavailable");
       const r = await client.moderations.create({
         model: "omni-moderation-latest",

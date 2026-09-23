@@ -91,7 +91,8 @@ for (const [width, height] of [
     await page.locator(".plan-links [data-plan=standard]").click();
     await expect(page.locator("h1")).toHaveText("スタンダード");
     await expect(page.locator(".plan-card .plan-price")).toContainText("9,800");
-    await expect(page.locator(".plan-card dl > div")).toHaveCount(9);
+    // Eight allowances: comments were removed with stamps as the only reaction.
+    await expect(page.locator(".plan-card dl > div")).toHaveCount(8);
     await noOverflow(page);
     await page.locator(".back-link").click();
     await expect(page.locator("[data-social=yearly]")).toHaveAttribute(
@@ -125,7 +126,8 @@ test("long names, translated plans and 200% zoom retain readable controls", asyn
     await noOverflow(page);
     await page.locator(".plan-links [data-plan=starter]").click();
     await noOverflow(page);
-    await expect(page.locator(".plan-card dl > div")).toHaveCount(9);
+    // Eight allowances: comments were removed with stamps as the only reaction.
+    await expect(page.locator(".plan-card dl > div")).toHaveCount(8);
     await page.locator("nav [data-go=home]").click();
   }
 });

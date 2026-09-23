@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod/v4";
 import { TYPES } from "../public/core/types.js";
 import {
-  STAMPS,
+  STAMP_IDS,
   PLANS,
   TEASER_CHARS,
   activePlan,
@@ -29,6 +29,14 @@ const parse = (schema, body) => {
 };
 const postId = (uid, recordId) =>
   createHash("sha256").update(`${uid}:${recordId}`).digest("hex");
+// A post's stamp counts, keeping only stamps still offered.
+const stampsOf = (p) =>
+  Object.fromEntries(
+    STAMP_IDS.filter((id) => Number(p.reactions?.[id]) > 0).map((id) => [
+      id,
+      Number(p.reactions[id]),
+    ]),
+  );
 const publicPost = (p) => ({
   id: p.id,
   title: p.title,
@@ -37,8 +45,7 @@ const publicPost = (p) => ({
   typeId: p.typeId,
   characterSet: p.characterSet,
   publishedAt: p.publishedAt,
-  reactions: p.reactions || {},
-  commentCount: p.commentCount || 0,
+  reactions: stampsOf(p),
 });
 export function registerCommunity(
   app,
@@ -59,20 +66,16 @@ export function registerCommunity(
     if (!p) throw fault(404, "postUnavailable");
     if (ownerOK && p.owner === uid) return p;
     // Sharing is part of the free plan, so a post stays visible whatever its
-    // author pays; only privacy, moderation, suspension and a block hide one.
+    // author pays; only privacy, moderation and suspension hide one.
     if (!p.public || p.hidden) throw fault(404, "postUnavailable");
     if ((await access.member(p.owner)).suspended)
       throw fault(404, "postUnavailable");
-    if (await blocked(uid, p.owner)) throw fault(404, "postUnavailable");
     return p;
   }
-  // A block hides both members from each other, so neither can keep reaching
-  // the other through the feed, a stamp or a comment.
-  async function blocked(a, b) {
-    if (a === b) return false;
-    return Boolean(
-      (await store.get(`communityBlocks/${a}/targets/${b}`)) ||
-      (await store.get(`communityBlocks/${b}/targets/${a}`)),
+  // The stamp `uid` gave post `id`, if any.
+  async function stampOf(uid, id) {
+    return (
+      (await store.get(`communityPosts/${id}/reactions/${uid}`))?.stamp || null
     );
   }
   // Public posts, newest first, found without a composite index. Filtering on
@@ -191,6 +194,8 @@ export function registerCommunity(
         characterSet: p.characterSet,
         publishedAt: p.publishedAt,
         mine: false,
+        // Free members see how others reacted, but cannot react themselves.
+        reactions: stampsOf(p),
         excerpt: chars.slice(0, TEASER_CHARS).join(""),
         truncated: chars.length > TEASER_CHARS,
       };
@@ -228,7 +233,11 @@ export function registerCommunity(
       }
       try {
         await visible(user.uid, p.id);
-        posts.push({ ...publicPost(p), mine: false });
+        posts.push({
+          ...publicPost(p),
+          mine: false,
+          stamp: await stampOf(user.uid, p.id),
+        });
       } catch (e) {
         if (e.status !== 404) throw e;
       }
@@ -320,212 +329,39 @@ export function registerCommunity(
       await access.paid(user.uid);
       await access.consume(user.uid, "reads");
     }
-    const after = req.query.after ? parse(ident, req.query.after) : undefined;
-    const rows = await store.list(`communityPosts/${p.id}/comments`, {
-      after,
-      limit: 30,
-    });
-    const comments = [];
-    for (const c of rows)
-      if (!c.hidden)
-        comments.push({
-          id: c.id,
-          text: c.text,
-          alias: c.alias,
-          createdAt: c.createdAt,
-          mine: c.owner === user.uid,
-        });
-    const reaction = await store.get(
-      `communityPosts/${p.id}/reactions/${user.uid}`,
-    );
+    const mine = p.owner === user.uid;
     return {
-      post: { ...publicPost(p), mine: p.owner === user.uid },
-      comments,
-      next: rows.length === 30 ? rows.at(-1).id : null,
-      reaction: reaction?.stamp || null,
+      post: { ...publicPost(p), mine },
+      reaction: mine ? null : await stampOf(user.uid, p.id),
     };
   });
+  // A paid member's stamp on another member's post: one per post, a new one
+  // replaces it, and `null` takes it back. Answers the post's counts after it.
   route("post", "/api/community/posts/:id/reaction", async (req, user) => {
     await access.paid(user.uid);
     const { stamp } = parse(
-      z.object({ stamp: z.enum(STAMPS).nullable() }),
+      z.object({ stamp: z.enum(STAMP_IDS).nullable() }),
       req.body,
     );
     const p = await visible(user.uid, pathId(req));
     if (p.owner === user.uid) throw fault(400, "invalidInput");
-    await access.consume(user.uid, "reactions");
-    await store.transaction(async (tx) => {
+    // Taking a stamp back is free; giving one counts against the day.
+    if (stamp) await access.consume(user.uid, "reactions");
+    const reactions = await store.transaction(async (tx) => {
       const path = `communityPosts/${p.id}`,
         fresh = await tx.get(path),
         reactionPath = `${path}/reactions/${user.uid}`,
         old = await tx.get(reactionPath);
       if (!fresh?.public || fresh.hidden) throw fault(404, "postUnavailable");
-      const reactions = { ...fresh.reactions };
+      const counts = { ...fresh.reactions };
       if (old?.stamp)
-        reactions[old.stamp] = Math.max(0, (reactions[old.stamp] || 0) - 1);
-      if (stamp) reactions[stamp] = (reactions[stamp] || 0) + 1;
-      tx.set(path, { ...fresh, reactions });
+        counts[old.stamp] = Math.max(0, (counts[old.stamp] || 0) - 1);
+      if (stamp) counts[stamp] = (counts[stamp] || 0) + 1;
+      tx.set(path, { ...fresh, reactions: counts });
       if (stamp) tx.set(reactionPath, { stamp });
       else tx.delete(reactionPath);
+      return counts;
     });
-    return { ok: true };
-  });
-  route("post", "/api/community/posts/:id/comments", async (req, user) => {
-    await access.paid(user.uid);
-    const data = parse(
-      z.object({
-        text: z.string().trim().min(1).max(500),
-        alias: z.string().trim().min(1).max(30),
-        requestId: z.string().uuid(),
-      }),
-      req.body,
-    );
-    const p = await visible(user.uid, pathId(req));
-    await moderate(`${data.alias}\n${data.text}`);
-    const commentPath = `communityPosts/${p.id}/comments/${data.requestId}`;
-    await store.transaction(async (tx) => {
-      const existing = await tx.get(commentPath);
-      if (existing) {
-        if (existing.owner !== user.uid) throw fault(409, "invalidInput");
-        return;
-      }
-      const fresh = await tx.get(`communityPosts/${p.id}`),
-        member = await tx.get(memberPath(user.uid));
-      const plan = activePlan(member, now());
-      if (plan === "free" || member.suspended) throw fault(403, "paidRequired");
-      if (!fresh?.public || fresh.hidden) throw fault(404, "postUnavailable");
-      const usagePath = `usage/${user.uid}_d_${dayKey(now())}`,
-        usage = (await tx.get(usagePath)) || {};
-      if (
-        (usage.comments || 0) >= PLANS[plan].comments ||
-        (fresh.commentCount || 0) >= 300
-      )
-        throw fault(429, "quotaReached");
-      tx.set(usagePath, { ...usage, comments: (usage.comments || 0) + 1 });
-      tx.set(commentPath, {
-        text: data.text,
-        alias: data.alias,
-        owner: user.uid,
-        createdAt: new Date(now()).toISOString(),
-      });
-      tx.set(`communityPosts/${p.id}`, {
-        ...fresh,
-        commentCount: (fresh.commentCount || 0) + 1,
-      });
-    });
-    return { ok: true };
-  });
-  route(
-    "post",
-    "/api/community/posts/:id/comments/:commentId/delete",
-    async (req, user) => {
-      const id = pathId(req),
-        commentId = parse(ident, req.params.commentId);
-      await store.transaction(async (tx) => {
-        const path = `communityPosts/${id}`,
-          p = await tx.get(path),
-          cp = `${path}/comments/${commentId}`,
-          c = await tx.get(cp);
-        if (!p || !c || (c.owner !== user.uid && p.owner !== user.uid))
-          throw fault(404, "postUnavailable");
-        tx.delete(cp);
-        tx.set(path, {
-          ...p,
-          commentCount: Math.max(0, (p.commentCount || 0) - 1),
-        });
-      });
-      return { ok: true };
-    },
-  );
-  // Blocking a member and reporting a post are open to everyone who can see
-  // the post, on any plan: both are how a reader deals with what upsets them.
-  route("post", "/api/community/posts/:id/block", async (req, user) => {
-    const p = await store.get(`communityPosts/${pathId(req)}`);
-    if (!p || !p.public || p.owner === user.uid)
-      throw fault(404, "postUnavailable");
-    await store.transaction(async (tx) =>
-      tx.set(`communityBlocks/${user.uid}/targets/${p.owner}`, {
-        alias: String(p.alias || "").slice(0, 30),
-        at: new Date(now()).toISOString(),
-      }),
-    );
-    return { ok: true };
-  });
-  route("get", "/api/community/blocks", async (req, user) => ({
-    blocks: (
-      await store.list(`communityBlocks/${user.uid}/targets`, { limit: 100 })
-    ).map((b) => ({ id: b.id, alias: b.alias || "" })),
-  }));
-  route("post", "/api/community/blocks/:id/remove", async (req, user) => {
-    await store.transaction(async (tx) =>
-      tx.delete(`communityBlocks/${user.uid}/targets/${pathId(req)}`),
-    );
-    return { ok: true };
-  });
-  route("post", "/api/community/posts/:id/report", async (req, user) => {
-    const p = await visible(user.uid, pathId(req));
-    const { reason, commentId } = parse(
-      z.object({
-        reason: z.enum(["privacy", "abuse", "spam", "other"]),
-        commentId: ident.optional(),
-      }),
-      req.body,
-    );
-    if (
-      commentId &&
-      !(await store.get(`communityPosts/${p.id}/comments/${commentId}`))
-    )
-      throw fault(404, "postUnavailable");
-    await store.transaction(async (tx) =>
-      tx.set(`communityReports/${postId(user.uid, p.id + (commentId || ""))}`, {
-        postId: p.id,
-        commentId: commentId || null,
-        reporter: user.uid,
-        reason,
-        status: "open",
-        at: new Date(now()).toISOString(),
-      }),
-    );
-    return { ok: true };
-  });
-  route("get", "/api/moderation/reports", async (req, user) => {
-    if (user.moderator !== true) throw fault(403, "forbidden");
-    const rows = await store.list("communityReports", {
-      where: [["status", "==", "open"]],
-      limit: 50,
-    });
-    return {
-      reports: await Promise.all(
-        rows.map(async (report) => ({
-          ...report,
-          content: await store.get(
-            `communityPosts/${report.postId}${report.commentId ? `/comments/${report.commentId}` : ""}`,
-          ),
-        })),
-      ),
-    };
-  });
-  route("post", "/api/moderation/reports/:id", async (req, user) => {
-    if (user.moderator !== true) throw fault(403, "forbidden");
-    const { action } = parse(
-      z.object({ action: z.enum(["dismiss", "hide"]) }),
-      req.body,
-    );
-    await store.transaction(async (tx) => {
-      const reportPath = `communityReports/${pathId(req)}`,
-        report = await tx.get(reportPath);
-      if (!report) throw fault(404, "postUnavailable");
-      const targetPath = `communityPosts/${report.postId}${report.commentId ? `/comments/${report.commentId}` : ""}`,
-        target = await tx.get(targetPath);
-      if (action === "hide" && target)
-        tx.set(targetPath, { ...target, hidden: true });
-      tx.set(reportPath, {
-        ...report,
-        status: action,
-        resolvedBy: user.uid,
-        resolvedAt: new Date(now()).toISOString(),
-      });
-    });
-    return { ok: true };
+    return { reactions: stampsOf({ reactions }), stamp };
   });
 }

@@ -8,7 +8,6 @@ const FEATURES = [
   [/^\/api\/reflect$/, "reading"],
   [/^\/api\/community\/publish$/, "publish"],
   [/^\/api\/community\/posts\/[^/]+\/reaction$/, "reaction"],
-  [/^\/api\/community\/posts\/[^/]+\/comments$/, "comment"],
   [/^\/api\/community\/(feed|teaser|posts\/[^/]+)$/, "read"],
 ];
 const MESSAGES = {
@@ -27,7 +26,6 @@ const MESSAGES = {
   },
   publish: { quotaReached: "publishQuotaReached" },
   reaction: { quotaReached: "reactionQuotaReached" },
-  comment: { quotaReached: "commentQuotaReached" },
   read: { quotaReached: "readQuotaReached" },
 };
 export const featureOf = (path) =>

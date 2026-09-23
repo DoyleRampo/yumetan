@@ -1,5 +1,5 @@
 import { loadingMarkup, beginLoading } from "./core/loading.js";
-import { PLANS, STAMPS } from "./core/plans.js";
+import { PLANS, STAMPS, stampCounts } from "./core/plans.js";
 import { planFromCustomerInfo } from "./core/purchases.js";
 import { communityMessages } from "./core/community-i18n.js";
 import { HELP_LINKS } from "./core/help-content.js";
@@ -10,6 +10,8 @@ export const communityText = (key, lang) =>
 // see the subscription: the plan is re-checked this many times, this far apart.
 export const SYNC_ATTEMPTS = 6;
 export const SYNC_INTERVAL = 2500;
+// How long a post is held before its stamps open.
+export const LONG_PRESS_MS = 450;
 export function createCommunity({
   api,
   language,
@@ -42,11 +44,12 @@ export function createCommunity({
     sharing = null,
     shareDraft = null,
     teaser = null,
-    blocks = [],
-    shown = "",
     cycle = "monthly",
     selectedPlan = "starter",
-    commentDraft = "";
+    // The post whose stamp picker is open, and whether a long press just
+    // opened it (so the tap that ends the press does not also open the post).
+    picker = null,
+    pressed = false;
   const t = (key) => communityText(key, language());
   const b = (label, action, attrs = "") =>
     `<button type="button" class="btn ghost" data-social="${action}" ${attrs}>${t(label)}</button>`;
@@ -79,16 +82,78 @@ export function createCommunity({
   // post of one's own.
   const postName = (p) =>
     p.mine ? `<span class="post-badge">${t("minePost")}</span>` : esc(p.alias);
+  // Paid members react to other members' posts; everyone sees the counts.
+  const canReact = (p) => signedIn() && plan() !== "free" && !p.mine;
+  const stampName = (s) => localized(s.names, language());
+  // Under every post: each stamp given and how many times, and for a paid
+  // reader the button that opens all the stamps. Tapping a count gives (or
+  // takes back) that stamp.
+  const stampBar = (p) => {
+    const react = canReact(p);
+    const chips = stampCounts(p.reactions)
+      .map(([s, n]) => {
+        const chosen = p.stamp === s.id;
+        const label = `${esc(stampName(s))} ${n}`;
+        return react
+          ? `<button type="button" class="stamp-chip${chosen ? " chosen" : ""}" data-social="stamp" data-id="${esc(p.id)}" data-stamp="${s.id}" aria-pressed="${chosen}" aria-label="${label}"><span aria-hidden="true">${s.emoji}</span><span class="stamp-count">${n}</span></button>`
+          : `<span class="stamp-chip" role="img" aria-label="${label}"><span aria-hidden="true">${s.emoji}</span><span class="stamp-count">${n}</span></span>`;
+      })
+      .join("");
+    const add = react
+      ? `<button type="button" class="stamp-add" data-social="stamp-open" data-id="${esc(p.id)}" aria-haspopup="dialog" aria-label="${t("stampReact")}"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="12" r="7.5"/><path d="M7.8 13.6c.8 1.1 1.7 1.6 2.7 1.6s1.9-.5 2.7-1.6"/><path d="M8.2 9.6h.01M12.8 9.6h.01" stroke-width="2.4"/><path d="M20 3.5v5M17.5 6h5"/></svg></button>`
+      : "";
+    return chips || add ? `<div class="stamp-bar">${chips}${add}</div>` : "";
+  };
   // Free members: their own dreams in full, and the opening of a few of today's
-  // other dreams — name and title whole. Every link there leads to the plans.
+  // other dreams — name and title whole, with how others reacted.
   const teaserCard = (p) =>
     p.mine
       ? postCard(p, true, true)
-      : `<article class="card feed-card teaser-card">${author(p)}<div class="post-body"><strong class="post-name">${postName(p)}</strong><p class="post-title">${esc(p.title)}</p><p class="prose post-text teaser-text">${esc(p.excerpt)}<button type="button" class="link-button" data-social="plans">${t("readMore")}</button></p><div class="row post-actions">${b("report", "quick-report", `data-id="${esc(p.id)}"`)}${b("block", "block", `data-id="${esc(p.id)}"`)}</div></div></article>`;
+      : `<article class="card feed-card teaser-card" data-post-id="${esc(p.id)}">${author(p)}<div class="post-body"><strong class="post-name">${postName(p)}</strong><p class="post-title">${esc(p.title)}</p><p class="prose post-text teaser-text">${esc(p.excerpt)}<button type="button" class="link-button" data-social="plans">${t("readMore")}</button></p>${stampBar(p)}</div></article>`;
   const teaserView = () =>
     `<div class="teaser"><span class="eyebrow">MEMBERS' DREAMS</span><h2>${t("communityIntro")}</h2><p class="help">${t("teaserHint")}</p><div class="feed-list">${(teaser?.posts || []).map(teaserCard).join("") || (!busy ? `<p class="empty">${t("emptyTeaser")}</p>` : "")}</div><button type="button" class="btn primary full" data-social="plans">${t("seeMore")}</button><p class="help">${t("paidRequired")}</p></div>`;
   const postCard = (p, open = true, withTitle = false) =>
-    `<article class="card feed-card${open ? " post-open" : ""}${p.mine ? " post-mine" : ""}" ${open ? `data-social="post" data-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(p.mine ? t("minePost") : p.alias)} · ${t("openPost")}"` : ""}>${author(p)}<div class="post-body"><strong class="post-name">${postName(p)}</strong>${withTitle ? `<p class="post-title">${esc(p.title)}</p>` : ""}<p class="prose post-text">${esc(p.text)}</p></div></article>`;
+    `<article class="card feed-card${open ? " post-open" : ""}${p.mine ? " post-mine" : ""}" data-post-id="${esc(p.id)}" ${open ? `data-social="post" data-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(p.mine ? t("minePost") : p.alias)} · ${t("openPost")}"` : ""}>${author(p)}<div class="post-body"><strong class="post-name">${postName(p)}</strong>${withTitle ? `<p class="post-title">${esc(p.title)}</p>` : ""}<p class="prose post-text">${esc(p.text)}</p>${stampBar(p)}</div></article>`;
+  // Every stamp, opened by the reaction button or a long press on a post.
+  const pickerView = () => {
+    const p = picker && findPost(picker);
+    if (!p || !canReact(p)) return "";
+    return `<div class="stamp-backdrop" data-social="stamp-close"></div><div class="stamp-sheet" role="dialog" aria-modal="true" aria-labelledby="stamp-sheet-title"><p id="stamp-sheet-title" class="stamp-sheet-title">${t("stampReact")}</p><div class="stamp-grid">${STAMPS.map((s) => `<button type="button" class="stamp-option${p.stamp === s.id ? " chosen" : ""}" data-social="stamp" data-id="${esc(p.id)}" data-stamp="${s.id}" aria-pressed="${p.stamp === s.id}"><span class="stamp-emoji" aria-hidden="true">${s.emoji}</span><span class="stamp-name">${esc(stampName(s))}</span></button>`).join("")}</div><div class="row stamp-sheet-actions">${p.stamp ? `<button type="button" class="btn ghost small" data-social="stamp" data-id="${esc(p.id)}" data-stamp="${p.stamp}">${t("stampRemove")}</button>` : ""}<button type="button" class="btn ghost small" data-social="stamp-close">${t("close")}</button></div></div>`;
+  };
+  // Every copy of a post on screen (the timeline, the teaser, its own page).
+  const copies = (id) =>
+    [...posts, ...(teaser?.posts || []), detail?.post].filter(
+      (p) => p?.id === id,
+    );
+  const findPost = (id) => copies(id)[0] || null;
+  // Give a stamp, or take it back when it is the one already given.
+  async function react(id, stampId) {
+    const p = findPost(id);
+    if (!p || !canReact(p)) return;
+    const stamp = stampId && p.stamp !== stampId ? stampId : null;
+    const r = await api(
+      "/api/community/posts/" + encodeURIComponent(id) + "/reaction",
+      { stamp },
+    );
+    for (const copy of copies(id)) {
+      copy.reactions = r.reactions;
+      copy.stamp = r.stamp;
+    }
+    picker = null;
+  }
+  // A long press on another member's post opens the stamps; a free member is
+  // told they come with the paid plans.
+  function longPress(id) {
+    const p = findPost(id);
+    if (!p || p.mine) return;
+    pressed = true;
+    if (!canReact(p)) {
+      toast(t("stampPaid"));
+      return;
+    }
+    picker = id;
+    render();
+  }
   const planFields = [
     ["dreamLimit", "dreams"],
     ["diaryLimit", "diary"],
@@ -97,7 +162,6 @@ export function createCommunity({
     ["readLimit", "reads"],
     ["publishLimit", "publishes"],
     ["activeLimit", "activePosts"],
-    ["commentLimit", "comments"],
     ["reactionLimit", "reactions"],
   ];
   const cyclePicker = () =>
@@ -161,30 +225,15 @@ export function createCommunity({
   }
   function detailView() {
     if (!detail) return `<h1>${t("community")}</h1>${status()}`;
-    const { post: p } = detail;
-    // Free members reach this page through their own post: they read the
-    // comments it received, and the plans open stamps and replies.
-    const free = plan() === "free";
-    return `<div class="narrow">${status()}${postCard(p, false, true)}<div class="card">${free ? "" : `<div class="row stamps">${STAMPS.map((s) => `<button class="btn ghost" data-social="stamp" data-stamp="${s}" aria-pressed="${detail.reaction === s}" ${p.mine ? "disabled" : ""}>${s} ${Number(p.reactions?.[s] || 0)}</button>`).join("")}</div>`}<h2>${t("comments")}</h2>${detail.comments.map((c) => `<article class="comment"><strong>${esc(c.alias)}</strong><p class="prose">${esc(c.text)}</p>${c.mine || p.mine ? b("removeComment", "delete-comment", `data-id="${c.id}"`) : b("commentReport", "report-comment", `data-id="${c.id}"`)}</article>`).join("") || `<p class="empty">${t("emptyComments")}</p>`}${detail.next ? b("nextPage", "comments-next") : ""}${free ? `<p class="help">${t("commentPaidNote")}</p><button type="button" class="btn primary full" data-social="plans">${t("seeMore")}</button>` : `<form id="comment-form"><label class="field"><span>${t("comments")}</span><textarea id="comment-text" rows="3" maxlength="500" required>${esc(commentDraft)}</textarea></label><p class="help">${t("copyLimit")}</p><button class="btn primary" type="submit">${t("sendComment")}</button></form>`}</div>${!p.mine ? `<div class="card"><label class="field"><span>${t("reportReason")}</span><select id="report-reason">${["privacy", "abuse", "spam", "other"].map((r) => `<option value="${r}">${t(r)}</option>`).join("")}</select></label><div class="row">${b("report", "report")}${b("block", "block", `data-id="${esc(p.id)}"`)}</div></div>` : ""}</div>`;
+    return `<div class="narrow">${status()}${postCard(detail.post, false, true)}</div>${pickerView()}`;
   }
-  // Everyone can undo a block, so the list lives with the feed itself.
-  const blockedList = () =>
-    blocks.length
-      ? `<details class="card blocked-list"><summary>${t("blockedUsers")} (${blocks.length})</summary>${blocks
-          .map(
-            (x) =>
-              `<div class="row between blocked-row"><span>${esc(x.alias || x.id.slice(0, 8))}</span>${b("unblock", "unblock", `data-id="${esc(x.id)}"`)}</div>`,
-          )
-          .join("")}</details>`
-      : "";
   function view(page) {
-    shown = page;
     if (page === "plans") return plansView();
     if (page === "plan-details") return planDetailsView();
     if (page === "share") return shareView();
     if (page === "community-post") return detailView();
     // The timeline: no toolbar, just the dreams. A failed load offers a retry.
-    return `<h1>${t("community")}</h1><p class="help">${t("communityIntro")}</p>${status()}${error ? `<div class="row">${b("refresh", "refresh")}</div>` : ""}${plan() === "free" ? (signedIn() ? teaserView() : paywall()) : `<div class="feed-list timeline">${posts.map((p) => postCard(p)).join("") || (!busy ? `<p class="empty">${t("emptyFeed")}</p>` : "")}</div>${next ? b("nextPage", "next") : ""}`}${signedIn() ? blockedList() : ""}`;
+    return `<h1>${t("community")}</h1><p class="help">${t("communityIntro")}</p>${status()}${error ? `<div class="row">${b("refresh", "refresh")}</div>` : ""}${plan() === "free" ? (signedIn() ? teaserView() : paywall()) : `<div class="feed-list timeline">${posts.map((p) => postCard(p)).join("") || (!busy ? `<p class="empty">${t("emptyFeed")}</p>` : "")}</div>${next ? b("nextPage", "next") : ""}`}${pickerView()}`;
   }
   async function refreshAccount() {
     return setAccount(
@@ -199,6 +248,7 @@ export function createCommunity({
     posts = [];
     next = null;
     detail = null;
+    picker = null;
     if (page === "share") {
       shareRecord = record;
       sharing = null;
@@ -227,13 +277,6 @@ export function createCommunity({
             : (record.text || "").slice(0, 4000),
         };
       }
-      // The block list only decorates the page; losing it must not cost the
-      // member the dreams themselves.
-      if (page === "community" && signedIn())
-        blocks = await api("/api/community/blocks").then(
-          (r) => r.blocks || [],
-          () => [],
-        );
       if (token !== version) return;
       if (page === "community" && plan() !== "free") {
         const r = await api("/api/community/feed");
@@ -264,14 +307,9 @@ export function createCommunity({
       }
     }
   }
-  async function loadPost(id, after = "") {
-    const r = await api(
-      "/api/community/posts/" +
-        id +
-        (after ? "?after=" + encodeURIComponent(after) : ""),
-    );
-    if (detail?.post.id !== id) commentDraft = "";
-    detail = r;
+  async function loadPost(id) {
+    const r = await api("/api/community/posts/" + encodeURIComponent(id));
+    detail = { post: { ...r.post, stamp: r.reaction || null } };
     error = "";
   }
   // Ask the server to verify the store subscription until it shows the plan
@@ -332,8 +370,6 @@ export function createCommunity({
     }
   }
   function capture() {
-    if (document.querySelector("#comment-text"))
-      commentDraft = document.querySelector("#comment-text").value;
     if (document.querySelector("#share-form"))
       shareDraft = {
         alias: document.querySelector("#share-alias").value,
@@ -385,28 +421,14 @@ export function createCommunity({
             posts = r.posts;
             next = r.next;
           }
-          if (action === "block") {
-            if (!confirm(t("blockConfirm"))) return;
-            await api("/api/community/posts/" + el.dataset.id + "/block", {});
-            toast(t("blocked"));
-            // The post just blocked is gone, so never stay on its page.
-            if (shown === "community-post") navigate("community");
-            else await enter("community");
+          if (action === "stamp-open") {
+            picker = el.dataset.id;
+            render();
             return;
           }
-          if (action === "unblock") {
-            await api("/api/community/blocks/" + el.dataset.id + "/remove", {});
-            toast(t("unblocked"));
-            await enter("community");
-            return;
-          }
-          // Reporting from a teaser has no reason picker; the detail page does.
-          if (action === "quick-report") {
-            if (!confirm(t("reportConfirm"))) return;
-            await api("/api/community/posts/" + el.dataset.id + "/report", {
-              reason: "other",
-            });
-            toast(t("reportSent"));
+          if (action === "stamp-close") {
+            picker = null;
+            render();
             return;
           }
           if (action === "post") {
@@ -414,37 +436,7 @@ export function createCommunity({
             navigate("community-post");
             return;
           }
-          if (action === "comments-next")
-            await loadPost(detail.post.id, detail.next);
-          if (action === "stamp") {
-            await api("/api/community/posts/" + detail.post.id + "/reaction", {
-              stamp:
-                detail.reaction === el.dataset.stamp ? null : el.dataset.stamp,
-            });
-            await loadPost(detail.post.id);
-          }
-          if (action === "delete-comment") {
-            await api(
-              "/api/community/posts/" +
-                detail.post.id +
-                "/comments/" +
-                el.dataset.id +
-                "/delete",
-              {},
-            );
-            await loadPost(detail.post.id);
-          }
-          if (action === "report" || action === "report-comment") {
-            await api("/api/community/posts/" + detail.post.id + "/report", {
-              reason:
-                document.querySelector("#report-reason")?.value || "other",
-              ...(action === "report-comment"
-                ? { commentId: el.dataset.id }
-                : {}),
-            });
-            toast(t("reportSent"));
-            return;
-          }
+          if (action === "stamp") await react(el.dataset.id, el.dataset.stamp);
           if (action === "unpublish") {
             await api("/api/community/posts/" + el.dataset.id + "/private", {});
             toast(t("unpublished"));
@@ -452,7 +444,16 @@ export function createCommunity({
           }
           render();
         });
-      el.onclick = activate;
+      el.onclick = (e) => {
+        // A button inside a post card acts alone; it never opens the post.
+        if (el.tagName === "BUTTON") e.stopPropagation();
+        // The tap that ends a long press only opened the stamps.
+        if (pressed && el.dataset.social === "post") {
+          pressed = false;
+          return;
+        }
+        return activate();
+      };
       // Whole-card posts are not buttons; keyboard users open them the same way.
       if (el.tagName !== "BUTTON")
         el.onkeydown = (e) => {
@@ -481,23 +482,48 @@ export function createCommunity({
           await enter("share", shareRecord);
         });
       };
-    const comments = document.querySelector("#comment-form");
-    if (comments)
-      comments.onsubmit = (e) => {
-        e.preventDefault();
-        run(async () => {
-          const text = document.querySelector("#comment-text").value;
-          await api("/api/community/posts/" + detail.post.id + "/comments", {
-            text,
-            alias: nickname().slice(0, 30),
-            requestId: crypto.randomUUID(),
-          });
-          await loadPost(detail.post.id);
-          commentDraft = "";
-          markSaved();
-          render();
-        });
+    bindLongPress();
+    const sheet = document.querySelector(".stamp-sheet");
+    if (sheet) {
+      sheet.querySelector(".stamp-option")?.focus({ preventScroll: true });
+      sheet.onkeydown = (e) => {
+        if (e.key !== "Escape") return;
+        picker = null;
+        render();
       };
+    }
+  }
+  // Holding a post (not a button in it) for LONG_PRESS_MS opens the stamps.
+  // Moving the finger, like a scroll, cancels it.
+  function bindLongPress() {
+    document.querySelectorAll("[data-post-id]").forEach((card) => {
+      let timer = null,
+        x = 0,
+        y = 0;
+      const cancel = () => {
+        clearTimeout(timer);
+        timer = null;
+      };
+      card.onpointerdown = (e) => {
+        pressed = false;
+        if (e.button > 0 || e.target.closest?.("button, a")) return;
+        x = e.clientX;
+        y = e.clientY;
+        cancel();
+        timer = setTimeout(() => {
+          timer = null;
+          longPress(card.dataset.postId);
+        }, LONG_PRESS_MS);
+      };
+      card.onpointermove = (e) => {
+        if (timer && Math.hypot(e.clientX - x, e.clientY - y) > 10) cancel();
+      };
+      card.onpointerup = cancel;
+      card.onpointercancel = cancel;
+      card.onpointerleave = cancel;
+      // No text selection or system menu under a long press.
+      card.oncontextmenu = (e) => e.preventDefault();
+    });
   }
   return {
     view,
@@ -535,6 +561,7 @@ export function createCommunity({
     },
     leave() {
       version++;
+      picker = null;
       current = "";
     },
     async makeRecordPrivate(id) {
