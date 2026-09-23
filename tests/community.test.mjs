@@ -808,3 +808,67 @@ test("only the server's own error codes reach the app", async () => {
   for (const e of [grpc, fault(429, "quotaReached"), new Error()])
     assert.ok(communityMessages[errorResponse(e).code]);
 });
+// On a Firebase project whose composite indexes were never deployed, every
+// timeline request failed: Firestore refuses an equality filter combined with
+// an order on another field (or on several fields) without one. The store
+// below refuses the same queries, and the whole community must still work.
+test("the timeline, teaser and own posts need no composite index", async () => {
+  const s = setup();
+  const list = s.store.list.bind(s.store);
+  s.store.list = async (collection, opts = {}) => {
+    const fields = new Set((opts.where || []).map(([field]) => field));
+    const order = opts.orderBy && opts.orderBy !== "__name__";
+    if (fields.size > 1 || (fields.size && order && !fields.has(opts.orderBy)))
+      throw Object.assign(
+        new Error("9 FAILED_PRECONDITION: The query requires an index."),
+        { code: 9 },
+      );
+    return list(collection, opts);
+  };
+  s.paid("reader", "standard");
+  // 30 public posts from others, with 70 private ones mixed in between.
+  const published = [];
+  for (let i = 0; i < 100; i++) {
+    const uid = `w${i}`;
+    s.setTime(at - 3600000 + i * 1000);
+    const { id } = await s.call("POST", "/api/community/publish", uid, post());
+    if (i % 10 < 3) published.push(id);
+    else
+      await s.call("POST", "/api/community/posts/:id/private", uid, {}, { id });
+  }
+  const own = await s.call("POST", "/api/community/publish", "reader", post());
+  // The timeline pages through every public post, newest first, skipping the
+  // private ones, and shows the member's own too.
+  const seen = [];
+  let after;
+  do {
+    const page = await s.call(
+      "GET",
+      "/api/community/feed",
+      "reader",
+      {},
+      {},
+      after ? { after } : {},
+    );
+    seen.push(...page.posts.map((p) => p.id));
+    after = page.next;
+  } while (after);
+  assert.equal(seen[0], own.id);
+  assert.deepEqual(new Set(seen), new Set([own.id, ...published]));
+  assert.equal(seen.length, published.length + 1);
+  // The free teaser finds today's posts, and a member's own list works too.
+  const teaser = await s.call(
+    "GET",
+    "/api/community/teaser",
+    "w0",
+    {},
+    {},
+    { day: "2026-09-17", tz: "0" },
+  );
+  assert.equal(teaser.posts.filter((p) => !p.mine).length, 3);
+  const mine = await s.call("GET", "/api/community/mine", "reader");
+  assert.deepEqual(
+    mine.posts.map((p) => p.id),
+    [own.id],
+  );
+});

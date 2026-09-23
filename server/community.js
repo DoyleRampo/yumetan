@@ -9,6 +9,10 @@ import {
 } from "../public/core/plans.js";
 import { fault, memberPath, dayKey } from "./access.js";
 const ident = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
+// How many posts one timeline or teaser request reads at most while skipping
+// private ones, and in what batches.
+const SCAN_BATCH = 50;
+const SCAN_LIMIT = 400;
 const postInput = z.object({
   recordId: ident,
   title: z.string().trim().min(1).max(80),
@@ -71,14 +75,53 @@ export function registerCommunity(
       (await store.get(`communityBlocks/${b}/targets/${a}`)),
     );
   }
-  route("get", "/api/community/mine", async (req, user) => {
-    const posts = await store.list("communityPosts", {
-      where: [
-        ["owner", "==", user.uid],
-        ["public", "==", true],
-      ],
-      limit: 100,
+  // Public posts, newest first, found without a composite index. Filtering on
+  // `public` while ordering by `sortKey` needs one, and on a project where it
+  // was never deployed every timeline request failed (FAILED_PRECONDITION, an
+  // internal error to the app). Walking the automatic single-field `sortKey`
+  // order and keeping the public posts needs none. `stop` ends the walk at the
+  // first post it accepts (the teaser stops before yesterday).
+  async function publicPosts({ after, want, stop = () => false }) {
+    const found = [];
+    let cursor = after,
+      more = true,
+      scanned = 0;
+    while (found.length < want && more && scanned < SCAN_LIMIT) {
+      const batch = await store.list("communityPosts", {
+        orderBy: "sortKey",
+        direction: "desc",
+        after: cursor,
+        limit: SCAN_BATCH,
+      });
+      scanned += batch.length;
+      more = batch.length === SCAN_BATCH;
+      for (const p of batch) {
+        if (stop(p)) {
+          more = false;
+          break;
+        }
+        cursor = p.sortKey;
+        if (!p.public) continue;
+        found.push(p);
+        if (found.length === want) break;
+      }
+    }
+    return {
+      posts: found,
+      // Where the next page starts, if there may be one.
+      next: more || found.length === want ? cursor || null : null,
+    };
+  }
+  // A member's own public posts: one equality filter, so no composite index.
+  async function ownPublic(uid, limit) {
+    const rows = await store.list("communityPosts", {
+      where: [["owner", "==", uid]],
+      limit: 500,
     });
+    return rows.filter((p) => p.public).slice(0, limit);
+  }
+  route("get", "/api/community/mine", async (req, user) => {
+    const posts = await ownPublic(user.uid, 100);
     return {
       posts: posts.map((p) => ({
         ...publicPost(p),
@@ -112,11 +155,10 @@ export function registerCommunity(
     const start = Date.parse(`${day}T00:00:00Z`) + tz * 60000,
       end = start + 86400000;
     if (!Number.isFinite(start)) throw fault(400, "invalidInput");
-    const batch = await store.list("communityPosts", {
-      where: [["public", "==", true]],
-      orderBy: "sortKey",
-      direction: "desc",
-      limit: 60,
+    // Newest first, so the walk ends at the first post from before this day.
+    const { posts: batch } = await publicPosts({
+      want: 60,
+      stop: (p) => Date.parse(p.publishedAt) < start,
     });
     const today = [];
     for (const p of batch) {
@@ -155,13 +197,7 @@ export function registerCommunity(
     });
     // Own posts are the member's own writing, so they are never shortened and
     // never take one of the teaser slots.
-    const own = await store.list("communityPosts", {
-      where: [
-        ["owner", "==", user.uid],
-        ["public", "==", true],
-      ],
-      limit: 50,
-    });
+    const own = await ownPublic(user.uid, 50);
     const mine = own
       .filter((p) => !p.hidden)
       .map((p) => ({ ...publicPost(p), mine: true }))
@@ -180,13 +216,8 @@ export function registerCommunity(
     const after = req.query.after
       ? parse(z.string().regex(/^[0-9TZ:._a-f-]{1,100}$/), req.query.after)
       : undefined;
-    const batch = await store.list("communityPosts", {
-      where: [["public", "==", true]],
-      orderBy: "sortKey",
-      direction: "desc",
-      after,
-      limit: 20,
-    });
+    const page = await publicPosts({ after, want: 20 });
+    const batch = page.posts;
     // The member's own public posts appear in the timeline too, marked `mine`;
     // they never cost a read and are shown even while hidden or expired.
     const posts = [];
@@ -222,10 +253,7 @@ export function registerCommunity(
     if (reads) await access.consume(user.uid, "reads", reads);
     return {
       posts: shown,
-      next:
-        batch.length === 20 && shown.length === posts.length
-          ? batch.at(-1).sortKey
-          : null,
+      next: shown.length === posts.length ? page.next : null,
     };
   });
   // Sharing a dream is part of the free plan; the daily and active allowances
