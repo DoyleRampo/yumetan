@@ -77,11 +77,12 @@ iOSアプリでは `AuthenticationServices` の標準シートで Sign in with A
 | `auth/apple-invalid-response` / `auth/apple-failed` | Apple がトークンを返さなかった | 同上。Apple 側の一時障害なら再試行 |
 | `auth/operation-not-allowed` | Firebase で Apple プロバイダが無効 | Firebase Console → Authentication → Sign-in method → Apple を有効化 |
 | `auth/invalid-credential` | Firebase がトークンを拒否（対象 ID の不一致など） | Firebase のプロジェクト設定に iOS アプリ `com.doyle.yumetan` が登録されているか。Web/Android は Services ID・Team ID・Key ID・秘密鍵が正しいか |
-| `auth/missing-or-invalid-nonce` | nonce の不一致 | アプリを最新版に更新（旧版はゲストから既存の Apple アカウントへ入り直すときにこのコードで失敗した） |
+| `auth/missing-or-invalid-nonce` | nonce の不一致 | アプリを最新版に更新（旧版はゲストから既存の Apple アカウントへ入り直すときにこのコードで失敗した。Firebase が「使用中」エラーに付ける復元用資格情報は pendingToken だけで nonce を持たず、再ログインで拒否される） |
+| `auth/apple-nonce-mismatch` | アプリ内で SHA-256(raw nonce) とトークンの nonce が一致しない | アプリの不具合。iOS プラグインと JS の nonce の受け渡しを確認 |
 | `auth/credential-already-in-use` / `auth/email-already-in-use` | 別アカウントで使用中 | 元のログイン方法でログインし、設定から連携 |
 | `auth/network-request-failed` | 通信失敗 | 通信状態。サーバー停止中でも Apple ログイン自体は Firebase と直接通信する |
 
-既知の不具合（修正済み）: ゲスト（匿名）状態から、すでに登録済みの Apple ID でログインし直すと、Firebase の「使用中」エラーから復元した資格情報に nonce が含まれず `auth/missing-or-invalid-nonce` で失敗していた。現在は元の ID トークンと raw nonce で再ログインする。アプリは起動時に必ず匿名ログインするため、再インストール・別端末・再ログインは全てこの経路を通る。
+既知の不具合（修正済み）: ゲスト（匿名）状態から、すでに登録済みの Apple ID でログインし直すと、Firebase の「使用中」エラーから復元した資格情報（pendingToken のみ、nonce なし）での再ログインが `auth/missing-or-invalid-nonce` で失敗していた。現在は Apple のように nonce 付きのトークンでは復元資格情報を使わず、必ず元の ID トークンと raw nonce で再ログインする（Apple の ID トークンは発行から数分間そのまま再送できる）。アプリは起動時に必ず匿名ログインするため、再インストール・別端末・再ログインは全てこの経路を通る。送信前にアプリ内でも SHA-256(raw nonce) とトークンの nonce を照合し、不一致なら `auth/apple-nonce-mismatch` として報告する。
 
 ### Apple（Web / Android: ブラウザ経由）
 

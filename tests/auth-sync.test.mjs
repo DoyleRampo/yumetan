@@ -347,27 +347,35 @@ test("native Apple credentials sign in, upgrade a guest, and never silently link
     "apple",
     { ...input, upgrade: true },
   );
+  // A nonce-bound Apple token is sent again as is: the credential Firebase
+  // attaches to the error (a pending token without the nonce) is rejected by the
+  // backend with auth/missing-or-invalid-nonce.
   assert.equal(conflict.user.uid, "apple-user");
+  assert.deepEqual(calls.at(-1), [
+    "signIn",
+    { provider: "apple.com", idToken: "jwt", rawNonce: "nonce" },
+  ]);
+  // A token without a nonce (Google) still prefers Firebase's recovered credential.
+  const google = await credentialLogin(
+    A,
+    { currentUser: { uid: "guest-used" } },
+    "google",
+    { idToken: "gjwt", accessToken: "gat", upgrade: true },
+  );
+  assert.equal(google.user.uid, "apple-user");
   assert.deepEqual(calls.at(-1), [
     "signIn",
     { provider: "apple.com", fromError: true, pendingToken: "pt" },
   ]);
-  // Without a pending token or nonce the recovered credential would be rejected
-  // (auth/missing-or-invalid-nonce), so the original token + raw nonce is reused.
-  for (const recovered of [{ provider: "apple.com", fromError: true }, null]) {
-    Provider.recovered = recovered;
-    const again = await credentialLogin(
-      A,
-      { currentUser: { uid: "guest-used" } },
-      "apple",
-      { ...input, upgrade: true },
-    );
-    assert.equal(again.user.uid, "apple-user");
-    assert.deepEqual(calls.at(-1), [
-      "signIn",
-      { provider: "apple.com", idToken: "jwt", rawNonce: "nonce" },
-    ]);
-  }
+  Provider.recovered = null;
+  await credentialLogin(A, { currentUser: { uid: "guest-used" } }, "google", {
+    idToken: "gjwt",
+    upgrade: true,
+  });
+  assert.deepEqual(calls.at(-1), [
+    "signIn",
+    { provider: "google.com", idToken: "gjwt", rawNonce: undefined },
+  ]);
   // Every failure explains itself with a specific message and keeps its code.
   assert.equal(authErrorKey("auth/apple-unknown"), "appleDevice");
   assert.equal(authErrorKey("auth/invalid-credential"), "appleToken");

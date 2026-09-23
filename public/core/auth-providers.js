@@ -74,17 +74,14 @@ export async function credentialLogin(
       )
     )
       throw error;
-    // A guest whose Apple ID already has an account: sign in to that account.
-    // The credential Firebase attaches to the error may lack the nonce that an
-    // Apple ID token must be sent with (auth/missing-or-invalid-nonce), so it is
-    // used only when it can stand on its own (a pending token or its own nonce);
-    // otherwise the original token + raw nonce is sent again.
-    const recovered = A.OAuthProvider.credentialFromError(error);
-    return A.signInWithCredential(
-      auth,
-      recovered && (recovered.pendingToken || recovered.nonce || !rawNonce)
-        ? recovered
-        : credential,
-    );
+    // A guest whose identity already has an account: sign in to that account.
+    // For a nonce-bound token (Sign in with Apple) the credential Firebase
+    // attaches to the error cannot be replayed: it carries a pending token but
+    // no nonce, and the backend answers auth/missing-or-invalid-nonce. The
+    // original ID token + raw nonce is still valid, so it is sent again instead.
+    const recovered = rawNonce
+      ? null
+      : A.OAuthProvider.credentialFromError(error);
+    return A.signInWithCredential(auth, recovered || credential);
   }
 }

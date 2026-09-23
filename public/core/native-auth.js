@@ -171,6 +171,23 @@ export async function lineNativeLogin({ cloud, link, base, config }) {
   return cloud.signInToken(value.token);
 }
 
+export async function checkAppleNonce(identityToken, rawNonce) {
+  let claim;
+  try {
+    const payload = identityToken.split(".")[1];
+    claim = JSON.parse(
+      atob(payload.replace(/-/g, "+").replace(/_/g, "/")),
+    ).nonce;
+  } catch {
+    throw authError("auth/apple-invalid-response");
+  }
+  if (!claim || !rawNonce || !crypto.subtle) return;
+  const digest = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rawNonce)),
+  );
+  const hex = [...digest].map((b) => b.toString(16).padStart(2, "0")).join("");
+  if (hex !== claim) throw authError("auth/apple-nonce-mismatch");
+}
 // Sign in with Apple through the system sheet (iOS AppleLogin plugin).
 export function appleNativeAvailable() {
   return Boolean(window.Capacitor?.Plugins?.AppleLogin);
@@ -187,6 +204,9 @@ export async function appleNativeLogin({ cloud, link, upgrade }) {
     );
   }
   if (!result?.identityToken) throw authError("authFailed");
+  // The token's nonce claim must be SHA-256(rawNonce); check it here so a
+  // mismatch is reported as an app problem instead of a vague server rejection.
+  await checkAppleNonce(result.identityToken, result.rawNonce);
   const displayName = [result.givenName, result.familyName]
     .filter(Boolean)
     .join(" ")

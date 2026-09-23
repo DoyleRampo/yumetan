@@ -149,13 +149,15 @@ public class AppleLoginPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationContr
     public let jsName = "AppleLogin"
     public let pluginMethods: [CAPPluginMethod] = [CAPPluginMethod(name: "login", returnType: CAPPluginReturnPromise)]
     private var pending: CAPPluginCall?
-    private var rawNonce = ""
     private var controller: ASAuthorizationController?
+    // The raw nonce belongs to one request: the token Apple returns carries
+    // SHA-256 of exactly this value, so it is kept per controller, never shared.
+    private var nonces: [ObjectIdentifier: String] = [:]
 
     @objc func login(_ call: CAPPluginCall) {
         pending?.reject("Replaced by a newer sign-in request", "auth/cancelled-popup-request")
         pending = call
-        rawNonce = AppleLoginPlugin.randomNonce()
+        let rawNonce = AppleLoginPlugin.randomNonce()
         let hashed = SHA256.hash(data: Data(rawNonce.utf8)).map { String(format: "%02x", $0) }.joined()
         DispatchQueue.main.async {
             let request = ASAuthorizationAppleIDProvider().createRequest()
@@ -164,12 +166,14 @@ public class AppleLoginPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationContr
             let controller = ASAuthorizationController(authorizationRequests: [request])
             controller.delegate = self
             controller.presentationContextProvider = self
+            self.nonces[ObjectIdentifier(controller)] = rawNonce
             self.controller = controller
             controller.performRequests()
         }
     }
 
     public func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        let rawNonce = nonces.removeValue(forKey: ObjectIdentifier(controller)) ?? ""
         defer { pending = nil; self.controller = nil }
         guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
               let tokenData = credential.identityToken,
@@ -187,6 +191,7 @@ public class AppleLoginPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationContr
     }
 
     public func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        nonces.removeValue(forKey: ObjectIdentifier(controller))
         defer { pending = nil; self.controller = nil }
         // ASAuthorizationError raw values (kept numeric so newer SDK cases still compile):
         // 1000 unknown (no iCloud account, missing entitlement, Simulator), 1001 canceled,
