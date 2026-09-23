@@ -228,10 +228,10 @@ export const communityMessages = {
     "Record up to three dreams a day, each with an AI reading, plus full posts, publishing, stamps and comments.",
   ],
   diaryQuota: [
-    "今日の日記はプランの保存回数に達しました。プランを選ぶと続けて書けます。",
-    "오늘 일기는 플랜의 저장 횟수에 도달했어요. 플랜을 선택하면 계속 쓸 수 있어요.",
-    "今天的日记已达到套餐的保存次数，选择套餐后可继续记录。",
-    "Today's diary has reached your plan's save limit. Choose a plan to keep writing.",
+    "この日付の日記は、プランの保存回数に達しました。上のプランでは保存できる回数が増えます。",
+    "이 날짜의 일기는 플랜의 저장 횟수에 도달했어요. 상위 플랜에서는 저장 횟수가 늘어나요.",
+    "该日期的日记已达到套餐的保存次数，更高套餐可保存更多次。",
+    "This date's diary has reached your plan's save limit. Higher plans allow more saves.",
   ],
   moreDreamsCta: [
     "もう1件記録するにはプランへ",
@@ -470,10 +470,10 @@ export const communityMessages = {
     "Sign in and connect to check or change sharing.",
   ],
   freeQuota: [
-    "この日付の夢は無料枠の上限です。プランを選ぶと、同じ日に続けて記録できます。",
-    "이 날짜의 꿈 한도에 도달했어요. 기존 꿈을 편집하거나 플랜을 변경해 주세요.",
-    "该日期的梦境数量已达上限，请编辑已有梦境或更换套餐。",
-    "The dream limit for this date is reached. Edit an existing dream or change your plan.",
+    "この日付に記録できる夢の数の上限に達しました。記録済みの夢を編集するか、上のプランで記録できる数を増やせます。",
+    "이 날짜에 기록할 수 있는 꿈 개수 한도에 도달했어요. 기록한 꿈을 편집하거나 상위 플랜에서 기록 개수를 늘릴 수 있어요.",
+    "该日期可记录的梦境数量已达上限。可以编辑已记录的梦，或选择更高套餐记录更多。",
+    "You've reached the number of dreams you can record for this date. Edit a recorded dream, or choose a higher plan to record more.",
   ],
   renewalNote: [
     "月額・年額とも自動更新です。次回更新前にApp Store / Google Playのサブスクリプション設定から解約できます。解約後も支払済み期間は利用でき、期間終了後は非公開の記録を保持したまま無料版になります。",
@@ -508,6 +508,85 @@ export const communityMessages = {
     "Other paid members will be able to read this text. Publish?",
   ],
   removeComment: ["コメントを削除", "댓글 삭제", "删除评论", "Delete comment"],
+  // Per-feature wording for a shared error code (see core/api-errors.js).
+  handwritingPaidRequired: [
+    "手書きノートの文字の読み取り（AI画像認識）は、スターター以上のプランで使えます。フリープランでも画像の添付はできます。",
+    "손글씨 노트 글자 인식(AI 이미지 인식)은 스타터 이상 플랜에서 사용할 수 있어요. 무료 플랜에서도 이미지는 첨부할 수 있어요.",
+    "手写笔记文字识别（AI图像识别）需入门版及以上套餐。免费套餐也可以添加图片。",
+    "Reading handwritten notes (AI image recognition) is available on the Starter plan and above. You can still attach the image on the Free plan.",
+  ],
+  handwritingQuotaReached: [
+    "今月の手書き文字の読み取り（AI画像認識）の回数を使い切りました。回数は毎月1日にリセットされます。本文は手入力で続けられます。",
+    "이번 달 손글씨 인식(AI 이미지 인식) 횟수를 모두 사용했어요. 횟수는 매월 1일에 초기화돼요. 본문은 직접 입력할 수 있어요.",
+    "本月的手写文字识别（AI图像识别）次数已用完，每月1日重置。可以手动输入正文继续记录。",
+    "You've used this month's handwriting recognition (AI image recognition). It resets on the 1st of each month; you can keep typing the text yourself.",
+  ],
+  handwritingBudgetReached: [
+    "今月のAI利用枠に達したため、手書き文字の読み取り（AI画像認識）は来月まで使えません。本文は手入力で続けられます。",
+    "이번 달 AI 이용 한도에 도달해 손글씨 인식(AI 이미지 인식)은 다음 달부터 사용할 수 있어요. 본문은 직접 입력할 수 있어요.",
+    "本月AI额度已用完，手写文字识别（AI图像识别）下月起可再次使用。可以手动输入正文继续记录。",
+    "This month's AI budget is used up, so handwriting recognition (AI image recognition) returns next month. You can keep typing the text yourself.",
+  ],
+  handwritingFailed: [
+    "手書き文字を読み取れませんでした。明るい場所で、ノートの文字全体が写るように撮り直してください。再試行も読み取り回数を使います。",
+    "손글씨를 인식하지 못했어요. 밝은 곳에서 글자 전체가 보이도록 다시 찍어 주세요. 다시 시도해도 인식 횟수가 사용돼요.",
+    "未能识别手写文字。请在明亮处重新拍摄，让笔记文字完整入镜。重试也会消耗识别次数。",
+    "The handwriting could not be read. Retake the photo in good light with all of the writing in frame. A retry also uses a recognition.",
+  ],
+  handwritingUnavailable: [
+    "AI画像認識の準備中のため、手書き文字の読み取りは今は使えません。本文は手入力で続けられます。",
+    "AI 이미지 인식을 준비 중이라 지금은 손글씨를 인식할 수 없어요. 본문은 직접 입력할 수 있어요.",
+    "AI图像识别正在准备中，暂时无法识别手写文字。可以手动输入正文继续记录。",
+    "AI image recognition is not available yet, so handwriting can't be read right now. You can keep typing the text yourself.",
+  ],
+  handwritingInvalidImage: [
+    "この画像は読み取れません。JPEG・PNG・WebPのノートの写真を選び直してください。",
+    "이 이미지는 인식할 수 없어요. JPEG·PNG·WebP 노트 사진을 다시 선택해 주세요.",
+    "无法识别此图片，请重新选择 JPEG、PNG 或 WebP 格式的笔记照片。",
+    "This image can't be read. Choose a JPEG, PNG or WebP photo of the notebook.",
+  ],
+  aiSuspended: [
+    "このアカウントは利用が停止されているため、AI機能は使えません。",
+    "이 계정은 이용이 정지되어 AI 기능을 사용할 수 없어요.",
+    "此账号已被暂停使用，无法使用AI功能。",
+    "This account is suspended, so AI features are unavailable.",
+  ],
+  readingQuotaReached: [
+    "この日付のAI診断を使い切りました（記録できる夢1件につき1回）。上のプランでは、1日に記録・診断できる夢が増えます。",
+    "이 날짜의 AI 진단을 모두 사용했어요(기록할 수 있는 꿈 1개당 1회). 상위 플랜에서는 하루에 기록·진단할 수 있는 꿈이 늘어나요.",
+    "该日期的AI诊断次数已用完（每条可记录的梦1次）。更高套餐每天可记录和诊断更多梦境。",
+    "This date's AI readings are used up (one for each dream you can record). Higher plans record and read more dreams a day.",
+  ],
+  publishQuotaReached: [
+    "今日の公開回数か、公開中の投稿数の上限に達しました。公開中の投稿を非公開にするか、時間をおいて公開してください。",
+    "오늘의 공개 횟수 또는 공개 중인 게시물 수 한도에 도달했어요. 공개 중인 게시물을 비공개로 하거나 나중에 공개해 주세요.",
+    "已达到今日发布次数或公开帖子数量上限。请将已公开的帖子设为私密，或稍后再发布。",
+    "You've reached today's publishing limit or the number of posts you can keep public. Make a post private, or publish later.",
+  ],
+  reactionQuotaReached: [
+    "今日送れるスタンプの上限に達しました。上限は毎日リセットされます。",
+    "오늘 보낼 수 있는 스탬프 한도에 도달했어요. 한도는 매일 초기화돼요.",
+    "今日可发送的表情已达上限，每天重置。",
+    "You've reached today's stamp limit. It resets every day.",
+  ],
+  commentQuotaReached: [
+    "今日書けるコメントの上限に達しました。上限は毎日リセットされます。",
+    "오늘 쓸 수 있는 댓글 한도에 도달했어요. 한도는 매일 초기화돼요.",
+    "今日可发表的评论已达上限，每天重置。",
+    "You've reached today's comment limit. It resets every day.",
+  ],
+  readQuotaReached: [
+    "今日読めるみんなの夢の件数の上限に達しました。上限は毎日リセットされます。",
+    "오늘 읽을 수 있는 모두의 꿈 개수 한도에 도달했어요. 한도는 매일 초기화돼요.",
+    "今日可阅读的大家的梦已达上限，每天重置。",
+    "You've read today's allowance of members' dreams. It resets every day.",
+  ],
+  tooManyRequests: [
+    "短い時間に操作が続いたため、一時的に制限しています。1分ほど待ってから再試行してください。",
+    "짧은 시간에 요청이 많아 잠시 제한하고 있어요. 1분 정도 기다린 후 다시 시도해 주세요.",
+    "短时间内操作过于频繁，已暂时限制。请等待约1分钟后重试。",
+    "Too many requests in a short time. Wait about a minute and try again.",
+  ],
   // The server answers an unknown path with `notFound`. For the app that means
   // the API it is talking to is older than this build, so say that rather than
   // leaving the generic failure below to stand in for it.

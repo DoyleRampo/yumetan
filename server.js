@@ -66,7 +66,8 @@ app.use(
       for (const [k, v] of bursts) if (v.minute !== minute) bursts.delete(k);
     const count = previous?.minute === minute ? previous.count + 1 : 1;
     bursts.set(key, { minute, count });
-    if (count > 90) throw fault(429, "quotaReached");
+    // Not a plan allowance: its own code, so no feature reports it as one.
+    if (count > 90) throw fault(429, "tooManyRequests");
     req.verifiedUser = user;
     next();
   }),

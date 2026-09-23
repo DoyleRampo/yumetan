@@ -598,12 +598,6 @@ export const messages = {
     "请核对并修正识别内容后再保存。",
     "Review and correct the recognized text before saving.",
   ],
-  aiRequired: [
-    "AIでの読み取りはスターター以上のプランで使えます。",
-    "AI 읽기는 스타터 이상 플랜에서 사용할 수 있어요.",
-    "AI识别功能需入门版及以上套餐。",
-    "AI reading is available on the Starter plan and above.",
-  ],
   advice: [
     "今夜の小さなヒント",
     "오늘 밤의 작은 힌트",

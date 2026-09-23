@@ -37,6 +37,7 @@ import {
   googleNativeLogin,
 } from "./core/native-auth.js";
 import { createCommunity, communityText } from "./community.js";
+import { errorMessageKey } from "./core/api-errors.js";
 import { createPurchases } from "./core/purchases.js";
 import { canSaveRecord, PLANS } from "./core/plans.js";
 import {
@@ -1061,7 +1062,7 @@ function analysisCard(d) {
     !ai && !signedIn()
       ? `<div class="reading-upsell"><p class="help">${t("readingLogin")}</p><button type="button" class="btn small ghost" data-go="settings">${t("signIn")}</button></div>`
       : !ai && failure
-        ? `<div class="reading-upsell reading-failure"><p class="help"><strong>${t("readingFailed")}</strong> ${esc(d.aiError === "networkError" ? t("networkError") : ct(d.aiError))}</p>${["quotaReached", "aiBudgetReached", "paidRequired"].includes(d.aiError) ? `<button type="button" class="btn small ghost" data-go="plans">${t("viewPlans")}</button>` : d.aiError === "aiTextTooLong" ? "" : button("retryReading", "retry-reading", "small ghost")}</div>`
+        ? `<div class="reading-upsell reading-failure"><p class="help"><strong>${t("readingFailed")}</strong> ${esc(d.aiError === "networkError" ? t("networkError") : ct(errorMessageKey(d.aiError, "reading")))}</p>${["quotaReached", "aiBudgetReached", "paidRequired"].includes(d.aiError) ? `<button type="button" class="btn small ghost" data-go="plans">${t("viewPlans")}</button>` : d.aiError === "aiTextTooLong" ? "" : button("retryReading", "retry-reading", "small ghost")}</div>`
         : "";
   const body = rich
     ? `<section class="reading-section"><h3>${t("mentalState")}</h3><p class="mood-line">${weather ? `<span class="mood-icon" aria-hidden="true">${weather[0]}</span>` : ""}<strong>${esc(a.mood_label)}</strong>${weather ? `<small>${t(weather[1])}</small>` : ""}</p><p class="prose">${esc(a.mental_state)}</p></section>
@@ -1821,14 +1822,16 @@ async function api(path, body) {
       signal: controller.signal,
     });
     const data = await response.json();
-    if (!response.ok)
-      throw Object.assign(
-        new Error(data.code ? ct(data.code) : t("networkError")),
-        {
-          userMessage: data.code ? ct(data.code) : t("networkError"),
-          code: data.code || "networkError",
-        },
-      );
+    if (!response.ok) {
+      // Said in the terms of the feature that failed (core/api-errors.js).
+      const message = data.code
+        ? ct(errorMessageKey(data.code, path))
+        : t("networkError");
+      throw Object.assign(new Error(message), {
+        userMessage: message,
+        code: data.code || "networkError",
+      });
+    }
     return data;
   } catch (e) {
     if (e.userMessage) throw e;
@@ -1876,7 +1879,7 @@ async function loadPhoto(file) {
 }
 async function recognize() {
   capture();
-  if (displayPlan() === "free") throw new Error(t("aiRequired"));
+  if (displayPlan() === "free") throw new Error(ct("handwritingPaidRequired"));
   disableActionButtons();
   const data = await api("/api/handwriting", { image: draft.photo });
   draft.text = [draft.text, data.text].filter(Boolean).join("\n");

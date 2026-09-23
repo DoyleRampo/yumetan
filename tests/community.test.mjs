@@ -13,6 +13,10 @@ import {
 } from "../public/core/plans.js";
 import { communityMessages } from "../public/core/community-i18n.js";
 import { createCommunity, communityText } from "../public/community.js";
+import {
+  errorMessageKey,
+  FEATURE_MESSAGES,
+} from "../public/core/api-errors.js";
 const at = Date.parse("2026-09-17T10:00:00Z");
 function setup() {
   const store = new MemoryStore();
@@ -718,4 +722,45 @@ test("a plan switch keeps syncing until the server reports the plan bought", asy
   } finally {
     globalThis.document = previous;
   }
+});
+// Every error used to be worded by its code alone, so a free member trying
+// handwriting recognition was told about the community paywall.
+test("an error is worded for the feature that met it", () => {
+  const say = (code, path) => communityText(errorMessageKey(code, path), "ja");
+  // Handwriting: the plan notice is about AI image recognition.
+  assert.match(say("paidRequired", "/api/handwriting"), /手書き.*AI画像認識/);
+  assert.doesNotMatch(say("paidRequired", "/api/handwriting"), /ほかの人の夢/);
+  for (const code of ["quotaReached", "aiBudgetReached", "aiFailed"])
+    assert.match(say(code, "/api/handwriting"), /手書き/);
+  assert.doesNotMatch(say("aiUnavailable", "/api/handwriting"), /端末内/);
+  // The community keeps its own paywall wording.
+  assert.equal(
+    say("paidRequired", "/api/community/feed"),
+    communityText("paidRequired", "ja"),
+  );
+  // Each allowance says which one ran out.
+  assert.match(say("quotaReached", "/api/reflect"), /AI診断/);
+  assert.match(say("quotaReached", "/api/community/publish"), /公開/);
+  assert.match(
+    say("quotaReached", "/api/community/posts/abc/reaction"),
+    /スタンプ/,
+  );
+  assert.match(
+    say("quotaReached", "/api/community/posts/abc/comments"),
+    /コメント/,
+  );
+  assert.match(
+    say("quotaReached", "/api/community/feed?after=x"),
+    /みんなの夢/,
+  );
+  assert.match(say("quotaReached", "/api/community/posts/abc"), /みんなの夢/);
+  // A code a feature does not reword falls back to the shared message.
+  assert.equal(
+    say("loginRequired", "/api/handwriting"),
+    communityText("loginRequired", "ja"),
+  );
+  // Every key a feature names exists in all four languages.
+  for (const table of Object.values(FEATURE_MESSAGES))
+    for (const key of Object.values(table))
+      assert.equal(communityMessages[key]?.length, 4, key);
 });

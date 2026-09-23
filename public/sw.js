@@ -1,4 +1,4 @@
-const CACHE = "yumetan-4.8.0";
+const CACHE = "yumetan-4.8.1";
 const SHELL = [
   "./",
   "index.html",
@@ -27,6 +27,7 @@ const SHELL = [
   "community.js",
   "core/plans.js",
   "core/community-i18n.js",
+  "core/api-errors.js",
   "core/characters.js",
   "assets/characters/dreamwalkers-v1/catalog.js",
   "assets/characters/moonkeepers-v1/catalog.js",
