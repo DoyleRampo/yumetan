@@ -205,10 +205,12 @@ export function createCommunity({
       shareDraft = null;
     }
     render();
+    let verified = false;
     try {
       const result = signedIn() ? await api("/api/account") : { plan: "free" };
       if (token !== version) return;
       setAccount(result);
+      verified = true;
       if (page === "share" && signedIn() && record) {
         const r = await api(
           "/api/community/record/" + encodeURIComponent(record.id),
@@ -225,8 +227,13 @@ export function createCommunity({
             : (record.text || "").slice(0, 4000),
         };
       }
+      // The block list only decorates the page; losing it must not cost the
+      // member the dreams themselves.
       if (page === "community" && signedIn())
-        blocks = (await api("/api/community/blocks")).blocks || [];
+        blocks = await api("/api/community/blocks").then(
+          (r) => r.blocks || [],
+          () => [],
+        );
       if (token !== version) return;
       if (page === "community" && plan() !== "free") {
         const r = await api("/api/community/feed");
@@ -245,7 +252,10 @@ export function createCommunity({
     } catch (e) {
       if (token === version) {
         error = e.message;
-        setAccount({ plan: "free" }, false);
+        // Only an account request that itself failed leaves the plan unknown.
+        // A failed timeline must not demote a member the server just confirmed,
+        // or a passing error hides the very dreams they pay to read.
+        if (!verified) setAccount({ plan: "free" }, false);
       }
     } finally {
       if (token === version) {

@@ -508,6 +508,21 @@ export const communityMessages = {
     "Other paid members will be able to read this text. Publish?",
   ],
   removeComment: ["コメントを削除", "댓글 삭제", "删除评论", "Delete comment"],
+  // The server answers an unknown path with `notFound`. For the app that means
+  // the API it is talking to is older than this build, so say that rather than
+  // leaving the generic failure below to stand in for it.
+  notFound: [
+    "この機能に接続先のサーバーがまだ対応していません。アプリとサーバーの更新をご確認ください。",
+    "연결된 서버가 아직 이 기능을 지원하지 않아요. 앱과 서버 업데이트를 확인해 주세요.",
+    "所连接的服务器尚不支持此功能，请确认应用和服务器已更新。",
+    "The server this app connects to does not support this feature yet. Check that both the app and the server are up to date.",
+  ],
+  forbidden: [
+    "この操作の権限がありません。",
+    "이 작업을 수행할 권한이 없어요.",
+    "没有执行此操作的权限。",
+    "You do not have permission for this action.",
+  ],
   error: [
     "処理できませんでした",
     "처리하지 못했어요",

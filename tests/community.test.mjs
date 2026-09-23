@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { MemoryStore } from "./helpers/memory-store.mjs";
 import { createAccess, memberPath, dayKey } from "../server/access.js";
 import { registerCommunity } from "../server/community.js";
@@ -11,6 +12,7 @@ import {
   activePlan,
 } from "../public/core/plans.js";
 import { communityMessages } from "../public/core/community-i18n.js";
+import { createCommunity } from "../public/community.js";
 const at = Date.parse("2026-09-17T10:00:00Z");
 function setup() {
   const store = new MemoryStore();
@@ -97,6 +99,40 @@ test("three plan prices, calendar entry quotas, editing and all translations are
     assert.ok(
       values.length === 4 &&
         values.every((x) => typeof x === "string" && x.length),
+    );
+});
+// Every failure the app shows goes through `communityText(code)`, which falls
+// back to the bare "Unable to complete" for a code it does not know. An app
+// talking to a server older than itself got exactly that for `notFound`, so the
+// missing route read as an unexplained failure. Keep the codes and the messages
+// together instead.
+test("every error code a request can return has a message in all four languages", async () => {
+  // Codes never shown to anyone: the RevenueCat webhook is server to server,
+  // and /api/auth/* speaks its own strings through core/auth-i18n.js.
+  const internal = new Set(["invalidSignature"]);
+  const sources = [
+    "../server.js",
+    "../server-features.js",
+    "../server/community.js",
+    "../server/access.js",
+    "../server/openai.js",
+    "../server/account.js",
+    "../server/billing.js",
+  ];
+  const codes = new Set();
+  for (const file of sources) {
+    const text = await readFile(new URL(file, import.meta.url), "utf8");
+    for (const [, code] of text.matchAll(
+      /(?:fault\(\d+,\s*|code:\s*)"([a-zA-Z]+)"/g,
+    ))
+      if (!internal.has(code)) codes.add(code);
+  }
+  // The catch-all 404 is what an app one release ahead of the server meets.
+  assert.ok(codes.has("notFound"));
+  for (const code of codes)
+    assert.ok(
+      communityMessages[code],
+      `${code} has no message, so it would show as the generic error`,
     );
 });
 test("reading the feed rejects guests, forged identities and free accounts; publishing is free", async () => {
@@ -567,4 +603,59 @@ test("any member can report and block; a block hides both members from each othe
     (await s.call("GET", "/api/community/feed", "free")).posts.length,
     2,
   );
+});
+// The community page loads the plan first, then the block list, then the
+// dreams. A failure in one of the later steps used to reset the plan to free
+// and abandon the page, so a paid member lost the timeline they had just been
+// confirmed for, and a free member lost the teaser to an unrelated error.
+test("a failed block list or timeline keeps the plan the server confirmed", async () => {
+  const paidAccount = { plan: "starter", paidUntil: Date.now() + 86400000 };
+  const page = (replies) => {
+    const asked = [];
+    const community = createCommunity({
+      api: async (path) => {
+        asked.push(path.split("?")[0]);
+        const reply = replies[path.split("?")[0]];
+        if (reply instanceof Error) throw reply;
+        return reply;
+      },
+      language: () => "ja",
+      esc: (s) => String(s),
+      navigate: () => {},
+      render: () => {},
+      toast: () => {},
+      run: async (fn) => fn(),
+      markSaved: () => {},
+      signedIn: () => true,
+      nickname: () => "Dreamer",
+      character: () => ({ image: "", setId: "human" }),
+      currentType: () => "challenge",
+      isNative: () => false,
+      purchases: null,
+    });
+    return { community, asked };
+  };
+  // A paid member whose timeline request fails keeps the paid plan, so the
+  // page still shows the timeline (empty, with the error) and not the paywall.
+  const failed = Object.assign(new Error("boom"), {
+    code: "serviceUnavailable",
+  });
+  const paid = page({
+    "/api/account": paidAccount,
+    "/api/community/blocks": { blocks: [] },
+    "/api/community/feed": failed,
+  });
+  await paid.community.enter("community");
+  assert.equal(paid.community.plan(), "starter");
+  assert.match(paid.community.view("community"), /boom/);
+  // A block list the server cannot answer does not cost a free member the
+  // teaser: the dreams still load.
+  const free = page({
+    "/api/account": { plan: "free" },
+    "/api/community/blocks": failed,
+    "/api/community/teaser": { day: "2026-09-17", total: 1, posts: [] },
+  });
+  await free.community.enter("community");
+  assert.ok(free.asked.includes("/api/community/teaser"));
+  assert.equal(free.community.plan(), "free");
 });
