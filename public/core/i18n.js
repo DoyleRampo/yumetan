@@ -758,6 +758,7 @@ export const messages = {
     "隐私政策",
     "Privacy policy",
   ],
+  termsOfUse: ["利用規約", "이용약관", "使用条款", "Terms of Use"],
   visibilityPaidNote: [
     "みんなの夢への公開は、スターター以上のプランで使えます。",
     "모두의 꿈에 공개하는 기능은 스타터 이상 요금제에서 사용할 수 있어요.",

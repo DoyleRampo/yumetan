@@ -880,6 +880,29 @@ select {
 .teaser-card .teaser-text {
   margin: 0;
 }
+.post-actions {
+  gap: 8px;
+  margin-top: 10px;
+}
+.post-actions .btn {
+  padding: 4px 12px;
+  min-height: 32px;
+  font-size: 13px;
+}
+.blocked-list {
+  margin-top: 20px;
+}
+.blocked-row {
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.legal-note {
+  margin-top: 20px;
+}
+.legal-links {
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .test-store {
   border: 1px solid var(--gold);
   border-radius: 12px;

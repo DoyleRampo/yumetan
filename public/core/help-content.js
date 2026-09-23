@@ -4,6 +4,9 @@
 export const HELP_LINKS = {
   support: "https://yumetan-support.ni23al.chatgpt.site/support/",
   privacy: "https://yumetan-support.ni23al.chatgpt.site/privacy/",
+  // Apple's standard licence agreement, which applies while no separate terms
+  // of use are published. Replace it with your own once they exist.
+  terms: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/",
 };
 export const HELP_SECTIONS = [
   {
@@ -92,6 +95,12 @@ export const HELP_SECTIONS = [
         "무료 플랜에서는 그날의 게시물 중 무작위 3개, 꿈 본문은 15자까지 보여요. 이름과 제목은 그대로 표시돼요.",
         "免费套餐会从当天的帖子中随机显示3条，梦的正文最多15字，名字和标题完整显示。",
         "On Free you see a random three of the day's posts with 15 characters of each dream; names and titles are shown whole.",
+      ],
+      [
+        "気になる投稿は通報できます。相手をブロックすると、お互いの投稿とコメントが表示されなくなります。どちらもプランを問わず使え、ブロックは「みんなの夢」の一覧からいつでも解除できます。",
+        "불편한 게시물은 신고할 수 있어요. 상대를 차단하면 서로의 게시물과 댓글이 보이지 않아요. 둘 다 요금제와 상관없이 쓸 수 있고, 차단은 「모두의 꿈」 목록에서 언제든 해제할 수 있어요.",
+        "可以举报有问题的帖子。屏蔽某人后，双方的帖子和评论都不再显示。两者不限套餐均可使用，屏蔽可随时在「大家的梦」列表中解除。",
+        "You can report a post, and blocking a member hides your posts and comments from each other. Both work on any plan, and a block can be undone from the list in the dream feed.",
       ],
       [
         "自分が公開した夢は、フリープランでも「みんなの夢」に全文表示され、届いたコメントも読めます。スタンプとコメントの投稿は有料プランです。",

@@ -2,6 +2,7 @@ import { loadingMarkup, beginLoading } from "./core/loading.js";
 import { PLANS, STAMPS } from "./core/plans.js";
 import { planFromCustomerInfo } from "./core/purchases.js";
 import { communityMessages } from "./core/community-i18n.js";
+import { HELP_LINKS } from "./core/help-content.js";
 import { localized } from "./core/types.js";
 export const communityText = (key, lang) =>
   localized(communityMessages[key] || communityMessages.error, lang);
@@ -41,6 +42,8 @@ export function createCommunity({
     sharing = null,
     shareDraft = null,
     teaser = null,
+    blocks = [],
+    shown = "",
     cycle = "monthly",
     selectedPlan = "starter",
     commentDraft = "";
@@ -81,7 +84,7 @@ export function createCommunity({
   const teaserCard = (p) =>
     p.mine
       ? postCard(p, true, true)
-      : `<article class="card feed-card teaser-card">${author(p)}<div class="post-body"><strong class="post-name">${postName(p)}</strong><p class="post-title">${esc(p.title)}</p><p class="prose post-text teaser-text">${esc(p.excerpt)}<button type="button" class="link-button" data-social="plans">${t("readMore")}</button></p></div></article>`;
+      : `<article class="card feed-card teaser-card">${author(p)}<div class="post-body"><strong class="post-name">${postName(p)}</strong><p class="post-title">${esc(p.title)}</p><p class="prose post-text teaser-text">${esc(p.excerpt)}<button type="button" class="link-button" data-social="plans">${t("readMore")}</button></p><div class="row post-actions">${b("report", "quick-report", `data-id="${esc(p.id)}"`)}${b("block", "block", `data-id="${esc(p.id)}"`)}</div></div></article>`;
   const teaserView = () =>
     `<div class="teaser"><span class="eyebrow">MEMBERS' DREAMS</span><h2>${t("communityIntro")}</h2><p class="help">${t("teaserHint")}</p><div class="feed-list">${(teaser?.posts || []).map(teaserCard).join("") || (!busy ? `<p class="empty">${t("emptyTeaser")}</p>` : "")}</div><button type="button" class="btn primary full" data-social="plans">${t("seeMore")}</button><p class="help">${t("paidRequired")}</p></div>`;
   const postCard = (p, open = true, withTitle = false) =>
@@ -110,6 +113,10 @@ export function createCommunity({
     const switching = plan() !== "free";
     return `<button type="button" class="btn primary plan-cta${short ? " short" : ""}" data-social="checkout" data-plan="${p.id}" ${!canBuy() ? "disabled" : ""}>${short ? t(switching ? "switchPlan" : "subscribe") : t(switching ? "switchTo" : "subscribeTo").replace("{plan}", planName(p))}</button>`;
   };
+  // Required wherever a subscription is offered: what renews, and working links
+  // to the terms and the privacy policy.
+  const legal = () =>
+    `<p class="help legal-note">${t("autoRenewNote")}</p><div class="row legal-links"><button type="button" class="btn small ghost" data-link="${HELP_LINKS.terms}">${t("termsOfUse")} ↗</button><button type="button" class="btn small ghost" data-link="${HELP_LINKS.privacy}">${t("privacyPolicy")} ↗</button></div>`;
   const ctaNote = () =>
     `<p class="help cta-note">${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : plan() !== "free" ? t("switchNote") : t("billingReturn")}</p>`;
   // A build wired to RevenueCat's Test Store buys without the store sheet and
@@ -139,12 +146,12 @@ export function createCommunity({
       .join("")}
     <tr class="plan-links"><th scope="row">${t("planDetails")}</th>${plans.map((p) => `<td>${b("details", "plan-detail", `data-plan="${p.id}" aria-label="${localized(p.names, language())} · ${t("details")}"`)}</td>`).join("")}</tr>
     <tr class="plan-cta-row"><th scope="row" class="sr-label">${t("subscribe")}</th>${plans.map((p) => `<td>${cta(p, true) || (p.id === plan() ? `<span class="current-plan">${t("currentPlan")}</span>` : "")}</td>`).join("")}</tr></tbody></table>
-    ${recommendation()}<p class="help included-note">${t("includedShort")}</p><div class="plan-footer"><p class="help">${t("billingShort")}</p>${b("remaining", "plan-detail", `data-plan="${plan()}"`)}${b("cancelPlan", "help-cancel")}</div>
+    ${recommendation()}<p class="help included-note">${t("includedShort")}</p><div class="plan-footer"><p class="help">${t("billingShort")}</p>${b("remaining", "plan-detail", `data-plan="${plan()}"`)}${b("cancelPlan", "help-cancel")}</div>${legal()}
     <div class="row">${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}</div></section>`;
   }
   function planDetailsView() {
     const p = PLANS[selectedPlan] || PLANS.starter;
-    return `<div class="narrow plan-detail"><div class="row between page-heading"><h1>${localized(p.names, language())}</h1>${cyclePicker()}</div>${status()}${testStoreNote()}<section class="card plan-card"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${p.id === plan() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${planFields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl><p class="help">${t("freeFeatures")}</p><p class="help">${t("renewalNote")}</p>${cta(p)}${cta(p) ? ctaNote() : ""}</section><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.day?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}<p>${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : t("billingReturn")}</p></div><div class="row">${b("cancelPlan", "help-cancel")}</div><p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p><p class="help">${t("renewalNote")}</p>${cta(p) ? `<section class="card plan-detail-bottom"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${cta(p)}${ctaNote()}</section>` : ""}</div>`;
+    return `<div class="narrow plan-detail"><div class="row between page-heading"><h1>${localized(p.names, language())}</h1>${cyclePicker()}</div>${status()}${testStoreNote()}<section class="card plan-card"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${p.id === plan() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${planFields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl><p class="help">${t("freeFeatures")}</p><p class="help">${t("renewalNote")}</p>${cta(p)}${cta(p) ? ctaNote() : ""}</section><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.day?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}<p>${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : t("billingReturn")}</p></div><div class="row">${b("cancelPlan", "help-cancel")}</div>${legal()}<p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p><p class="help">${t("renewalNote")}</p>${cta(p) ? `<section class="card plan-detail-bottom"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${cta(p)}${ctaNote()}</section>` : ""}</div>`;
   }
   function shareView() {
     const d = shareDraft;
@@ -158,15 +165,26 @@ export function createCommunity({
     // Free members reach this page through their own post: they read the
     // comments it received, and the plans open stamps and replies.
     const free = plan() === "free";
-    return `<div class="narrow">${status()}${postCard(p, false, true)}<div class="card">${free ? "" : `<div class="row stamps">${STAMPS.map((s) => `<button class="btn ghost" data-social="stamp" data-stamp="${s}" aria-pressed="${detail.reaction === s}" ${p.mine ? "disabled" : ""}>${s} ${Number(p.reactions?.[s] || 0)}</button>`).join("")}</div>`}<h2>${t("comments")}</h2>${detail.comments.map((c) => `<article class="comment"><strong>${esc(c.alias)}</strong><p class="prose">${esc(c.text)}</p>${c.mine || p.mine ? b("removeComment", "delete-comment", `data-id="${c.id}"`) : b("commentReport", "report-comment", `data-id="${c.id}"`)}</article>`).join("") || `<p class="empty">${t("emptyComments")}</p>`}${detail.next ? b("nextPage", "comments-next") : ""}${free ? `<p class="help">${t("commentPaidNote")}</p><button type="button" class="btn primary full" data-social="plans">${t("seeMore")}</button>` : `<form id="comment-form"><label class="field"><span>${t("comments")}</span><textarea id="comment-text" rows="3" maxlength="500" required>${esc(commentDraft)}</textarea></label><p class="help">${t("copyLimit")}</p><button class="btn primary" type="submit">${t("sendComment")}</button></form>`}</div>${!p.mine ? `<div class="card"><label class="field"><span>${t("reportReason")}</span><select id="report-reason">${["privacy", "abuse", "spam", "other"].map((r) => `<option value="${r}">${t(r)}</option>`).join("")}</select></label>${b("report", "report")}</div>` : ""}</div>`;
+    return `<div class="narrow">${status()}${postCard(p, false, true)}<div class="card">${free ? "" : `<div class="row stamps">${STAMPS.map((s) => `<button class="btn ghost" data-social="stamp" data-stamp="${s}" aria-pressed="${detail.reaction === s}" ${p.mine ? "disabled" : ""}>${s} ${Number(p.reactions?.[s] || 0)}</button>`).join("")}</div>`}<h2>${t("comments")}</h2>${detail.comments.map((c) => `<article class="comment"><strong>${esc(c.alias)}</strong><p class="prose">${esc(c.text)}</p>${c.mine || p.mine ? b("removeComment", "delete-comment", `data-id="${c.id}"`) : b("commentReport", "report-comment", `data-id="${c.id}"`)}</article>`).join("") || `<p class="empty">${t("emptyComments")}</p>`}${detail.next ? b("nextPage", "comments-next") : ""}${free ? `<p class="help">${t("commentPaidNote")}</p><button type="button" class="btn primary full" data-social="plans">${t("seeMore")}</button>` : `<form id="comment-form"><label class="field"><span>${t("comments")}</span><textarea id="comment-text" rows="3" maxlength="500" required>${esc(commentDraft)}</textarea></label><p class="help">${t("copyLimit")}</p><button class="btn primary" type="submit">${t("sendComment")}</button></form>`}</div>${!p.mine ? `<div class="card"><label class="field"><span>${t("reportReason")}</span><select id="report-reason">${["privacy", "abuse", "spam", "other"].map((r) => `<option value="${r}">${t(r)}</option>`).join("")}</select></label><div class="row">${b("report", "report")}${b("block", "block", `data-id="${esc(p.id)}"`)}</div></div>` : ""}</div>`;
   }
+  // Everyone can undo a block, so the list lives with the feed itself.
+  const blockedList = () =>
+    blocks.length
+      ? `<details class="card blocked-list"><summary>${t("blockedUsers")} (${blocks.length})</summary>${blocks
+          .map(
+            (x) =>
+              `<div class="row between blocked-row"><span>${esc(x.alias || x.id.slice(0, 8))}</span>${b("unblock", "unblock", `data-id="${esc(x.id)}"`)}</div>`,
+          )
+          .join("")}</details>`
+      : "";
   function view(page) {
+    shown = page;
     if (page === "plans") return plansView();
     if (page === "plan-details") return planDetailsView();
     if (page === "share") return shareView();
     if (page === "community-post") return detailView();
     // The timeline: no toolbar, just the dreams. A failed load offers a retry.
-    return `<h1>${t("community")}</h1><p class="help">${t("communityIntro")}</p>${status()}${error ? `<div class="row">${b("refresh", "refresh")}</div>` : ""}${plan() === "free" ? (signedIn() ? teaserView() : paywall()) : `<div class="feed-list timeline">${posts.map((p) => postCard(p)).join("") || (!busy ? `<p class="empty">${t("emptyFeed")}</p>` : "")}</div>${next ? b("nextPage", "next") : ""}`}`;
+    return `<h1>${t("community")}</h1><p class="help">${t("communityIntro")}</p>${status()}${error ? `<div class="row">${b("refresh", "refresh")}</div>` : ""}${plan() === "free" ? (signedIn() ? teaserView() : paywall()) : `<div class="feed-list timeline">${posts.map((p) => postCard(p)).join("") || (!busy ? `<p class="empty">${t("emptyFeed")}</p>` : "")}</div>${next ? b("nextPage", "next") : ""}`}${signedIn() ? blockedList() : ""}`;
   }
   async function refreshAccount() {
     return setAccount(
@@ -207,6 +225,9 @@ export function createCommunity({
             : (record.text || "").slice(0, 4000),
         };
       }
+      if (page === "community" && signedIn())
+        blocks = (await api("/api/community/blocks")).blocks || [];
+      if (token !== version) return;
       if (page === "community" && plan() !== "free") {
         const r = await api("/api/community/feed");
         if (token !== version) return;
@@ -346,6 +367,30 @@ export function createCommunity({
             );
             posts = r.posts;
             next = r.next;
+          }
+          if (action === "block") {
+            if (!confirm(t("blockConfirm"))) return;
+            await api("/api/community/posts/" + el.dataset.id + "/block", {});
+            toast(t("blocked"));
+            // The post just blocked is gone, so never stay on its page.
+            if (shown === "community-post") navigate("community");
+            else await enter("community");
+            return;
+          }
+          if (action === "unblock") {
+            await api("/api/community/blocks/" + el.dataset.id + "/remove", {});
+            toast(t("unblocked"));
+            await enter("community");
+            return;
+          }
+          // Reporting from a teaser has no reason picker; the detail page does.
+          if (action === "quick-report") {
+            if (!confirm(t("reportConfirm"))) return;
+            await api("/api/community/posts/" + el.dataset.id + "/report", {
+              reason: "other",
+            });
+            toast(t("reportSent"));
+            return;
           }
           if (action === "post") {
             await loadPost(el.dataset.id);

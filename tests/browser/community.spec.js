@@ -224,8 +224,15 @@ test("paid member reads another user, stamps, comments and reports through authe
   );
   await page.locator("[data-social=report]").click();
   await expect(page.locator("#toast")).toContainText("Reported");
-  await expect(page.locator("[data-social=block]")).toHaveCount(0);
   expect((await s.store.list("communityReports")).length).toBe(1);
+  // The reader can also block the author, which empties the timeline.
+  page.on("dialog", (d) => d.accept());
+  await page.locator("[data-social=block]").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "community");
+  await expect(page.locator(".feed-card")).toHaveCount(0);
+  await expect(page.locator(".blocked-list")).toContainText(
+    "Blocked members (1)",
+  );
 });
 test("each dream has its own share box: ticking publishes it to the feed, unticking withdraws it, and Settings show no sharing section", async ({
   page,
@@ -480,4 +487,52 @@ test("free limits lead to the plans page: the day's dream allowance, a fourth di
   await expect(page.locator("#diary-text")).toHaveValue(
     "Diary save 4 goes to plans",
   );
+});
+test("a free member can report a teaser and block its author, then undo the block", async ({
+  page,
+}) => {
+  const s = await fixture(page, "free");
+  await s.publish(
+    "alice",
+    "A dream from someone this reader would rather not see.",
+  );
+  await boot(page);
+  page.on("dialog", (d) => d.accept());
+  await page.locator("nav [data-go=community]").click();
+  await expect(page.locator(".teaser-card")).toHaveCount(1);
+  // Reporting is available on the free plan, straight from the teaser.
+  await page.locator('.teaser-card [data-social="quick-report"]').click();
+  await expect(page.locator("#toast")).toContainText("Reported");
+  expect((await s.store.list("communityReports")).length).toBe(1);
+  // Blocking is too, and it takes the author out of the feed.
+  await page.locator('.teaser-card [data-social="block"]').click();
+  await expect(page.locator("#toast")).toContainText("Blocked");
+  await expect(page.locator(".teaser-card")).toHaveCount(0);
+  const blocked = page.locator(".blocked-list");
+  await expect(blocked).toContainText("Blocked members (1)");
+  // The block can be undone, which brings the post back.
+  await blocked.locator("summary").click();
+  await page.locator('[data-social="unblock"]').click();
+  await expect(page.locator(".teaser-card")).toHaveCount(1);
+  await expect(page.locator(".blocked-list")).toHaveCount(0);
+});
+test("the plans page states the renewal terms and links to the terms of use and privacy policy", async ({
+  page,
+}) => {
+  const opened = [];
+  await page.exposeFunction("__opened", (url) => opened.push(url));
+  await page.addInitScript(() => {
+    window.open = (url) => window.__opened(url);
+  });
+  await fixture(page, "free");
+  await boot(page);
+  await page.locator("#header [data-go=settings]").click();
+  await page.locator("[data-go=plans]").click();
+  await expect(page.locator(".legal-note")).toContainText("auto-renewing");
+  for (const label of ["Terms of Use", "Privacy policy"])
+    await page.locator(`.legal-links button:has-text("${label}")`).click();
+  expect(opened).toEqual([
+    "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/",
+    "https://yumetan-support.ni23al.chatgpt.site/privacy/",
+  ]);
 });

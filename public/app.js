@@ -1086,6 +1086,7 @@ function helpView() {
  <section class="card help-section" id="help-links"><h2>${t("helpLinks")}</h2><p class="help">${t("helpLinksHint")}</p><div class="row">${[
    ["supportSite", HELP_LINKS.support],
    ["privacyPolicy", HELP_LINKS.privacy],
+   ["termsOfUse", HELP_LINKS.terms],
  ]
    .map(
      ([label, url]) =>

@@ -487,3 +487,84 @@ test("free members get a fixed random teaser of today's posts, 15 characters eac
     3,
   );
 });
+test("any member can report and block; a block hides both members from each other", async () => {
+  const s = setup();
+  s.paid("alice");
+  s.paid("bob");
+  const { id } = await s.call(
+    "POST",
+    "/api/community/publish",
+    "alice",
+    post(),
+  );
+  const mine = await s.call("POST", "/api/community/publish", "free", post());
+  // Reporting needs no paid plan: a free member sees the teaser and can report.
+  await s.call(
+    "POST",
+    "/api/community/posts/:id/report",
+    "free",
+    { reason: "abuse" },
+    { id },
+  );
+  assert.equal((await s.store.list("communityReports")).length, 1);
+  // Blocking needs no paid plan either.
+  await s.call("POST", "/api/community/posts/:id/block", "free", {}, { id });
+  assert.deepEqual(
+    (await s.call("GET", "/api/community/blocks", "free")).blocks,
+    [{ id: "alice", alias: "Dreamer" }],
+  );
+  // The blocked author's post is gone from the blocker's feed and detail...
+  s.paid("free");
+  assert.deepEqual(
+    (await s.call("GET", "/api/community/feed", "free")).posts.map((p) => p.id),
+    [mine.id],
+  );
+  for (const [method, path, body] of [
+    ["GET", "/api/community/posts/:id", {}],
+    ["POST", "/api/community/posts/:id/reaction", { stamp: "🌙" }],
+    [
+      "POST",
+      "/api/community/posts/:id/comments",
+      { text: "hi", alias: "me", requestId: randomUUID() },
+    ],
+  ])
+    await assert.rejects(
+      s.call(method, path, "free", body, { id }),
+      (e) => e.status === 404,
+    );
+  // ...and the blocker's own post is gone from the blocked author's feed.
+  assert.equal(
+    (await s.call("GET", "/api/community/feed", "alice")).posts.filter(
+      (p) => p.id === mine.id,
+    ).length,
+    0,
+  );
+  // Others are unaffected, and blocking yourself or a private post is refused.
+  assert.equal(
+    (await s.call("GET", "/api/community/feed", "bob")).posts.length,
+    2,
+  );
+  for (const uid of ["alice", "free"])
+    await assert.rejects(
+      s.call(
+        "POST",
+        "/api/community/posts/:id/block",
+        uid,
+        {},
+        { id: uid === "alice" ? id : mine.id },
+      ),
+      (e) => e.status === 404,
+    );
+  // Unblocking brings the posts back.
+  await s.call(
+    "POST",
+    "/api/community/blocks/:id/remove",
+    "free",
+    {},
+    { id: "alice" },
+  );
+  assert.equal(
+    (await s.call("GET", "/api/community/feed", "free")).posts.length,
+    2,
+  );
+});

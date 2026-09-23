@@ -55,11 +55,21 @@ export function registerCommunity(
     if (!p) throw fault(404, "postUnavailable");
     if (ownerOK && p.owner === uid) return p;
     // Sharing is part of the free plan, so a post stays visible whatever its
-    // author pays; only privacy, moderation and suspension hide one.
+    // author pays; only privacy, moderation, suspension and a block hide one.
     if (!p.public || p.hidden) throw fault(404, "postUnavailable");
     if ((await access.member(p.owner)).suspended)
       throw fault(404, "postUnavailable");
+    if (await blocked(uid, p.owner)) throw fault(404, "postUnavailable");
     return p;
+  }
+  // A block hides both members from each other, so neither can keep reaching
+  // the other through the feed, a stamp or a comment.
+  async function blocked(a, b) {
+    if (a === b) return false;
+    return Boolean(
+      (await store.get(`communityBlocks/${a}/targets/${b}`)) ||
+      (await store.get(`communityBlocks/${b}/targets/${a}`)),
+    );
   }
   route("get", "/api/community/mine", async (req, user) => {
     const posts = await store.list("communityPosts", {
@@ -399,8 +409,32 @@ export function registerCommunity(
       return { ok: true };
     },
   );
+  // Blocking a member and reporting a post are open to everyone who can see
+  // the post, on any plan: both are how a reader deals with what upsets them.
+  route("post", "/api/community/posts/:id/block", async (req, user) => {
+    const p = await store.get(`communityPosts/${pathId(req)}`);
+    if (!p || !p.public || p.owner === user.uid)
+      throw fault(404, "postUnavailable");
+    await store.transaction(async (tx) =>
+      tx.set(`communityBlocks/${user.uid}/targets/${p.owner}`, {
+        alias: String(p.alias || "").slice(0, 30),
+        at: new Date(now()).toISOString(),
+      }),
+    );
+    return { ok: true };
+  });
+  route("get", "/api/community/blocks", async (req, user) => ({
+    blocks: (
+      await store.list(`communityBlocks/${user.uid}/targets`, { limit: 100 })
+    ).map((b) => ({ id: b.id, alias: b.alias || "" })),
+  }));
+  route("post", "/api/community/blocks/:id/remove", async (req, user) => {
+    await store.transaction(async (tx) =>
+      tx.delete(`communityBlocks/${user.uid}/targets/${pathId(req)}`),
+    );
+    return { ok: true };
+  });
   route("post", "/api/community/posts/:id/report", async (req, user) => {
-    await access.paid(user.uid);
     const p = await visible(user.uid, pathId(req));
     const { reason, commentId } = parse(
       z.object({
