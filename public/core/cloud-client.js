@@ -75,11 +75,31 @@ export function createCloudClient({ A, fs, auth, db }) {
     resetPassword: (email) => A.sendPasswordResetEmail(auth, email),
     // Used only when the server could not delete the account: Firebase requires
     // a recent sign-in for this, which surfaces as auth/requires-recent-login.
+    // The journals go first; once the user is gone the rules deny every write,
+    // and a surviving profile would restore the old character on the next login.
     async deleteAccount() {
       if (!state.user || state.user.isAnonymous)
         throw Object.assign(new Error("auth/no-current-user"), {
           code: "auth/no-current-user",
         });
+      // Refuse before touching anything when Firebase would reject the deletion
+      // for a stale sign-in, so a failed attempt never leaves a half-empty account.
+      if (
+        !(
+          Date.now() - Date.parse(state.user.metadata?.lastSignInTime || 0) <
+          300000
+        )
+      )
+        throw Object.assign(new Error("auth/requires-recent-login"), {
+          code: "auth/requires-recent-login",
+        });
+      const owner = uid();
+      for (const kind of ["dreams", "diary", "deleted"]) {
+        const docs = await fs.getDocsFromServer(col(kind, owner));
+        for (const entry of docs.docs)
+          await fs.deleteDoc(fs.doc(col(kind, owner), entry.id));
+      }
+      await fs.deleteDoc(root(owner));
       await A.deleteUser(state.user);
       state.user = null;
       try {

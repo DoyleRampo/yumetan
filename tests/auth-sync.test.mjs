@@ -117,7 +117,7 @@ test("bridge rejects unverified authentication and limits sessions per account",
     /quotaReached/,
   );
 });
-function cloudFixture(store, uid = "alice") {
+function cloudFixture(store, uid = "alice", A = {}, user = {}) {
   const snapshot = (path, data) => ({
     id: path.split("/").at(-1),
     data: () => structuredClone(data),
@@ -136,6 +136,7 @@ function cloudFixture(store, uid = "alice") {
         )
         .map(([p, d]) => snapshot(p, d)),
     }),
+    deleteDoc: async (path) => store.transaction((tx) => tx.delete(path)),
     runTransaction: (_, fn) =>
       store.transaction((tx) =>
         fn({
@@ -149,8 +150,8 @@ function cloudFixture(store, uid = "alice") {
   return createCloudClient({
     db: null,
     fs,
-    A: { onAuthStateChanged: () => {} },
-    auth: { currentUser: { uid } },
+    A: { onAuthStateChanged: () => {}, ...A },
+    auth: { currentUser: { uid, ...user } },
   });
 }
 test("a new device restores account profile, character, photo, diary and dream; another account sees none", async () => {
@@ -399,4 +400,73 @@ test("native Apple credentials sign in, upgrade a guest, and never silently link
     code: "authFailed",
   });
   await assert.rejects(credentialLogin(A, {}, "nope", input));
+});
+test("the client fallback erases the journals before the identity, and refuses on a stale sign-in", async () => {
+  const store = new MemoryStore(),
+    deleted = [],
+    fresh = { metadata: { lastSignInTime: new Date().toISOString() } },
+    local = {
+      profile: profile("Alice"),
+      records: [record("dream"), record("diary", { kind: "diary" })],
+      deleted: ["gone"],
+    };
+  await cloudFixture(store).syncSnapshot(local);
+  const stale = cloudFixture(
+    store,
+    "alice",
+    {},
+    {
+      metadata: { lastSignInTime: "2020-01-01T00:00:00Z" },
+    },
+  );
+  await assert.rejects(stale.deleteAccount(), {
+    code: "auth/requires-recent-login",
+  });
+  // Nothing was touched, so retrying after a fresh sign-in still deletes everything.
+  assert.notEqual(store.data.size, 0);
+  const client = cloudFixture(
+    store,
+    "alice",
+    { deleteUser: async (user) => deleted.push(user.uid) },
+    fresh,
+  );
+  await client.deleteAccount();
+  assert.deepEqual(deleted, ["alice"]);
+  assert.equal(store.data.size, 0);
+  assert.equal(client.uid(), "");
+});
+test("deleting an account leaves no device cache that could restore a character", async () => {
+  const entries = {
+    "yumetan.v4.active": '"yumetan.v4.alice"',
+    "yumetan.v4.alice": '{"profile":{"nickname":"Alice"}}',
+    "yumetan.v4.alice.quiz": '{"index":9}',
+    "yumetan.v4.alice.guest-import": '"yumetan.v4.local"',
+    "yumetan.v4.alice.diary-saves": "{}",
+    "yumetan.v4.local": '{"profile":{"nickname":"Guest"}}',
+    "yumetan.v4.cloud-adopted": "true",
+    "yumetan.auth.pending": '{"id":"x"}',
+    "yumetan.settings": '{"profile":{"nickname":"Old"}}',
+    "yumetan.v4.options": '{"language":"en"}',
+    "other.app": "keep",
+  };
+  const storage = Object.defineProperties(
+    { ...entries },
+    Object.fromEntries(
+      [
+        ["getItem", (k) => (k in storage ? storage[k] : null)],
+        ["setItem", (k, v) => void (storage[k] = String(v))],
+        ["removeItem", (k) => void delete storage[k]],
+      ].map(([name, value]) => [name, { value }]),
+    ),
+  );
+  globalThis.localStorage = storage;
+  const { purgeAccounts, read } = await import("../public/core/storage.js");
+  await purgeAccounts();
+  assert.deepEqual(Object.keys(storage).sort(), [
+    "other.app",
+    "yumetan.v4.options",
+  ]);
+  assert.equal(await read("yumetan.v4.local"), null);
+  assert.deepEqual(await read("yumetan.v4.options"), { language: "en" });
+  delete globalThis.localStorage;
 });

@@ -61,6 +61,7 @@ import {
   read,
   migrateLegacy,
   legacyAnswers,
+  purgeAccounts,
   write,
   normalizeRecord,
   normalizeProfile,
@@ -2078,7 +2079,6 @@ async function deleteAccount() {
     overlay: true,
   });
   stopCloudWatch?.();
-  const key = storageKey;
   try {
     disableActionButtons();
     await cancelNativeAuth();
@@ -2088,13 +2088,17 @@ async function deleteAccount() {
       // No server (or offline): the device can still delete a recent sign-in.
       await cloud.deleteAccount();
     }
-    for (const suffix of ["", ".quiz", ".diary-saves", ".guest-import"])
-      await write(key + suffix, null);
+    if (syncTask) await syncTask.catch(() => {});
+    // Forget every account on this device, not just the deleted one. A cache left
+    // by an earlier account or guest would be offered to the next login and bring
+    // back its profile and character, skipping registration and the quiz.
+    await purgeAccounts();
     if (options.planCache) {
       options = { ...options, planCache: null };
       await write("yumetan.v4.options", options);
     }
-    if (syncTask) await syncTask.catch(() => {});
+    pendingGuestKey = null;
+    selectedId = null;
     await cloud.signOut();
     await switchAccount();
     await saveIntroduction({ phase: "done", step: 3 });
