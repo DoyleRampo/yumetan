@@ -625,3 +625,64 @@ test("a transfer re-reads both accounts; the product bought decides the plan", a
     "standard",
   );
 });
+// A check made just as a period ends can find RevenueCat without the renewal
+// yet (a sandbox renews every few minutes). It stored the member as free, and
+// the server then waited six hours before asking again.
+test("right after a period ends the server keeps asking, even once it stored free", async () => {
+  const s = billingFixture();
+  let clock = now;
+  const access = createAccess({ store: s.store, now: () => clock });
+  const end = now + 5 * 60000;
+  let response = subscriber({
+    entitlements: {
+      standard: {
+        expires_date: iso(end),
+        product_identifier: "com.doyle.yumetan.standard.monthly",
+      },
+    },
+    subscriptions: {},
+  });
+  const billing = createBilling({
+    access,
+    env,
+    fetch: async () => ({ ok: true, status: 200, json: async () => response }),
+  });
+  await billing.sync({ uid: "alice" });
+  assert.equal((await billing.account("alice")).plan, "standard");
+  // The period ends; RevenueCat has not recorded the renewal yet.
+  clock = end + 60000;
+  response = { ...response, request_date_ms: clock };
+  assert.equal((await billing.account("alice")).plan, "free");
+  // A few minutes later RevenueCat has it: the next look finds Standard again.
+  clock = end + 4 * 60000;
+  response = subscriber({
+    entitlements: {
+      standard: {
+        expires_date: iso(end + 5 * 60000),
+        product_identifier: "com.doyle.yumetan.standard.monthly",
+      },
+    },
+    subscriptions: {},
+  });
+  response.request_date_ms = clock;
+  assert.equal((await billing.account("alice")).plan, "standard");
+  // Long after a period ended, a free member is not asked about every minute.
+  const later = createBilling({
+    access,
+    env,
+    fetch: async () => {
+      throw new Error("should not be asked");
+    },
+  });
+  await s.store.transaction(async (tx) =>
+    tx.set("memberships/bob", {
+      plan: "free",
+      status: "expired",
+      paidUntil: 0,
+      lastPaidUntil: clock - 3 * 3600000,
+      source: "revenuecat",
+      lastSyncedAt: clock - 2 * 3600000,
+    }),
+  );
+  assert.equal((await later.account("bob")).plan, "free");
+});

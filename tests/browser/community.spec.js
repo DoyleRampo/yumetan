@@ -575,3 +575,137 @@ test("the plans page states the renewal terms and links to the terms of use and 
     "https://yumetan-support.ni23al.chatgpt.site/privacy/",
   ]);
 });
+// The store app: Capacitor reports a native iOS platform and a RevenueCat
+// plugin whose customer info (what the store knows on this device) the test
+// sets through window.__storeInfo.
+async function nativeStore(page, info) {
+  await page.addInitScript((initial) => {
+    window.__storeInfo = initial;
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      getPlatform: () => "ios",
+      Plugins: {
+        Purchases: {
+          configure: async () => {},
+          logIn: async () => {},
+          getCustomerInfo: async () => ({ customerInfo: window.__storeInfo }),
+        },
+      },
+    };
+  }, info);
+  await page.route("**/config.js*", (r) =>
+    r.fulfill({
+      contentType: "text/javascript",
+      body: 'window.YUMETAN_CONFIG={apiBase:"",revenueCat:{ios:"appl_test"}};',
+    }),
+  );
+}
+const noSubscription = {
+  entitlements: { active: {} },
+  activeSubscriptions: [],
+};
+const standardUntil = (until) => ({
+  entitlements: {
+    active: {
+      standard: {
+        productIdentifier: "com.doyle.yumetan.standard.monthly",
+        expirationDateMillis: until,
+      },
+    },
+  },
+  activeSubscriptions: ["com.doyle.yumetan.standard.monthly"],
+});
+// The server's `POST /api/billing/sync`: RevenueCat is read again, which the
+// test decides through `next` (the membership it finds).
+async function syncRoute(page, s, next) {
+  const calls = [];
+  await page.route("**/api/billing/sync", async (r) => {
+    const member = next();
+    calls.push(member.plan);
+    s.store.data.set("memberships/bob", member);
+    const until = member.paidUntil || null;
+    await r.fulfill({
+      json: {
+        plan: member.plan,
+        paidUntil: until,
+        cancelAtPeriodEnd: Boolean(member.cancelAtPeriodEnd),
+        billingConfigured: true,
+        usage: { day: {}, month: {} },
+      },
+    });
+  });
+  return calls;
+}
+test("a cancelled subscription the store has ended returns the app to Free, even when the server had not heard", async ({
+  page,
+}) => {
+  await nativeStore(page, noSubscription);
+  // The server still has Standard (a missed webhook); the store has nothing.
+  const s = await fixture(page, "standard");
+  const calls = await syncRoute(page, s, () => ({
+    plan: "free",
+    status: "expired",
+    paidUntil: 0,
+  }));
+  await boot(page);
+  await page.locator("#header [data-go=settings]").click();
+  await page.locator("[data-go=plans]").click();
+  await expect(page.locator(".plan-comparison thead th.current")).toContainText(
+    "Free",
+  );
+  expect(calls.length).toBeGreaterThan(0);
+  await expect(page.locator(".plan-state")).toHaveCount(0);
+});
+test("a purchase the server has yet to see shows the bought plan, says so, and settles on a recheck", async ({
+  page,
+}) => {
+  const until = Date.now() + 86400000 * 30;
+  await nativeStore(page, standardUntil(until));
+  // The server has no subscription yet; RevenueCat lags behind the store.
+  const s = await fixture(page, "free");
+  let caughtUp = false;
+  await syncRoute(page, s, () =>
+    caughtUp
+      ? { plan: "standard", status: "active", paidUntil: until }
+      : { plan: "free", status: "expired", paidUntil: 0 },
+  );
+  await boot(page);
+  await page.locator("#header [data-go=settings]").click();
+  await page.locator("[data-go=plans]").click();
+  // The page marks what the store confirmed, as the rest of the app does,
+  // and says the server has yet to catch up.
+  await expect(page.locator(".plan-comparison thead th.current")).toContainText(
+    "Standard",
+  );
+  await expect(page.locator(".plan-state")).toContainText(
+    "The store confirmed your Standard purchase",
+  );
+  caughtUp = true;
+  await page.locator(".plan-state [data-social=resync]").click();
+  await expect(page.locator(".plan-state")).toHaveCount(0);
+  await expect(page.locator(".plan-comparison thead th.current")).toContainText(
+    "Standard",
+  );
+});
+test("a cancellation keeps the plan until its end date and says when Free returns", async ({
+  page,
+}) => {
+  const until = Date.now() + 86400000 * 10;
+  await nativeStore(page, standardUntil(until));
+  const s = await fixture(page, "standard");
+  s.store.data.set("memberships/bob", {
+    plan: "standard",
+    status: "active",
+    paidUntil: until,
+    cancelAtPeriodEnd: true,
+  });
+  await boot(page);
+  await page.locator("#header [data-go=settings]").click();
+  await page.locator("[data-go=plans]").click();
+  await expect(page.locator(".plan-comparison thead th.current")).toContainText(
+    "Standard",
+  );
+  await expect(page.locator(".plan-state")).toContainText(
+    "Cancelled. Standard stays until",
+  );
+});

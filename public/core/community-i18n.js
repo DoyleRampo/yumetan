@@ -460,6 +460,19 @@ export const communityMessages = {
     "用表情回应需付费套餐。免费套餐可以查看回应数。",
     "Reacting with stamps comes with a paid plan. On Free you can see the reactions.",
   ],
+  planPending: [
+    "ストアで{plan}の購入を確認しました。サーバーへの反映を待っています（AIや「みんなの夢」の回数は反映後に増えます）。",
+    "스토어에서 {plan} 구매를 확인했어요. 서버 반영을 기다리고 있어요(AI와 「모두의 꿈」 횟수는 반영 후 늘어나요).",
+    "商店已确认购买{plan}，正在等待服务器同步（AI和「大家的梦」次数将在同步后增加）。",
+    "The store confirmed your {plan} purchase; waiting for the server to catch up (AI and dream feed allowances grow once it does).",
+  ],
+  recheckPlan: ["もう一度確認", "다시 확인", "重新确认", "Check again"],
+  cancelScheduled: [
+    "解約済みです。{date}まで{plan}を使え、その後は自動的にフリーに戻ります。",
+    "해지했어요. {date}까지 {plan}을 사용할 수 있고, 그 후 자동으로 무료로 돌아가요.",
+    "已取消订阅。{date}前仍可使用{plan}，之后将自动恢复为免费版。",
+    "Cancelled. {plan} stays until {date}, then you return to Free automatically.",
+  ],
   close: ["閉じる", "닫기", "关闭", "Close"],
   // Per-feature wording for a shared error code (see core/api-errors.js).
   handwritingPaidRequired: [

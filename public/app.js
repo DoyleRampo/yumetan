@@ -38,7 +38,7 @@ import {
 } from "./core/native-auth.js";
 import { createCommunity, communityText } from "./community.js";
 import { errorMessageKey } from "./core/api-errors.js";
-import { createPurchases } from "./core/purchases.js";
+import { createPurchases, planFromCustomerInfo } from "./core/purchases.js";
 import { canSaveRecord, PLANS } from "./core/plans.js";
 import {
   DEFAULT_CHARACTER_SET,
@@ -215,6 +215,10 @@ const social = createCommunity({
     if (verified) rememberPlan(account?.plan, account?.paidUntil);
   },
   onPurchased: ({ plan, paidUntil }) => rememberPlan(plan, paidUntil, true),
+  // The plans pages mark the same plan as the rest of the app, and their
+  // "check again" reads the store and the server together.
+  shownPlan: () => displayPlan(),
+  recheck: () => refreshPlan(),
 });
 const name = (type) => localized(type.names, language());
 const group = (type) => GROUPS.find((g) => g.id === type.group);
@@ -652,6 +656,8 @@ async function navigate(next, force = false, back = false) {
     helpSection = null;
     section?.scrollIntoView({ block: "start" });
   }
+  // The plans pages check store and server again on every visit.
+  if (["plans", "plan-details"].includes(page)) refreshPlanInBackground();
   if (["community", "plans", "plan-details", "share"].includes(page))
     social.enter(
       page,
@@ -1194,15 +1200,38 @@ function applyAccountPreferences() {
 }
 // Refresh the server-verified plan and remember it for this account so a paid
 // member keeps their character collection while offline.
+//
+// In the store apps the subscription on this device is read too. What the
+// store confirmed at purchase used to be all the app knew, so a cancellation,
+// an expiry or a switch made in the store's settings went unnoticed, and a
+// member who cancelled stayed on the paid plan in the app. The store's
+// current answer now replaces it, and when store and server disagree the
+// server is asked to read RevenueCat again at once.
 async function refreshPlan() {
   if (!signedIn()) return;
   try {
     await social.refreshAccount();
+    const store = await storePlan();
+    if (store !== undefined) {
+      rememberPlan(store?.plan || "free", store?.paidUntil || 0, true);
+      if ((store?.plan || "free") !== social.plan()) await social.syncAccount();
+    }
     // A purchase the server never recorded (the app closed, or the API was
     // asleep, while it verified): ask it to read the store again now rather
     // than leave the member on the old plan until a webhook happens to land.
-    if (storeAhead()) await social.syncAccount();
+    else if (storeAhead()) await social.syncAccount();
   } catch {}
+}
+// The paid plan the store reports on this device now: a plan, null for none,
+// or undefined when it cannot say (the web, no store key, a failed read).
+async function storePlan() {
+  if (!native || !purchases.available()) return undefined;
+  try {
+    const info = await purchases.customerInfo(cloud.uid());
+    return info ? planFromCustomerInfo(info) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 // The plan only affects the character collection, so it is refreshed in the
 // background: a sleeping API instance must never delay login or app start.
@@ -1218,10 +1247,14 @@ function refreshPlanOnReturn() {
 function refreshPlanInBackground() {
   if (planRefresh) return planRefresh;
   planRefreshedAt = Date.now();
-  const before = options.planCache?.plan;
+  // Whatever changed (the server's plan, the remembered one, a cancellation),
+  // the page shows it.
+  const state = () =>
+    `${displayPlan()}|${social.plan()}|${social.cancelling()}`;
+  const before = state();
   planRefresh = refreshPlan()
     .then(() => {
-      if (options.planCache?.plan !== before && !dirty && !processing) render();
+      if (state() !== before && !dirty && !processing) render();
     })
     .catch(() => {})
     .finally(() => {

@@ -30,6 +30,11 @@ export function createCommunity({
   uid = () => null,
   onAccount = () => {},
   onPurchased = () => {},
+  // The plan the rest of the app shows (the server's, or a better one the
+  // store confirmed that the server has yet to hear of), and a fresh check of
+  // store and server together.
+  shownPlan = null,
+  recheck = null,
   wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }) {
   let account = { plan: "free" },
@@ -172,9 +177,26 @@ export function createCommunity({
   // one (Free is never "subscribed to": cancelling returns there by itself).
   // Purchases run in the store apps; elsewhere the button stays visible but
   // disabled with the reason below.
+  const planShown = () => shownPlan?.() || plan();
+  // The plan's state in words: a purchase the server has yet to confirm (with
+  // a button to check again), or a cancellation that ends the paid plan at the
+  // end of its period.
+  const planState = () => {
+    const shown = planShown();
+    if (shown !== plan())
+      return `<div class="status plan-state" role="status"><p>${t("planPending").replace("{plan}", planName(PLANS[shown]))}</p>${b("recheckPlan", "resync")}</div>`;
+    if (shown !== "free" && account.cancelAtPeriodEnd && account.paidUntil)
+      return `<p class="status plan-state" role="status">${t("cancelScheduled")
+        .replace("{plan}", planName(PLANS[shown]))
+        .replace(
+          "{date}",
+          esc(new Date(account.paidUntil).toLocaleDateString(language())),
+        )}</p>`;
+    return "";
+  };
   const cta = (p, short = false) => {
-    if (p.id === "free" || p.id === plan()) return "";
-    const switching = plan() !== "free";
+    if (p.id === "free" || p.id === planShown()) return "";
+    const switching = planShown() !== "free";
     return `<button type="button" class="btn primary plan-cta${short ? " short" : ""}" data-social="checkout" data-plan="${p.id}" ${!canBuy() ? "disabled" : ""}>${short ? t(switching ? "switchPlan" : "subscribe") : t(switching ? "switchTo" : "subscribeTo").replace("{plan}", planName(p))}</button>`;
   };
   // Required wherever a subscription is offered: what renews, and working links
@@ -182,7 +204,7 @@ export function createCommunity({
   const legal = () =>
     `<p class="help legal-note">${t("autoRenewNote")}</p><div class="row legal-links"><button type="button" class="btn small ghost" data-link="${HELP_LINKS.terms}">${t("termsOfUse")} ↗</button><button type="button" class="btn small ghost" data-link="${HELP_LINKS.privacy}">${t("privacyPolicy")} ↗</button></div>`;
   const ctaNote = () =>
-    `<p class="help cta-note">${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : plan() !== "free" ? t("switchNote") : t("billingReturn")}</p>`;
+    `<p class="help cta-note">${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : planShown() !== "free" ? t("switchNote") : t("billingReturn")}</p>`;
   // A build wired to RevenueCat's Test Store buys without the store sheet and
   // without charging: say so, or a simulated subscription passes for a real one.
   const testStoreNote = () =>
@@ -190,13 +212,13 @@ export function createCommunity({
       ? `<p class="status test-store" role="status">${t("testStore")}</p>`
       : "";
   const recommendation = () =>
-    plan() !== "free"
+    planShown() !== "free"
       ? ""
       : `<section class="card plan-recommend"><span class="eyebrow">${t("recommended")}</span><h2>${planName(PLANS.starter)} <span class="plan-price">${planPrice(PLANS.starter)}<small> / ${t(cycle)}</small></span></h2><p>${t("upgradeBanner")}</p>${cta(PLANS.starter)}${ctaNote()}</section>`;
   function plansView() {
     const plans = Object.values(PLANS);
-    return `<section class="plans-overview"><div class="row between page-heading"><h1>${t("comparePlans")}</h1>${cyclePicker()}</div>${status()}${testStoreNote()}
-    <table class="plan-comparison"><caption class="sr-only">${t("plans")} · ${t(cycle)}</caption><thead><tr><td></td>${plans.map((p) => `<th scope="col" class="${p.id === plan() ? "current" : ""}"><span class="plan-name">${localized(p.names, language())}</span><span class="plan-price">${planPrice(p)}</span><small>${t(cycle)}</small>${p.id === plan() ? `<span class="current-plan">${t("currentPlan")}</span>` : ""}</th>`).join("")}</tr></thead>
+    return `<section class="plans-overview"><div class="row between page-heading"><h1>${t("comparePlans")}</h1>${cyclePicker()}</div>${status()}${testStoreNote()}${planState()}
+    <table class="plan-comparison"><caption class="sr-only">${t("plans")} · ${t(cycle)}</caption><thead><tr><td></td>${plans.map((p) => `<th scope="col" class="${p.id === planShown() ? "current" : ""}"><span class="plan-name">${localized(p.names, language())}</span><span class="plan-price">${planPrice(p)}</span><small>${t(cycle)}</small>${p.id === planShown() ? `<span class="current-plan">${t("currentPlan")}</span>` : ""}</th>`).join("")}</tr></thead>
     <tbody><tr class="plan-summaries"><th scope="row" class="sr-label">${t("plans")}</th>${plans.map((p) => `<td>${t(p.id + "Summary")}</td>`).join("")}</tr>${[
       ["dreamShort", "dreams"],
       ["aiShort", "reflections"],
@@ -209,13 +231,13 @@ export function createCommunity({
       )
       .join("")}
     <tr class="plan-links"><th scope="row">${t("planDetails")}</th>${plans.map((p) => `<td>${b("details", "plan-detail", `data-plan="${p.id}" aria-label="${localized(p.names, language())} · ${t("details")}"`)}</td>`).join("")}</tr>
-    <tr class="plan-cta-row"><th scope="row" class="sr-label">${t("subscribe")}</th>${plans.map((p) => `<td>${cta(p, true) || (p.id === plan() ? `<span class="current-plan">${t("currentPlan")}</span>` : "")}</td>`).join("")}</tr></tbody></table>
-    ${recommendation()}<p class="help included-note">${t("includedShort")}</p><div class="plan-footer"><p class="help">${t("billingShort")}</p>${b("remaining", "plan-detail", `data-plan="${plan()}"`)}${b("cancelPlan", "help-cancel")}</div>${legal()}
+    <tr class="plan-cta-row"><th scope="row" class="sr-label">${t("subscribe")}</th>${plans.map((p) => `<td>${cta(p, true) || (p.id === planShown() ? `<span class="current-plan">${t("currentPlan")}</span>` : "")}</td>`).join("")}</tr></tbody></table>
+    ${recommendation()}<p class="help included-note">${t("includedShort")}</p><div class="plan-footer"><p class="help">${t("billingShort")}</p>${b("remaining", "plan-detail", `data-plan="${planShown()}"`)}${b("cancelPlan", "help-cancel")}</div>${legal()}
     <div class="row">${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}</div></section>`;
   }
   function planDetailsView() {
     const p = PLANS[selectedPlan] || PLANS.starter;
-    return `<div class="narrow plan-detail"><div class="row between page-heading"><h1>${localized(p.names, language())}</h1>${cyclePicker()}</div>${status()}${testStoreNote()}<section class="card plan-card"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${p.id === plan() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${planFields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl><p class="help">${t("freeFeatures")}</p><p class="help">${t("renewalNote")}</p>${cta(p)}${cta(p) ? ctaNote() : ""}</section><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.day?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}<p>${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : t("billingReturn")}</p></div><div class="row">${b("cancelPlan", "help-cancel")}</div>${legal()}<p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p><p class="help">${t("renewalNote")}</p>${cta(p) ? `<section class="card plan-detail-bottom"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${cta(p)}${ctaNote()}</section>` : ""}</div>`;
+    return `<div class="narrow plan-detail"><div class="row between page-heading"><h1>${localized(p.names, language())}</h1>${cyclePicker()}</div>${status()}${testStoreNote()}${planState()}<section class="card plan-card"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${p.id === planShown() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${planFields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl><p class="help">${t("freeFeatures")}</p><p class="help">${t("renewalNote")}</p>${cta(p)}${cta(p) ? ctaNote() : ""}</section><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.day?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}<p>${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : t("billingReturn")}</p></div><div class="row">${b("cancelPlan", "help-cancel")}</div>${legal()}<p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p><p class="help">${t("renewalNote")}</p>${cta(p) ? `<section class="card plan-detail-bottom"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${cta(p)}${ctaNote()}</section>` : ""}</div>`;
   }
   function shareView() {
     const d = shareDraft;
@@ -405,6 +427,12 @@ export function createCommunity({
             await enter(current, shareRecord);
             return;
           }
+          if (action === "resync") {
+            if (recheck) await recheck();
+            else setAccount(await api("/api/billing/sync", {}));
+            render();
+            return;
+          }
           if (action === "checkout" || action === "restore") {
             await checkout(action, el.dataset.plan);
             return;
@@ -532,6 +560,8 @@ export function createCommunity({
     capture,
     plan,
     refreshAccount,
+    // Whether the paid plan ends at the close of its period.
+    cancelling: () => Boolean(account.cancelAtPeriodEnd),
     // Asks the server to read the store subscription again now (after a
     // purchase whose own sync never finished).
     async syncAccount() {

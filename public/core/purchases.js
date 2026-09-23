@@ -139,5 +139,12 @@ export function createPurchases({ cap, plugins = {}, config } = {}) {
       const result = await p.restorePurchases();
       return result?.customerInfo || true;
     },
+    // What the store knows on this device now (a cancellation, an expiry, a
+    // switch made in the store's own settings), or null when it cannot say.
+    async customerInfo(uid) {
+      const p = await ready(uid);
+      const result = await p.getCustomerInfo();
+      return result?.customerInfo || null;
+    },
   };
 }

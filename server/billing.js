@@ -9,10 +9,10 @@ import { fault, memberPath, dayKey, monthKey } from "./access.js";
 const API_BASE = "https://api.revenuecat.com/v1";
 const ENTITLEMENTS = ["standard", "starter"];
 // When `account` re-reads RevenueCat by itself (see `stale`): at most once a
-// minute, for up to ten minutes after a paid period ends, and every six hours
+// minute, for half an hour after a paid period ends, and every six hours
 // otherwise.
 const RESYNC_RETRY_MS = 60000;
-const RESYNC_AFTER_EXPIRY_MS = 10 * 60000;
+const RESYNC_AFTER_EXPIRY_MS = 30 * 60000;
 const RESYNC_ACTIVE_MS = 6 * 3600000;
 // Firebase UIDs only; RevenueCat anonymous IDs ($RCAnonymousID:…) never map to a member.
 const anonymous = (id) =>
@@ -111,6 +111,12 @@ export const cycleFromProduct = (product) =>
     : /(monthly|month)/i.test(product)
       ? "monthly"
       : null;
+// The end of the member's latest paid period, current or lapsed.
+const lastPaid = (member) =>
+  Math.max(
+    Number(member?.lastPaidUntil) || 0,
+    member?.plan && member.plan !== "free" ? Number(member.paidUntil) || 0 : 0,
+  );
 export function createBilling({
   access,
   env = process.env,
@@ -162,6 +168,8 @@ export function createBilling({
         source: "revenuecat",
         managementUrl: data.subscriber.management_url || null,
         lastSyncedAt: at,
+        // The end of the latest paid period, kept once it lapses (see `stale`).
+        lastPaidUntil: next.plan !== "free" ? next.paidUntil : lastPaid(member),
       });
     });
   }
@@ -170,14 +178,19 @@ export function createBilling({
   // few minutes) left the stored paid period to run out, and a paying member
   // fell back to free for good. Only members RevenueCat already knows are
   // re-checked: looking up anyone else would create a subscriber there.
+  //
+  // A check made just as a period ends can find RevenueCat without the
+  // renewal yet (a sandbox renews every few minutes) and store the member as
+  // free; that used to stand for six hours. The window after a paid period
+  // therefore counts from its end whatever the stored plan now says.
   function stale(member, at) {
     if (!configured || member.source !== "revenuecat") return false;
     const synced = Number(member.lastSyncedAt) || 0;
     if (at - synced < RESYNC_RETRY_MS) return false;
-    const paidUntil = Number(member.paidUntil) || 0;
-    // A paid period has ended since the last check: ask again, for a while.
-    if (member.plan !== "free" && paidUntil <= at)
-      return synced < paidUntil + RESYNC_AFTER_EXPIRY_MS;
+    const ended = lastPaid(member);
+    // A paid period has ended: not checked since, or ended only just now.
+    if (ended && ended <= at)
+      if (synced < ended || at < ended + RESYNC_AFTER_EXPIRY_MS) return true;
     // Otherwise now and then, for an upgrade or a refund that went unheard.
     return at - synced > RESYNC_ACTIVE_MS;
   }
