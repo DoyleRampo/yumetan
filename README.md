@@ -29,6 +29,8 @@ npm start
 
 初期画面・設定から3種類の外部ログインとゲスト利用を選べます。夢・日記・写真・プロフィール・診断回答・表示キャラクターを本人のアカウントへ同期し、別端末から復元できます。ゲスト記録の引き継ぎと、設定からのログイン方法の連携にも対応します。iOS/Androidは標準ブラウザで認証します。
 
+ログアウト後に同じアカウントでログインすると、それまでの記録を表示してアプリから再開します。設定の「アカウント削除」は、クラウドと端末の記録・プロフィール・診断結果とログインIDそのものを消します。削除後に新しくログインした場合は、はじめて使う人と同じく登録画面と診断アンケートから始まります。
+
 **本番ではFirebaseのプロバイダ設定、Apple/LINEの認証情報が必要です。LINEはIdentity PlatformのOIDCを利用します。** [接続設定・同期仕様・検証手順](docs/auth/LOGIN_AND_SYNC.md)を参照してください。
 
 ## v4.3: プランと「みんなの夢」
@@ -52,6 +54,7 @@ AIをオンにすると、明示的に「分析」を押した際に夢と前日
 
 - `GET /api/health`：接続設定の有無（秘密値は返しません）
 - `GET /api/account`：会員状態・使用数・次回AI枠更新
+- `POST /api/account/delete`：本人のアカウント（クラウドの記録・公開投稿・ログインID）を削除
 - `POST /api/billing/sync`：ストア購入・復元後にRevenueCatの契約状態をサーバーへ反映
 - `POST /api/billing/revenuecat`：RevenueCat Webhook（Authorizationヘッダーの共有秘密で検証）
 - `GET /api/community/feed`、`POST /api/community/publish`、`GET /api/community/mine`

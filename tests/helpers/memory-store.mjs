@@ -11,6 +11,8 @@ export class MemoryStore {
     if(opts.after)rows=rows.filter(x=>String(x[k]).localeCompare(opts.after)*direction>0);
     return rows.slice(0,opts.limit || 20);
   }
+  async remove(path) { this.data.delete(path); }
+  async removeTree(path) { for (const p of [...this.data.keys()]) if (p === path || p.startsWith(path + '/')) this.data.delete(p); }
   transaction(fn) {
     const job=this.queue.then(async()=>{
       const copy=new Map(structuredClone([...this.data]));

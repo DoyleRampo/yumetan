@@ -533,6 +533,7 @@ export const messages = {
   signIn: ["ログイン", "로그인", "登录", "Sign in"],
   signUp: ["新規登録", "회원가입", "注册", "Create account"],
   signOut: ["ログアウト", "로그아웃", "退出登录", "Sign out"],
+  deleteAccount: ["アカウント削除", "계정 삭제", "删除账号", "Delete account"],
   resetPassword: [
     "パスワードを再設定",
     "비밀번호 재설정",

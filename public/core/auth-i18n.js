@@ -145,6 +145,48 @@ const strings = {
     "로그아웃할까요? 미동기화 기록은 이 기기의 계정 캐시에 남아요. 다시 로그인하면 동기화할 수 있어요.",
     "确定退出？未同步记录会留在此设备的原账号缓存中，重新登录后可同步。",
   ],
+  deleteHint: [
+    "アカウントを削除すると、クラウドとこの端末の記録・プロフィール・診断結果をすべて消します。次に登録するときは、はじめての利用と同じ手順になります。",
+    "Deleting your account erases its records, profile and quiz result from the cloud and this device. Signing up again starts from the beginning, like a new user.",
+    "계정을 삭제하면 클라우드와 이 기기의 기록·프로필·진단 결과를 모두 지워요. 다시 등록하면 처음 이용할 때와 같은 순서로 진행돼요.",
+    "删除账号会清除云端和本设备的记录、个人资料与测评结果。再次注册时将与新用户一样从头开始。",
+  ],
+  deleteConfirm: [
+    "アカウントと、クラウド・この端末に保存した夢・日記・写真・プロフィール・診断結果をすべて削除します。元に戻せません。続けますか？",
+    "Delete your account and every dream, diary entry, photo, profile and quiz result stored in the cloud and on this device? This cannot be undone.",
+    "계정과 클라우드·이 기기에 저장한 꿈·일기·사진·프로필·진단 결과를 모두 삭제해요. 되돌릴 수 없어요. 계속할까요?",
+    "将删除账号以及云端和本设备上的梦境、日记、照片、个人资料与测评结果，且无法恢复。要继续吗？",
+  ],
+  deleteConfirmFinal: [
+    "本当に削除しますか？この操作は取り消せません。",
+    "Really delete? This cannot be undone.",
+    "정말 삭제할까요? 이 작업은 취소할 수 없어요.",
+    "确定要删除吗？此操作无法撤销。",
+  ],
+  deleting: [
+    "アカウントを削除しています…",
+    "Deleting your account…",
+    "계정을 삭제하고 있어요…",
+    "正在删除账号…",
+  ],
+  deleted: [
+    "アカウントを削除しました。新しく登録すると、はじめから始められます。",
+    "Account deleted. Signing up again starts from the beginning.",
+    "계정을 삭제했어요. 새로 등록하면 처음부터 시작해요.",
+    "账号已删除。重新注册即可从头开始。",
+  ],
+  deleteRecent: [
+    "安全のため、もう一度ログインしてから削除してください。",
+    "For your security, sign in again and then delete the account.",
+    "보안을 위해 다시 로그인한 뒤 삭제해 주세요.",
+    "为了安全，请重新登录后再删除账号。",
+  ],
+  deleteFailed: [
+    "アカウントを削除できませんでした。通信環境を確認して、もう一度お試しください。",
+    "Could not delete the account. Check your connection and try again.",
+    "계정을 삭제하지 못했어요. 통신 환경을 확인한 뒤 다시 시도해 주세요.",
+    "无法删除账号，请检查网络后重试。",
+  ],
 };
 export function authText(key, language = "ja") {
   return strings[key]?.[{ ja: 0, en: 1, ko: 2, zh: 3 }[language] ?? 0] || key;

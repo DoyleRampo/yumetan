@@ -9,6 +9,7 @@ import { registerFeatures } from "./server-features.js";
 import { firebaseServices } from "./server/store.js";
 import { createAccess, fault } from "./server/access.js";
 import { createBilling } from "./server/billing.js";
+import { createAccountRemoval } from "./server/account.js";
 import { createAI } from "./server/openai.js";
 import { registerCommunity } from "./server/community.js";
 try {
@@ -22,6 +23,7 @@ const knowledge = await fs.readFile(
 const services = firebaseServices() || {};
 const access = createAccess(services),
   billing = createBilling({ access }),
+  accounts = createAccountRemoval({ access, deleteUser: services.deleteUser }),
   ai = createAI({ access });
 const app = express();
 app.disable("x-powered-by");
@@ -86,6 +88,12 @@ app.get(
   "/api/account",
   asyncRoute(async (req, res) =>
     res.json(await billing.account((await user(req)).uid)),
+  ),
+);
+app.post(
+  "/api/account/delete",
+  asyncRoute(async (req, res) =>
+    res.json(await accounts.remove((await user(req)).uid)),
   ),
 );
 app.post(

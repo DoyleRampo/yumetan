@@ -24,6 +24,7 @@ export function firebaseServices(env = process.env) {
     verify: (token) => getAuth(app).verifyIdToken(token, true),
     mint: (uid) => getAuth(app).createCustomToken(uid),
     getUser: (uid) => getAuth(app).getUser(uid),
+    deleteUser: (uid) => getAuth(app).deleteUser(uid),
   };
 }
 export class FirestoreStore {
@@ -46,6 +47,12 @@ export class FirestoreStore {
       ...d.data(),
       id: d.id,
     }));
+  }
+  async remove(path) {
+    await this.db.doc(path).delete();
+  }
+  async removeTree(path) {
+    await this.db.recursiveDelete(this.db.doc(path));
   }
   async transaction(fn) {
     return this.db.runTransaction(async (tx) =>

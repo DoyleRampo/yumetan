@@ -194,3 +194,62 @@ test("declining guest import leaves both accounts intact", async ({ page }) => {
   await page.locator("nav [data-go=history]").click();
   await expect(page.locator(".entry")).toContainText("ゲストの夢");
 });
+test("deleting an account starts the next login from registration, while logging back in restores data", async ({
+  page,
+}) => {
+  const db = new Map([
+    [
+      "member-a",
+      {
+        profile: profile("会員"),
+        records: [dream("member-dream", "会員の夢")],
+        deleted: [],
+      },
+    ],
+  ]);
+  await setup(page, db);
+  page.on("dialog", (d) => d.accept());
+  const deletions = [];
+  await page.route("**/api/account/delete", async (r) => {
+    deletions.push(r.request().postDataJSON());
+    db.delete("member-a");
+    await r.fulfill({ json: { deleted: true } });
+  });
+  await page.goto("/");
+  await page.locator(".onboard-account > summary").click();
+  await page.locator("[data-auth-provider=google]").click();
+  await expect(page.locator("main")).toContainText("会員");
+  // Logging out and back in with the same account opens the app with its records.
+  await page.locator("nav [data-go=settings]").click();
+  await page.locator("[data-action=signout]").click();
+  await expect(page.locator("#nickname")).toBeVisible();
+  await page.locator(".onboard-account > summary").click();
+  await page.locator("[data-auth-provider=google]").click();
+  await expect(page.locator("main")).toContainText("会員");
+  await page.locator("nav [data-go=history]").click();
+  await expect(page.locator(".entry")).toContainText("会員の夢");
+  // Deleting the account returns to registration and clears this device.
+  await page.locator("nav [data-go=settings]").click();
+  await page.locator(".account-delete > summary").click();
+  await page.locator("[data-action=delete-account]").click();
+  await expect(page.locator("#nickname")).toBeVisible();
+  expect(deletions).toHaveLength(1);
+  expect(
+    await page.evaluate(() => {
+      const active = JSON.parse(localStorage.getItem("yumetan.v4.active"));
+      return {
+        stale: Object.keys(localStorage).filter((k) => k.includes("member-a")),
+        profile:
+          JSON.parse(localStorage.getItem(active) || "null")?.profile ?? null,
+      };
+    }),
+  ).toEqual({ stale: [], profile: null });
+  // A new login after deletion is a first-time user: registration, then the quiz.
+  await page.locator(".onboard-account > summary").click();
+  await page.locator("[data-auth-provider=google]").click();
+  await expect(page.locator("#nickname")).toBeVisible();
+  await expect(page.locator("main")).not.toContainText("会員");
+  await page.locator("#nickname").fill("新しい人");
+  await page.locator("#profile-form button[type=submit]").click();
+  await expect(page.locator("main")).toContainText("1 / 16");
+});

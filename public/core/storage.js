@@ -13,6 +13,22 @@ export async function write(key, value) {
   if (preferences) await preferences.set({ key, value: raw });
   else localStorage.setItem(key, raw);
 }
+export async function remove(key) {
+  if (preferences) await preferences.remove({ key });
+  else localStorage.removeItem(key);
+}
+// Device settings survive account deletion; everything that belongs to an account
+// (records, profile, quiz progress, guest caches, pending logins) must not, or the
+// next login would restore a character the deleted account had chosen.
+const DEVICE_KEYS = ["yumetan.v4.options"];
+export async function purgeAccounts() {
+  const stored = preferences
+    ? (await preferences.keys()).keys
+    : Object.keys(localStorage);
+  for (const key of stored)
+    if (key.startsWith("yumetan.") && !DEVICE_KEYS.includes(key))
+      await remove(key);
+}
 export const typeAlias = (id) =>
   ({ dejavu: "deja", partial: "aware" })[id] || id;
 export function legacyAnswers(typeState) {

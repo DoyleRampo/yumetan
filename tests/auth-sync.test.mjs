@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createAuthBridge } from "../server/auth-bridge.js";
+import { createAccountRemoval } from "../server/account.js";
 import { MemoryStore } from "./helpers/memory-store.mjs";
 import { createCloudClient } from "../public/core/cloud-client.js";
 import { providerLogin } from "../public/core/auth-providers.js";
@@ -113,7 +114,7 @@ test("bridge rejects unverified authentication and limits sessions per account",
     /quotaReached/,
   );
 });
-function cloudFixture(store, uid = "alice") {
+function cloudFixture(store, uid = "alice", A = {}) {
   const snapshot = (path, data) => ({
     id: path.split("/").at(-1),
     data: () => structuredClone(data),
@@ -132,6 +133,7 @@ function cloudFixture(store, uid = "alice") {
         )
         .map(([p, d]) => snapshot(p, d)),
     }),
+    deleteDoc: async (path) => store.transaction((tx) => tx.delete(path)),
     runTransaction: (_, fn) =>
       store.transaction((tx) =>
         fn({
@@ -145,7 +147,7 @@ function cloudFixture(store, uid = "alice") {
   return createCloudClient({
     db: null,
     fs,
-    A: { onAuthStateChanged: () => {} },
+    A: { onAuthStateChanged: () => {}, ...A },
     auth: { currentUser: { uid } },
   });
 }
@@ -284,4 +286,86 @@ test("all providers use Firebase SDK; only guests may fall back from linking to 
   await assert.rejects(
     providerLogin(A, { currentUser: {} }, "google", { link: true }),
   );
+});
+test("account deletion clears cloud data, shared posts and the sign-in identity", async () => {
+  const store = new MemoryStore();
+  await cloudFixture(store).syncSnapshot({
+    profile: profile("Alice"),
+    records: [record("dream"), record("diary", { kind: "diary" })],
+    deleted: ["gone"],
+  });
+  for (const [path, data] of [
+    ["communityPosts/post-a", { owner: "alice", public: true }],
+    ["communityPosts/post-a/comments/c1", { text: "hi" }],
+    ["communityPosts/post-b", { owner: "bob", public: true }],
+    ["communityBlocks/alice/targets/bob", { at: 1 }],
+    ["memberships/alice", { plan: "starter" }],
+    ["communityStats/alice", { active: 1 }],
+  ])
+    await store.transaction((tx) => tx.set(path, data));
+  const removed = [];
+  const accounts = createAccountRemoval({
+    access: { store },
+    deleteUser: async (uid) => removed.push(uid),
+  });
+  assert.deepEqual(await accounts.remove("alice"), { deleted: true });
+  assert.deepEqual(removed, ["alice"]);
+  assert.deepEqual(
+    [...store.data.keys()].filter(
+      (p) => !p.startsWith("communityPosts/post-b"),
+    ),
+    [],
+  );
+  // A second account keeps everything it owns.
+  assert.equal((await store.get("communityPosts/post-b")).owner, "bob");
+});
+test("without a configured server the owner deletes their own cloud copies", async () => {
+  const store = new MemoryStore(),
+    deleted = [];
+  await cloudFixture(store).syncSnapshot({
+    profile: profile("Alice"),
+    records: [record("dream"), record("diary", { kind: "diary" })],
+    deleted: ["gone"],
+  });
+  const client = cloudFixture(store, "alice", {
+    deleteUser: async (user) => deleted.push(user.uid),
+  });
+  await client.deleteAccount();
+  assert.deepEqual(deleted, ["alice"]);
+  assert.equal(store.data.size, 0);
+  assert.equal(client.uid(), "");
+});
+test("deleting an account leaves no device cache that could restore its character", async () => {
+  const entries = {
+    "yumetan.v4.active": '"yumetan.v4.alice"',
+    "yumetan.v4.alice": '{"profile":{"nickname":"Alice"}}',
+    "yumetan.v4.alice.quiz": '{"index":9}',
+    "yumetan.v4.alice.guest-import": '"yumetan.v4.local"',
+    "yumetan.v4.local": '{"profile":{"nickname":"Guest"}}',
+    "yumetan.v4.cloud-adopted": "true",
+    "yumetan.auth.pending": '{"id":"x"}',
+    "yumetan.settings": '{"profile":{"nickname":"Old"}}',
+    "yumetan.v4.options": '{"language":"en"}',
+    "other.app": "keep",
+  };
+  const storage = Object.defineProperties(
+    { ...entries },
+    Object.fromEntries(
+      [
+        ["getItem", (k) => (k in storage ? storage[k] : null)],
+        ["setItem", (k, v) => void (storage[k] = String(v))],
+        ["removeItem", (k) => void delete storage[k]],
+      ].map(([name, value]) => [name, { value }]),
+    ),
+  );
+  globalThis.localStorage = storage;
+  const { purgeAccounts, read } = await import("../public/core/storage.js");
+  await purgeAccounts();
+  assert.deepEqual(Object.keys(storage).sort(), [
+    "other.app",
+    "yumetan.v4.options",
+  ]);
+  assert.equal(await read("yumetan.v4.alice"), null);
+  assert.deepEqual(await read("yumetan.v4.options"), { language: "en" });
+  delete globalThis.localStorage;
 });

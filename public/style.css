@@ -831,6 +831,13 @@ select {
 .account-card .status {
   margin-bottom: 12px;
 }
+.account-delete {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;
+}
+.account-delete > summary {
+  color: #f0b1b1;
+}
 
 /* Responsive reading rhythm: keep words together; allow long input to reflow. */
 body {

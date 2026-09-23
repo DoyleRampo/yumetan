@@ -61,6 +61,20 @@ export function createCloudClient({ A, fs, auth, db }) {
       } catch {}
       return state.user;
     },
+    // Fallback for deployments with no configured server. Owner-only Firestore rules
+    // allow removing one's own documents, and Firebase removes the sign-in identity.
+    async deleteAccount() {
+      const owner = uid();
+      for (const kind of ["dreams", "diary", "deleted"]) {
+        const docs = await fs.getDocsFromServer(col(kind, owner));
+        for (const entry of docs.docs)
+          await fs.deleteDoc(fs.doc(col(kind, owner), entry.id));
+      }
+      await fs.deleteDoc(root(owner));
+      await A.deleteUser(state.user);
+      state.user = null;
+      return true;
+    },
     async loadProfile() {
       return (await fs.getDocFromServer(root())).data()?.profile || null;
     },

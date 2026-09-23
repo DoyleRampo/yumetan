@@ -39,6 +39,7 @@ import {
   read,
   migrateLegacy,
   legacyAnswers,
+  purgeAccounts,
   write,
   normalizeRecord,
   normalizeProfile,
@@ -500,6 +501,7 @@ function accountView(onboard = false) {
     .join("")}</div>
   ${signed && pendingGuestKey ? `<button type="button" class="btn ghost" data-action="import-guest">${at("importLater")}</button>` : ""}
   ${!enabled ? `<button type="button" class="btn ghost" data-action="auth-retry">${at("reconnect")}</button>` : ""}
+  ${signed ? `<details class="account-delete"><summary>${esc(t("deleteAccount"))}</summary><p class="help">${at("deleteHint")}</p>${button("deleteAccount", "delete-account", "danger ghost")}</details>` : ""}
   ${!signed && enabled ? `<details><summary>${at("email")}</summary><form id="account-form">${input("email", "email", "", "email", 'required autocomplete="email"')}${input("password", "password", "", "password", 'minlength="6" autocomplete="current-password"')}<div class="row"><button type="submit" class="btn primary">${t("signIn")}</button>${button("signUp", "signup", "ghost")}${button("resetPassword", "reset-password", "small ghost")}</div></form></details>` : ""}
   ${onboard && !signed ? `<button type="button" class="btn ghost full" data-action="guest">${at("guest")}</button>` : ""}</section>`;
 }
@@ -1233,12 +1235,17 @@ async function account(mode, provider = null) {
     await offerGuestImport(sourceKey, guest);
     dirty = false;
     processing = false;
+    // Linking a sign-in method keeps the user in settings; a real login opens the
+    // account: its own records when the account already finished onboarding, the
+    // remaining first-time steps when it has not.
     navigate(
-      state.profile?.typeAnswers
+      link
         ? "settings"
-        : state.profile
-          ? "quiz"
-          : "onboard",
+        : state.profile?.typeAnswers
+          ? "home"
+          : state.profile
+            ? "quiz"
+            : "onboard",
       true,
     );
   } catch (error) {
@@ -1250,6 +1257,54 @@ async function account(mode, provider = null) {
     )
       await switchAccount();
     throw new Error(authError(error.code, language()));
+  } finally {
+    authChanging = false;
+    watchAccount();
+  }
+}
+const GONE_CODES = [
+  "auth/user-token-expired",
+  "auth/user-not-found",
+  "auth/invalid-user-token",
+];
+// Deleting an account must leave no trace in the cloud or on the device, so the next
+// login runs the whole first-time flow again: registration, then the 16-question quiz.
+async function removeAccount() {
+  if (!cloud?.state.enabled || cloud.isAnonymous()) return;
+  if (!confirm(at("deleteConfirm")) || !confirm(at("deleteConfirmFinal")))
+    return;
+  authChanging = true;
+  stopCloudWatch?.();
+  try {
+    disableActionButtons();
+    await cancelNativeAuth();
+    if (syncTask) await syncTask.catch(() => {});
+    showSyncStatus("deleting");
+    try {
+      await api("/api/account/delete", { confirm: true });
+    } catch (error) {
+      // Without a configured server, remove the owner's own cloud copies directly.
+      if (!cloud.deleteAccount) throw error;
+      // A retry after a lost response finds the identity already gone: finish locally.
+      await cloud.deleteAccount().catch((failure) => {
+        if (!GONE_CODES.includes(failure?.code)) throw failure;
+      });
+    }
+    await cloud.signOut().catch(() => {});
+    await purgeAccounts();
+    pendingResult = null;
+    selectedId = null;
+    await switchAccount();
+    toast(at("deleted"));
+    navigate("onboard", true);
+  } catch (error) {
+    throw new Error(
+      at(
+        error?.code === "auth/requires-recent-login"
+          ? "deleteRecent"
+          : "deleteFailed",
+      ),
+    );
   } finally {
     authChanging = false;
     watchAccount();
@@ -1299,7 +1354,13 @@ async function resumeNativeLogin() {
     await switchAccount();
     await offerGuestImport(pending.sourceKey, guest);
     navigate(
-      state.profile?.typeAnswers ? "home" : state.profile ? "quiz" : "onboard",
+      pending.link
+        ? "settings"
+        : state.profile?.typeAnswers
+          ? "home"
+          : state.profile
+            ? "quiz"
+            : "onboard",
       true,
     );
   } catch (error) {
@@ -1469,6 +1530,7 @@ const actions = {
   },
   signup: () => account("signup"),
   signout: () => account("signout"),
+  "delete-account": removeAccount,
   "reset-password": () => account("reset"),
   edit: () => {
     const r = state.records.find((r) => r.id === selectedId);
