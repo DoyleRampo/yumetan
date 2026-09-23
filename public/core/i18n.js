@@ -726,6 +726,38 @@ export const messages = {
     "勾选后保存，只有梦的文字会与你的角色和昵称一起显示。日记、睡眠、照片和 AI 解读不会公开。取消勾选即恢复私密。",
     "Tick and save: only the dream text appears, with your character and nickname. Diary, sleep, photos and AI readings stay private. Untick to withdraw it.",
   ],
+  help: [
+    "使い方とサポート",
+    "사용법과 지원",
+    "使用方法与支持",
+    "Help & support",
+  ],
+  openHelp: ["使い方を見る", "사용법 보기", "查看使用方法", "Open the guide"],
+  helpHint: [
+    "記録のしかた、みんなの夢、プランと解約、データの扱い、お問い合わせ先をまとめています。",
+    "기록 방법, 모두의 꿈, 요금제와 해지, 데이터 취급, 문의처를 정리했어요.",
+    "汇总了记录方法、大家的梦、套餐与取消、数据处理以及联系方式。",
+    "How to write, the dream feed, plans and cancelling, your data, and how to reach us.",
+  ],
+  helpLinks: [
+    "サポートとプライバシー",
+    "지원과 개인정보",
+    "支持与隐私",
+    "Support and privacy",
+  ],
+  helpLinksHint: [
+    "ブラウザで開きます。お問い合わせと、プライバシーポリシー・利用条件はこちらから。",
+    "브라우저에서 열려요. 문의와 개인정보처리방침·이용약관은 여기에서 확인하세요.",
+    "将在浏览器中打开。咨询、隐私政策与使用条款请见此处。",
+    "These open in your browser: contact us, and read the privacy policy and terms.",
+  ],
+  supportSite: ["サポートページ", "지원 페이지", "支持页面", "Support page"],
+  privacyPolicy: [
+    "プライバシーポリシー",
+    "개인정보처리방침",
+    "隐私政策",
+    "Privacy policy",
+  ],
   visibilityPaidNote: [
     "みんなの夢への公開は、スターター以上のプランで使えます。",
     "모두의 꿈에 공개하는 기능은 스타터 이상 요금제에서 사용할 수 있어요.",

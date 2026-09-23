@@ -1,8 +1,10 @@
 // Price in JPY. Journal limits and AI readings apply per record date (the
 // user's calendar day); handwriting, community and cost budgets use UTC periods.
 // An AI reading comes with every dream on every plan: `reflections` equals the
-// number of dreams a date allows. Free members see only a daily teaser of
-// `teaserPosts` community posts (20 characters each).
+// number of dreams a date allows. Sharing a dream is free; reading other
+// members' dreams is not. Free members see a daily teaser of `teaserPosts`
+// other members' posts, TEASER_CHARS characters of the dream each (the name and
+// the title are always whole), plus their own posts in full.
 export const PLANS = {
   free: {
     id: "free",
@@ -15,8 +17,8 @@ export const PLANS = {
     handwriting: 0,
     reads: 0,
     teaserPosts: 3,
-    publishes: 0,
-    activePosts: 0,
+    publishes: 1,
+    activePosts: 10,
     comments: 0,
     reactions: 0,
     aiBudgetMicros: 250000,
@@ -56,6 +58,8 @@ export const PLANS = {
     aiBudgetMicros: 2000000,
   },
 };
+// How much of another member's dream a free account sees in the daily teaser.
+export const TEASER_CHARS = 15;
 export const STAMPS = ["🌙", "✨", "🤝", "💭", "🌱"];
 export function activePlan(member, now = Date.now()) {
   return member?.status === "active" &&

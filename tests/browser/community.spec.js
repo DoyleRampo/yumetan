@@ -300,7 +300,7 @@ test("a paid member can switch to another paid plan; Free only offers details", 
     "iOS / Android",
   );
 });
-test("sharing needs explicit consent; only public copy is sent and expired owners can unpublish", async ({
+test("sharing needs explicit consent; only the public copy is sent and an expired member still withdraws it", async ({
   page,
 }) => {
   const s = await fixture(page);
@@ -329,7 +329,8 @@ test("sharing needs explicit consent; only public copy is sent and expired owner
   await expect(page.locator("main")).toContainText("Private original dream");
   await page.locator("[data-go=share]").click();
   await expect(page.locator("[data-social=unpublish]")).toBeVisible();
-  await expect(page.locator("#share-form")).toHaveCount(0);
+  // Sharing belongs to every plan, so an expired member still edits and withdraws.
+  await expect(page.locator("#share-form")).toBeVisible();
   await page.locator("[data-social=unpublish]").click();
   await expect(page.locator("[data-social=unpublish]")).toHaveCount(0);
   expect((await s.store.get("communityPosts/" + rows[0].id)).public).toBe(
@@ -379,7 +380,7 @@ test("real HTTP APIs never authorize by claimed plan, user ID or own key and do 
   expect(old.status()).toBe(404);
 });
 
-test("free members see three 20-character teasers of today's dreams; read more and see more open the plans", async ({
+test("free members see three 15-character teasers with whole names and titles; read more and see more open the plans", async ({
   page,
 }) => {
   const s = await fixture(page, "free");
@@ -392,9 +393,16 @@ test("free members see three 20-character teasers of today's dreams; read more a
   await page.locator("nav [data-go=community]").click();
   await expect(page.locator(".teaser-card")).toHaveCount(3);
   for (const text of await page.locator(".teaser-text").allInnerTexts()) {
-    expect(text.replace(/… Read more$/, "").length).toBeLessThanOrEqual(20);
+    expect(text.replace(/… Read more$/, "").length).toBeLessThanOrEqual(15);
     expect(text).toContain("Read more");
   }
+  // Only the dream is shortened: the name and the title are shown whole.
+  await expect(page.locator(".teaser-card .post-name").first()).toHaveText(
+    "Night walker",
+  );
+  await expect(page.locator(".teaser-card .post-title").first()).toHaveText(
+    "A moonlit walk",
+  );
   await expect(page.locator("main")).not.toContainText("never sets");
   await expect(page.locator(".paywall")).toHaveCount(0);
   await page.locator(".teaser-card .link-button").first().click();
@@ -402,6 +410,42 @@ test("free members see three 20-character teasers of today's dreams; read more a
   await page.locator("nav [data-go=community]").click();
   await page.locator(".teaser [data-social=plans].btn").click();
   await expect(page.locator(".plan-comparison thead th")).toHaveCount(3);
+});
+test("a free member publishes a dream and reads it whole in the feed, marked as their own", async ({
+  page,
+}) => {
+  const s = await fixture(page, "free");
+  await s.publish("alice", "Another member's dream that stays shortened here.");
+  await boot(page);
+  // The share box is available on the free plan, off until it is ticked.
+  await page.locator("nav [data-go=record]").click();
+  await page.locator("#dream-text").fill("I walked the whole shoreline alone.");
+  await page.locator("[data-action=diagnose]").click();
+  await expect(page.locator("#share-public")).toBeEnabled();
+  await expect(page.locator("#share-public")).not.toBeChecked();
+  await page.locator("#share-public").check();
+  await page.locator("[data-action=save-reading]").click();
+  expect(
+    (await s.store.list("communityPosts")).filter(
+      (p) => p.public && p.text === "I walked the whole shoreline alone.",
+    ).length,
+  ).toBe(1);
+  // Own posts are never shortened and carry the coloured "you" mark.
+  await page.locator("nav [data-go=community]").click();
+  const mine = page.locator(".feed-card.post-mine");
+  await expect(mine).toHaveCount(1);
+  await expect(mine).toContainText("I walked the whole shoreline alone.");
+  await expect(mine.locator(".post-badge")).toHaveText("You");
+  await expect(mine.locator(".link-button")).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText("stays shortened here");
+  // Opening it shows the comments it received; replying needs a plan.
+  await mine.click();
+  await expect(page.locator("#app")).toHaveAttribute(
+    "data-page",
+    "community-post",
+  );
+  await expect(page.locator("#comment-form")).toHaveCount(0);
+  await expect(page.locator("main")).toContainText("I walked the whole");
 });
 test("free limits lead to the plans page: the day's dream allowance, a fourth diary save, and subscribe buttons everywhere", async ({
   page,

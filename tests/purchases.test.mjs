@@ -166,3 +166,26 @@ test("the plan the store confirmed is read from entitlements or active products"
   );
   assert.equal(planFromCustomerInfo(true), null);
 });
+test("a test-store build is reported so a simulated purchase is never taken for a real one", () => {
+  const build = (key, allowTestStore) =>
+    createPurchases({
+      cap: { isNativePlatform: () => true, getPlatform: () => "ios" },
+      plugins: { Purchases: {} },
+      config: {
+        revenueCat: {
+          ios: key,
+          ...(allowTestStore ? { allowTestStore: true } : {}),
+        },
+      },
+    });
+  const simulated = build("test_abc", true);
+  assert.equal(simulated.available(), true);
+  assert.equal(simulated.testStore(), true);
+  const store = build("appl_abc");
+  assert.equal(store.available(), true);
+  assert.equal(store.testStore(), false);
+  // A test key without the opt-in is dropped entirely, so nothing can be bought.
+  const rejected = build("test_abc");
+  assert.equal(rejected.available(), false);
+  assert.equal(rejected.testStore(), false);
+});

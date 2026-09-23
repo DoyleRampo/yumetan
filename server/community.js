@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
 import { z } from "zod/v4";
 import { TYPES } from "../public/core/types.js";
-import { STAMPS, PLANS, activePlan } from "../public/core/plans.js";
+import {
+  STAMPS,
+  PLANS,
+  TEASER_CHARS,
+  activePlan,
+} from "../public/core/plans.js";
 import { fault, memberPath, dayKey } from "./access.js";
 const ident = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 const postInput = z.object({
@@ -49,12 +54,9 @@ export function registerCommunity(
     const p = await store.get(`communityPosts/${id}`);
     if (!p) throw fault(404, "postUnavailable");
     if (ownerOK && p.owner === uid) return p;
-    if (
-      !p.public ||
-      p.hidden ||
-      activePlan(await access.member(p.owner), now()) === "free"
-    )
-      throw fault(404, "postUnavailable");
+    // Sharing is part of the free plan, so a post stays visible whatever its
+    // author pays; only privacy, moderation and suspension hide one.
+    if (!p.public || p.hidden) throw fault(404, "postUnavailable");
     if ((await access.member(p.owner)).suspended)
       throw fault(404, "postUnavailable");
     return p;
@@ -86,7 +88,8 @@ export function registerCommunity(
         : null,
     };
   });
-  // Free members: a daily teaser of a few of today's posts, 20 characters each,
+  // Free members: their own posts in full, plus a daily teaser of a few of
+  // today's other posts — name and title whole, TEASER_CHARS of the dream —
   // chosen per user and day so reloading never reveals more of the feed.
   route("get", "/api/community/teaser", async (req, user) => {
     const day = req.query.day
@@ -126,21 +129,40 @@ export function registerCommunity(
     const picked = today
       .sort((a, b) => rank(a).localeCompare(rank(b)))
       .slice(0, PLANS.free.teaserPosts);
+    const teasers = picked.map((p) => {
+      const chars = Array.from(p.text);
+      return {
+        id: p.id,
+        alias: p.alias,
+        title: p.title,
+        typeId: p.typeId,
+        characterSet: p.characterSet,
+        publishedAt: p.publishedAt,
+        mine: false,
+        excerpt: chars.slice(0, TEASER_CHARS).join(""),
+        truncated: chars.length > TEASER_CHARS,
+      };
+    });
+    // Own posts are the member's own writing, so they are never shortened and
+    // never take one of the teaser slots.
+    const own = await store.list("communityPosts", {
+      where: [
+        ["owner", "==", user.uid],
+        ["public", "==", true],
+      ],
+      limit: 50,
+    });
+    const mine = own
+      .filter((p) => !p.hidden)
+      .map((p) => ({ ...publicPost(p), mine: true }))
+      .sort((a, b) => String(b.publishedAt).localeCompare(a.publishedAt))
+      .slice(0, 20);
     return {
       day,
       total: today.length,
-      posts: picked.map((p) => {
-        const chars = Array.from(p.text);
-        return {
-          id: p.id,
-          alias: p.alias,
-          typeId: p.typeId,
-          characterSet: p.characterSet,
-          publishedAt: p.publishedAt,
-          excerpt: chars.slice(0, 20).join(""),
-          truncated: chars.length > 20,
-        };
-      }),
+      posts: [...mine, ...teasers].sort((a, b) =>
+        String(b.publishedAt).localeCompare(a.publishedAt),
+      ),
     };
   });
   route("get", "/api/community/feed", async (req, user) => {
@@ -196,17 +218,17 @@ export function registerCommunity(
           : null,
     };
   });
+  // Sharing a dream is part of the free plan; the daily and active allowances
+  // still apply, and reading other members' dreams stays paid.
   route("post", "/api/community/publish", async (req, user) => {
     const data = parse(postInput, req.body);
-    await access.paid(user.uid);
     await moderate(`${data.alias}\n${data.title}\n${data.text}`);
     const id = postId(user.uid, data.recordId),
       path = `communityPosts/${id}`;
     await store.transaction(async (tx) => {
       const member = await tx.get(memberPath(user.uid));
       const plan = activePlan(member, now());
-      if (plan === "free") throw fault(403, "paidRequired");
-      if (member.suspended) throw fault(403, "accountSuspended");
+      if (member?.suspended) throw fault(403, "accountSuspended");
       const old = await tx.get(path);
       if (old?.hidden) throw fault(403, "postUnavailable");
       const statsPath = `communityStats/${user.uid}`,
@@ -254,9 +276,12 @@ export function registerCommunity(
     return { ok: true };
   });
   route("get", "/api/community/posts/:id", async (req, user) => {
-    await access.paid(user.uid);
+    // A member can always open their own post; reading another member's is paid.
     const p = await visible(user.uid, pathId(req), true);
-    if (p.owner !== user.uid) await access.consume(user.uid, "reads");
+    if (p.owner !== user.uid) {
+      await access.paid(user.uid);
+      await access.consume(user.uid, "reads");
+    }
     const after = req.query.after ? parse(ident, req.query.after) : undefined;
     const rows = await store.list(`communityPosts/${p.id}/comments`, {
       after,

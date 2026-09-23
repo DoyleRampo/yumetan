@@ -311,9 +311,10 @@ test("free members get an AI reading with each dream; the second reading of the 
     "A gentle reflection for a free member.",
   );
   await expect(page.locator(".reading-upsell")).toHaveCount(0);
-  // Free: the share box is shown but off, pointing to the plans.
-  await expect(page.locator("#share-public")).toBeDisabled();
-  await expect(page.locator(".share-card")).toContainText("Starter plan");
+  // Free: sharing is available, and off until the member ticks it.
+  await expect(page.locator("#share-public")).toBeEnabled();
+  await expect(page.locator("#share-public")).not.toBeChecked();
+  await expect(page.locator(".share-card")).not.toContainText("Starter plan");
   expect(calls).toBe(1);
   // Reopening an unchanged reading costs nothing; an edit asks the AI again.
   await page.locator(".back-link").click();
@@ -909,4 +910,35 @@ test("the dream level climbs with logged dreams and swiping in from the left edg
   await expect(page.locator(".back-link")).toHaveText("← Home");
   await page.goBack();
   await expect(page.locator("[data-action=catalog]")).toBeVisible();
+});
+test("the guide explains the app, plans and cancelling, and links out to support and privacy", async ({
+  page,
+}) => {
+  const opened = [];
+  await page.exposeFunction("__opened", (url) => opened.push(url));
+  await page.addInitScript(() => {
+    window.open = (url) => window.__opened(url);
+  });
+  await start(page, "en");
+  await page.locator("#header [data-go=settings]").click();
+  await page.locator("[data-go=help]").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "help");
+  for (const id of ["start", "community", "plans", "cancel", "data"])
+    await expect(page.locator(`#help-${id}`)).toBeVisible();
+  await expect(page.locator("#help-cancel")).toContainText("Subscriptions");
+  await expect(page.locator("#help-community")).toContainText("15 characters");
+  await expect(page.locator("main")).not.toContainText("undefined");
+  // Support and privacy are external pages; they open outside the app.
+  for (const label of ["Support page", "Privacy policy"])
+    await page.locator(`#help-links button:has-text("${label}")`).click();
+  expect(opened).toEqual([
+    "https://yumetan-support.ni23al.chatgpt.site/support/",
+    "https://yumetan-support.ni23al.chatgpt.site/privacy/",
+  ]);
+  // The plans page leads to the cancellation steps.
+  await page.locator(".back-link").click();
+  await page.locator("[data-go=plans]").click();
+  await page.locator("[data-social=help-cancel]").first().click();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "help");
+  await expect(page.locator("#help-cancel")).toBeVisible();
 });

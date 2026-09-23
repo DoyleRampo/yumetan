@@ -71,6 +71,10 @@ export function createPurchases({ cap, plugins = {}, config } = {}) {
     configuredFor = null;
   const available = () =>
     Boolean(native && apiKey && (plugins.Purchases || cap?.registerPlugin));
+  // RevenueCat's Test Store completes a purchase without the App Store or Play
+  // sheet and without charging anything. A build that uses it must say so, or a
+  // simulated subscription looks exactly like a real one.
+  const testStore = () => apiKey.startsWith("test_");
   async function ready(uid) {
     if (!available())
       throw Object.assign(new Error("billingUnavailable"), {
@@ -89,6 +93,7 @@ export function createPurchases({ cap, plugins = {}, config } = {}) {
   }
   return {
     available,
+    testStore,
     // Resolves to the store's CustomerInfo (or true when the plugin returns
     // none) after a completed purchase, and to false when the user cancelled.
     async buy(uid, plan, cycle) {

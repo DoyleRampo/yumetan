@@ -4,7 +4,12 @@ import { randomUUID } from "node:crypto";
 import { MemoryStore } from "./helpers/memory-store.mjs";
 import { createAccess, memberPath, dayKey } from "../server/access.js";
 import { registerCommunity } from "../server/community.js";
-import { PLANS, canSaveRecord, activePlan } from "../public/core/plans.js";
+import {
+  PLANS,
+  TEASER_CHARS,
+  canSaveRecord,
+  activePlan,
+} from "../public/core/plans.js";
 import { communityMessages } from "../public/core/community-i18n.js";
 const at = Date.parse("2026-09-17T10:00:00Z");
 function setup() {
@@ -94,15 +99,58 @@ test("three plan prices, calendar entry quotas, editing and all translations are
         values.every((x) => typeof x === "string" && x.length),
     );
 });
-test("feed and mutations reject guests, forged identities and free accounts", async () => {
+test("reading the feed rejects guests, forged identities and free accounts; publishing is free", async () => {
   const s = setup();
   for (const uid of [null, "guest", "invalid", "free"])
     await assert.rejects(s.call("GET", "/api/community/feed", uid), (e) =>
       [401, 403].includes(e.status),
     );
+  for (const uid of [null, "guest", "invalid"])
+    await assert.rejects(
+      s.call("POST", "/api/community/publish", uid, post()),
+      (e) => e.status === 401,
+    );
+  // A free account publishes its own dream, within the free daily allowance.
+  const { id } = await s.call("POST", "/api/community/publish", "free", post());
+  assert.ok(id);
   await assert.rejects(
     s.call("POST", "/api/community/publish", "free", post()),
+    (e) => e.status === 429,
+  );
+  // A suspended account cannot publish at all.
+  s.store.data.set(memberPath("blocked"), { plan: "free", suspended: true });
+  await assert.rejects(
+    s.call("POST", "/api/community/publish", "blocked", post()),
     (e) => e.status === 403,
+  );
+  // Free accounts still cannot stamp or comment on another member's post.
+  s.paid("alice");
+  const other = await s.call("POST", "/api/community/publish", "alice", post());
+  for (const [method, path, body] of [
+    ["POST", "/api/community/posts/:id/reaction", { stamp: "🌙" }],
+    [
+      "POST",
+      "/api/community/posts/:id/comments",
+      { text: "hello", alias: "me", requestId: randomUUID() },
+    ],
+    ["GET", "/api/community/posts/:id", {}],
+  ])
+    await assert.rejects(
+      s.call(method, path, "free", body, { id: other.id }),
+      (e) => e.status === 403,
+    );
+  // Its own post, however, opens on the free plan and costs no read.
+  const own = await s.call(
+    "GET",
+    "/api/community/posts/:id",
+    "free",
+    {},
+    { id },
+  );
+  assert.equal(own.post.mine, true);
+  assert.equal(
+    (await s.store.get(`usage/free_d_${dayKey(at)}`))?.reads || 0,
+    0,
   );
 });
 test("public payload never includes diary/photo/sleep/AI; owner privacy survives expiry", async () => {
@@ -133,12 +181,18 @@ test("public payload never includes diary/photo/sleep/AI; owner privacy survives
     s.call("POST", "/api/community/posts/:id/private", "bob", {}, { id }),
     (e) => e.status === 404,
   );
+  // Sharing belongs to every plan, so an expired author's dream stays readable.
   s.store.data.set(memberPath("alice"), { plan: "free" });
+  assert.equal(
+    (await s.call("GET", "/api/community/feed", "bob")).posts.length,
+    1,
+  );
+  // Its author keeps the privacy controls and can withdraw it at any time.
+  await s.call("POST", "/api/community/posts/:id/private", "alice", {}, { id });
   assert.equal(
     (await s.call("GET", "/api/community/feed", "bob")).posts.length,
     0,
   );
-  await s.call("POST", "/api/community/posts/:id/private", "alice", {}, { id });
   await assert.rejects(
     s.call("GET", "/api/community/posts/:id", "bob", {}, { id }),
     (e) => e.status === 404,
@@ -296,7 +350,7 @@ test("read caps are atomic, not reset by reload; daily and monthly rollovers use
   await s.access.consume("alice", "reflections", 1, true);
 });
 
-test("free members get a fixed random teaser of today's posts, 20 characters each, never the full text", async () => {
+test("free members get a fixed random teaser of today's posts, 15 characters each, never the full text", async () => {
   const s = setup();
   s.paid("alice", "standard");
   s.paid("carol", "standard");
@@ -339,8 +393,15 @@ test("free members get a fixed random teaser of today's posts, 20 characters eac
   assert.equal(first.total, 6);
   assert.equal(first.posts.length, PLANS.free.teaserPosts);
   for (const p of first.posts) {
-    assert.ok(Array.from(p.excerpt).length <= 20);
+    assert.equal(
+      Array.from(p.excerpt).length,
+      p.truncated ? TEASER_CHARS : Array.from("short").length,
+    );
+    // The name and the title are never shortened; the dream is.
+    assert.equal(p.alias, "Dreamer");
+    assert.equal(p.title, "Moon");
     assert.equal("text" in p, false);
+    assert.equal(p.mine, false);
     assert.equal(p.truncated, p.excerpt !== "short");
   }
   assert.ok(!JSON.stringify(first).includes("灯台が見えて"));
@@ -357,7 +418,7 @@ test("free members get a fixed random teaser of today's posts, 20 characters eac
     again.posts.map((p) => p.id),
     first.posts.map((p) => p.id),
   );
-  // Another day has no posts; an expired author's posts disappear.
+  // Another day has no posts.
   assert.equal(
     (
       await s.call(
@@ -371,6 +432,7 @@ test("free members get a fixed random teaser of today's posts, 20 characters eac
     ).total,
     0,
   );
+  // An expired subscription does not take its author's dreams out of the day.
   s.store.data.set(memberPath("carol"), {
     plan: "starter",
     status: "active",
@@ -379,12 +441,49 @@ test("free members get a fixed random teaser of today's posts, 20 characters eac
   assert.equal(
     (await s.call("GET", "/api/community/teaser", "free", {}, {}, { day }))
       .total,
+    6,
+  );
+  // A suspended author's dreams are taken out.
+  s.store.data.set(memberPath("carol"), { plan: "free", suspended: true });
+  assert.equal(
+    (await s.call("GET", "/api/community/teaser", "free", {}, {}, { day }))
+      .total,
     3,
+  );
+  // A free member's own posts come with the teaser, in full and beyond the three.
+  const { id } = await s.call(
+    "POST",
+    "/api/community/publish",
+    "free",
+    post(undefined, long + "mine"),
+  );
+  const withOwn = await s.call(
+    "GET",
+    "/api/community/teaser",
+    "free",
+    {},
+    {},
+    { day },
+  );
+  assert.equal(withOwn.posts.length, PLANS.free.teaserPosts + 1);
+  const mine = withOwn.posts.find((p) => p.mine);
+  assert.equal(mine.id, id);
+  assert.equal(mine.text, long + "mine");
+  assert.equal(withOwn.posts.filter((p) => !p.mine).length, 3);
+  // Withdrawing it takes it back out of the member's own list.
+  await s.call("POST", "/api/community/posts/:id/private", "free", {}, { id });
+  assert.equal(
+    (
+      await s.call("GET", "/api/community/teaser", "free", {}, {}, { day })
+    ).posts.filter((p) => p.mine).length,
+    0,
   );
   // Paid members are not handed the teaser as their feed: the full feed still works.
   s.paid("free");
   assert.equal(
-    (await s.call("GET", "/api/community/feed", "free")).posts.length,
+    (await s.call("GET", "/api/community/feed", "free")).posts.filter(
+      (p) => !p.mine,
+    ).length,
     3,
   );
 });

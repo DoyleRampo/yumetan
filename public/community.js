@@ -72,13 +72,20 @@ export function createCommunity({
   // nickname) and the dream itself, like a social post.
   const author = (p) =>
     `<img class="post-avatar" src="${character(p.typeId, p.characterSet).image}" width="48" height="48" alt="" decoding="async">`;
-  // Free members: today's teaser (20 characters per post); every link leads to the plans.
+  // Who wrote it: another member's nickname, or the coloured "you" mark on a
+  // post of one's own.
+  const postName = (p) =>
+    p.mine ? `<span class="post-badge">${t("minePost")}</span>` : esc(p.alias);
+  // Free members: their own dreams in full, and the opening of a few of today's
+  // other dreams — name and title whole. Every link there leads to the plans.
   const teaserCard = (p) =>
-    `<article class="card feed-card teaser-card">${author(p)}<div class="post-body"><strong class="post-name">${esc(p.alias)}</strong><p class="prose post-text teaser-text">${esc(p.excerpt)}<button type="button" class="link-button" data-social="plans">${t("readMore")}</button></p></div></article>`;
+    p.mine
+      ? postCard(p, true, true)
+      : `<article class="card feed-card teaser-card">${author(p)}<div class="post-body"><strong class="post-name">${postName(p)}</strong><p class="post-title">${esc(p.title)}</p><p class="prose post-text teaser-text">${esc(p.excerpt)}<button type="button" class="link-button" data-social="plans">${t("readMore")}</button></p></div></article>`;
   const teaserView = () =>
     `<div class="teaser"><span class="eyebrow">MEMBERS' DREAMS</span><h2>${t("communityIntro")}</h2><p class="help">${t("teaserHint")}</p><div class="feed-list">${(teaser?.posts || []).map(teaserCard).join("") || (!busy ? `<p class="empty">${t("emptyTeaser")}</p>` : "")}</div><button type="button" class="btn primary full" data-social="plans">${t("seeMore")}</button><p class="help">${t("paidRequired")}</p></div>`;
-  const postCard = (p, open = true) =>
-    `<article class="card feed-card${open ? " post-open" : ""}${p.mine ? " post-mine" : ""}" ${open ? `data-social="post" data-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(p.alias)} · ${t("openPost")}"` : ""}>${author(p)}<div class="post-body"><strong class="post-name">${esc(p.alias)}${p.mine ? `<span class="post-badge">${t("minePost")}</span>` : ""}</strong><p class="prose post-text">${esc(p.text)}</p></div></article>`;
+  const postCard = (p, open = true, withTitle = false) =>
+    `<article class="card feed-card${open ? " post-open" : ""}${p.mine ? " post-mine" : ""}" ${open ? `data-social="post" data-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(p.mine ? t("minePost") : p.alias)} · ${t("openPost")}"` : ""}>${author(p)}<div class="post-body"><strong class="post-name">${postName(p)}</strong>${withTitle ? `<p class="post-title">${esc(p.title)}</p>` : ""}<p class="prose post-text">${esc(p.text)}</p></div></article>`;
   const planFields = [
     ["dreamLimit", "dreams"],
     ["diaryLimit", "diary"],
@@ -105,13 +112,19 @@ export function createCommunity({
   };
   const ctaNote = () =>
     `<p class="help cta-note">${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : plan() !== "free" ? t("switchNote") : t("billingReturn")}</p>`;
+  // A build wired to RevenueCat's Test Store buys without the store sheet and
+  // without charging: say so, or a simulated subscription passes for a real one.
+  const testStoreNote = () =>
+    purchases?.testStore?.()
+      ? `<p class="status test-store" role="status">${t("testStore")}</p>`
+      : "";
   const recommendation = () =>
     plan() !== "free"
       ? ""
       : `<section class="card plan-recommend"><span class="eyebrow">${t("recommended")}</span><h2>${planName(PLANS.starter)} <span class="plan-price">${planPrice(PLANS.starter)}<small> / ${t(cycle)}</small></span></h2><p>${t("upgradeBanner")}</p>${cta(PLANS.starter)}${ctaNote()}</section>`;
   function plansView() {
     const plans = Object.values(PLANS);
-    return `<section class="plans-overview"><div class="row between page-heading"><h1>${t("comparePlans")}</h1>${cyclePicker()}</div>${status()}
+    return `<section class="plans-overview"><div class="row between page-heading"><h1>${t("comparePlans")}</h1>${cyclePicker()}</div>${status()}${testStoreNote()}
     <table class="plan-comparison"><caption class="sr-only">${t("plans")} · ${t(cycle)}</caption><thead><tr><td></td>${plans.map((p) => `<th scope="col" class="${p.id === plan() ? "current" : ""}"><span class="plan-name">${localized(p.names, language())}</span><span class="plan-price">${planPrice(p)}</span><small>${t(cycle)}</small>${p.id === plan() ? `<span class="current-plan">${t("currentPlan")}</span>` : ""}</th>`).join("")}</tr></thead>
     <tbody><tr class="plan-summaries"><th scope="row" class="sr-label">${t("plans")}</th>${plans.map((p) => `<td>${t(p.id + "Summary")}</td>`).join("")}</tr>${[
       ["dreamShort", "dreams"],
@@ -126,23 +139,26 @@ export function createCommunity({
       .join("")}
     <tr class="plan-links"><th scope="row">${t("planDetails")}</th>${plans.map((p) => `<td>${b("details", "plan-detail", `data-plan="${p.id}" aria-label="${localized(p.names, language())} · ${t("details")}"`)}</td>`).join("")}</tr>
     <tr class="plan-cta-row"><th scope="row" class="sr-label">${t("subscribe")}</th>${plans.map((p) => `<td>${cta(p, true) || (p.id === plan() ? `<span class="current-plan">${t("currentPlan")}</span>` : "")}</td>`).join("")}</tr></tbody></table>
-    ${recommendation()}<p class="help included-note">${t("includedShort")}</p><div class="plan-footer"><p class="help">${t("billingShort")}</p>${b("remaining", "plan-detail", `data-plan="${plan()}"`)}</div>
+    ${recommendation()}<p class="help included-note">${t("includedShort")}</p><div class="plan-footer"><p class="help">${t("billingShort")}</p>${b("remaining", "plan-detail", `data-plan="${plan()}"`)}${b("cancelPlan", "help-cancel")}</div>
     <div class="row">${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}</div></section>`;
   }
   function planDetailsView() {
     const p = PLANS[selectedPlan] || PLANS.starter;
-    return `<div class="narrow plan-detail"><div class="row between page-heading"><h1>${localized(p.names, language())}</h1>${cyclePicker()}</div>${status()}<section class="card plan-card"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${p.id === plan() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${planFields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl><p class="help">${t("freeFeatures")}</p><p class="help">${t("renewalNote")}</p>${cta(p)}${cta(p) ? ctaNote() : ""}</section><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.day?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}<p>${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : t("billingReturn")}</p></div><p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p><p class="help">${t("renewalNote")}</p>${cta(p) ? `<section class="card plan-detail-bottom"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${cta(p)}${ctaNote()}</section>` : ""}</div>`;
+    return `<div class="narrow plan-detail"><div class="row between page-heading"><h1>${localized(p.names, language())}</h1>${cyclePicker()}</div>${status()}${testStoreNote()}<section class="card plan-card"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${p.id === plan() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${planFields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl><p class="help">${t("freeFeatures")}</p><p class="help">${t("renewalNote")}</p>${cta(p)}${cta(p) ? ctaNote() : ""}</section><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.day?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}<p>${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : t("billingReturn")}</p></div><div class="row">${b("cancelPlan", "help-cancel")}</div><p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p><p class="help">${t("renewalNote")}</p>${cta(p) ? `<section class="card plan-detail-bottom"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${cta(p)}${ctaNote()}</section>` : ""}</div>`;
   }
   function shareView() {
     const d = shareDraft;
     if (error)
       return `<div class="narrow"><h1>${t("share")}</h1>${status()}${b("refresh", "refresh")}</div>`;
-    return `<div class="narrow"><h1>${t("share")}</h1><p>${t("privacyNote")}</p>${status()}${!signedIn() ? `<p>${t("shareLogin")}</p>${paywall()}` : busy ? "" : `<div class="card"><strong>${t(sharing?.public ? "public" : "private")}</strong>${sharing?.public ? b("unpublish", "unpublish", `data-id="${sharing.id}"`) : ""}<p class="help">${t("shareSnapshot")}</p></div>${plan() === "free" ? paywall() : d ? `<form id="share-form" class="card"><label class="field"><span>${t("alias")}</span><input id="share-alias" required maxlength="30" value="${esc(d.alias)}"></label><label class="field"><span>${t("postTitle")}</span><input id="share-title" required maxlength="80" value="${esc(d.title)}"></label><label class="field"><span>${t("postText")}</span><textarea id="share-text" rows="9" required maxlength="4000">${esc(d.text)}</textarea></label><p class="help">${t("copyLimit")}</p><label class="check"><input id="share-consent" type="checkbox" required><span>${t("consent")}</span></label><button class="btn primary" type="submit">${t("publish")}</button></form>` : ""}`}</div>`;
+    return `<div class="narrow"><h1>${t("share")}</h1><p>${t("privacyNote")}</p>${status()}${!signedIn() ? `<p>${t("shareLogin")}</p>${paywall()}` : busy ? "" : `<div class="card"><strong>${t(sharing?.public ? "public" : "private")}</strong>${sharing?.public ? b("unpublish", "unpublish", `data-id="${sharing.id}"`) : ""}<p class="help">${t("shareSnapshot")}</p></div>${d ? `<form id="share-form" class="card"><label class="field"><span>${t("alias")}</span><input id="share-alias" required maxlength="30" value="${esc(d.alias)}"></label><label class="field"><span>${t("postTitle")}</span><input id="share-title" required maxlength="80" value="${esc(d.title)}"></label><label class="field"><span>${t("postText")}</span><textarea id="share-text" rows="9" required maxlength="4000">${esc(d.text)}</textarea></label><p class="help">${t("copyLimit")}</p><label class="check"><input id="share-consent" type="checkbox" required><span>${t("consent")}</span></label><button class="btn primary" type="submit">${t("publish")}</button></form>` : ""}`}</div>`;
   }
   function detailView() {
     if (!detail) return `<h1>${t("community")}</h1>${status()}`;
     const { post: p } = detail;
-    return `<div class="narrow">${status()}${postCard(p, false)}<div class="card"><div class="row stamps">${STAMPS.map((s) => `<button class="btn ghost" data-social="stamp" data-stamp="${s}" aria-pressed="${detail.reaction === s}" ${p.mine ? "disabled" : ""}>${s} ${Number(p.reactions?.[s] || 0)}</button>`).join("")}</div><h2>${t("comments")}</h2>${detail.comments.map((c) => `<article class="comment"><strong>${esc(c.alias)}</strong><p class="prose">${esc(c.text)}</p>${c.mine || p.mine ? b("removeComment", "delete-comment", `data-id="${c.id}"`) : b("commentReport", "report-comment", `data-id="${c.id}"`)}</article>`).join("")}${detail.next ? b("nextPage", "comments-next") : ""}<form id="comment-form"><label class="field"><span>${t("comments")}</span><textarea id="comment-text" rows="3" maxlength="500" required>${esc(commentDraft)}</textarea></label><p class="help">${t("copyLimit")}</p><button class="btn primary" type="submit">${t("sendComment")}</button></form></div>${!p.mine ? `<div class="card"><label class="field"><span>${t("reportReason")}</span><select id="report-reason">${["privacy", "abuse", "spam", "other"].map((r) => `<option value="${r}">${t(r)}</option>`).join("")}</select></label>${b("report", "report")}</div>` : ""}</div>`;
+    // Free members reach this page through their own post: they read the
+    // comments it received, and the plans open stamps and replies.
+    const free = plan() === "free";
+    return `<div class="narrow">${status()}${postCard(p, false, true)}<div class="card">${free ? "" : `<div class="row stamps">${STAMPS.map((s) => `<button class="btn ghost" data-social="stamp" data-stamp="${s}" aria-pressed="${detail.reaction === s}" ${p.mine ? "disabled" : ""}>${s} ${Number(p.reactions?.[s] || 0)}</button>`).join("")}</div>`}<h2>${t("comments")}</h2>${detail.comments.map((c) => `<article class="comment"><strong>${esc(c.alias)}</strong><p class="prose">${esc(c.text)}</p>${c.mine || p.mine ? b("removeComment", "delete-comment", `data-id="${c.id}"`) : b("commentReport", "report-comment", `data-id="${c.id}"`)}</article>`).join("") || `<p class="empty">${t("emptyComments")}</p>`}${detail.next ? b("nextPage", "comments-next") : ""}${free ? `<p class="help">${t("commentPaidNote")}</p><button type="button" class="btn primary full" data-social="plans">${t("seeMore")}</button>` : `<form id="comment-form"><label class="field"><span>${t("comments")}</span><textarea id="comment-text" rows="3" maxlength="500" required>${esc(commentDraft)}</textarea></label><p class="help">${t("copyLimit")}</p><button class="btn primary" type="submit">${t("sendComment")}</button></form>`}</div>${!p.mine ? `<div class="card"><label class="field"><span>${t("reportReason")}</span><select id="report-reason">${["privacy", "abuse", "spam", "other"].map((r) => `<option value="${r}">${t(r)}</option>`).join("")}</select></label>${b("report", "report")}</div>` : ""}</div>`;
   }
   function view(page) {
     if (page === "plans") return plansView();
@@ -293,7 +309,11 @@ export function createCommunity({
         run(async () => {
           capture();
           const action = el.dataset.social;
-          if (["plans", "settings", "feed"].includes(action)) {
+          if (
+            ["plans", "settings", "feed", "help", "help-cancel"].includes(
+              action,
+            )
+          ) {
             navigate(action === "feed" ? "community" : action);
             return;
           }

@@ -49,6 +49,7 @@ import {
 } from "./core/characters.js";
 import { TYPES, GROUPS, LANGUAGES, localized, typeById } from "./core/types.js";
 import { translator, locales, languageNames } from "./core/i18n.js";
+import { HELP_SECTIONS, HELP_LINKS } from "./core/help-content.js";
 import {
   localDate,
   validDate,
@@ -174,7 +175,9 @@ const social = createCommunity({
   esc,
   navigate: (next) => {
     processing = false;
-    navigate(next);
+    // The plans page links straight to the cancellation steps in Help.
+    helpSection = next === "help-cancel" ? "cancel" : null;
+    navigate(helpSection ? "help" : next);
   },
   render,
   toast,
@@ -481,6 +484,7 @@ function render() {
     detail: detailView,
     reading: readingView,
     settings: settingsView,
+    help: helpView,
     community: () => social.view("community"),
     plans: () => social.view("plans"),
     "plan-details": () => social.view("plan-details"),
@@ -529,6 +533,7 @@ const PARENTS = {
   reading: "record",
   plans: "settings",
   "plan-details": "plans",
+  help: "settings",
   share: "detail",
   "community-post": "community",
   onboard: "settings",
@@ -549,6 +554,7 @@ function pageTitle(p) {
     reading: t("readingTitle"),
     plans: ct("plans"),
     "plan-details": ct("plans"),
+    help: t("help"),
     share: ct("share"),
     "community-post": ct("community"),
     onboard: t("profile"),
@@ -625,6 +631,11 @@ async function navigate(next, force = false, back = false) {
   animatePage(from);
   window.scrollTo(0, 0);
   $("#app").focus({ preventScroll: true });
+  if (page === "help" && helpSection) {
+    const section = $(`#help-${helpSection}`);
+    helpSection = null;
+    section?.scrollIntoView({ block: "start" });
+  }
   if (["community", "plans", "plan-details", "share"].includes(page))
     social.enter(
       page,
@@ -999,13 +1010,16 @@ function readingView() {
   if (!d) return `<p>${t("empty")}</p>`;
   return `<div class="narrow reading-page"><p class="eyebrow">${esc(dateText(d.date))}</p><h1>${t("readingTitle")}</h1><p class="help reading-excerpt">${esc((d.text || t("sleep")).slice(0, 80))}${d.text && d.text.length > 80 ? "…" : ""}</p>${analysisCard(d)}${shareField(d)}<div class="row">${button("save", "save-reading", "primary full")}</div></div>`;
 }
-// Each dream decides for itself whether it appears in the feed. Sharing needs
-// an account and a paid plan; otherwise the box explains why it is off.
+// Each dream decides for itself whether it appears in the feed. Sharing is part
+// of every plan and needs only an account; reading other members' dreams is
+// what a paid plan opens.
 function shareField(d) {
   if (!cloudConfigured()) return "";
-  const allowed = signedIn() && displayPlan() !== "free",
-    on = d.shared == null ? allowed : d.shared;
-  return `<div class="card share-card"><label class="check share-check"><input type="checkbox" id="share-public" ${on ? "checked" : ""} ${allowed ? "" : "disabled"}><span>${t("shareDream")}</span></label><p class="help">${allowed ? t("shareDreamHint") : !signedIn() ? at("loginHint") : t("visibilityPaidNote")}</p>${allowed ? "" : signedIn() ? `<button type="button" class="btn small ghost" data-go="plans">${t("viewPlans")}</button>` : ""}</div>`;
+  // Paid members keep the box ticked by default; for free members sharing is a
+  // new possibility, so their first dream is only published if they ask for it.
+  const allowed = signedIn(),
+    on = d.shared == null ? allowed && displayPlan() !== "free" : d.shared;
+  return `<div class="card share-card"><label class="check share-check"><input type="checkbox" id="share-public" ${on ? "checked" : ""} ${allowed ? "" : "disabled"}><span>${t("shareDream")}</span></label><p class="help">${allowed ? t("shareDreamHint") : at("loginHint")}</p></div>`;
 }
 const WEATHER = {
   sunny: ["☀️", "weatherSunny"],
@@ -1057,6 +1071,33 @@ function detailView() {
   if (!r) return `<p>${t("empty")}</p>`;
   return `<div class="narrow"><p class="eyebrow">${esc(dateText(r.date))}</p><h1>${t("detail")}</h1><div class="card"><p class="prose">${esc(r.text)}</p>${r.photo ? `<img class="photo" src="${esc(r.photo)}" alt="${t("photoAlt")}">` : ""}${r.sleep ? `<p class="help">${t("hours")}: ${r.sleep.hours} · ${t("awakenings")}: ${r.sleep.awakenings} · ${t("rested")}: ${r.sleep.rested}</p>` : ""}</div>${r.kind === "dream" && r.analysis ? analysisCard(r) : ""}${r.kind === "dream" ? `<div class="card"><h2>${ct("share")}</h2><p class="help">${ct("privacyNote")}</p><button class="btn ghost" data-go="share">${ct("share")}</button></div>` : ""}<div class="row">${button("edit", "edit", "primary")}${button("delete", "delete", "danger ghost")}</div></div>`;
 }
+// How the app is used, what a plan costs and how to stop paying for it, what
+// happens to the writing, and where to ask for help. Opened from Settings, and
+// from the plans page straight at the cancellation steps.
+let helpSection = null;
+function helpView() {
+  return `<div class="narrow help-page"><h1>${t("help")}</h1><p class="help">${t("helpHint")}</p>
+ ${HELP_SECTIONS.map(
+   (section) =>
+     `<section class="card help-section" id="help-${section.id}"><h2>${esc(localized(section.title, language()))}</h2>${section.body
+       .map((line) => `<p>${esc(localized(line, language()))}</p>`)
+       .join("")}</section>`,
+ ).join("")}
+ <section class="card help-section" id="help-links"><h2>${t("helpLinks")}</h2><p class="help">${t("helpLinksHint")}</p><div class="row">${[
+   ["supportSite", HELP_LINKS.support],
+   ["privacyPolicy", HELP_LINKS.privacy],
+ ]
+   .map(
+     ([label, url]) =>
+       `<button type="button" class="btn ghost" data-link="${esc(url)}">${t(label)} ↗</button>`,
+   )
+   .join("")}</div></section>
+ <p class="help">${t("version")} ${APP_VERSION}</p></div>`;
+}
+// External pages (support, privacy) open outside the app, never in its WebView.
+function openExternal(url) {
+  if (/^https:\/\//.test(url)) window.open(url, "_blank", "noopener");
+}
 // Settings follow the usual mobile order: who you are, what you pay for, how
 // the app looks, reminders, account, and finally the small print.
 function settingsView() {
@@ -1076,6 +1117,7 @@ function settingsView() {
    "",
  )}</div></fieldset><button type="submit" class="btn primary">${t("save")}</button></form>
  ${accountCard()}
+ <section class="card help-card"><h2>${t("help")}</h2><p class="help">${t("helpHint")}</p><div class="row"><button type="button" class="btn primary" data-go="help">${t("openHelp")}</button><button type="button" class="btn ghost" data-link="${esc(HELP_LINKS.support)}">${t("supportSite")} ↗</button></div></section>
  <section class="card about-card"><h2>${t("about")}</h2><p class="help">${t("typeNote")}</p><p class="help">${ct("planAIHint")}</p><p class="help">${t("version")} ${APP_VERSION}</p></section></div>`;
 }
 // Settings only offer to leave: sign out, or delete the account for good.
@@ -2339,6 +2381,10 @@ document.addEventListener("click", (event) => {
   if (!el || el.disabled) return;
   if (el.dataset.go) {
     navigate(el.dataset.go);
+    return;
+  }
+  if (el.dataset.link) {
+    openExternal(el.dataset.link);
     return;
   }
   if (el.dataset.entry) {
