@@ -274,9 +274,13 @@ export function createCommunity({
     detail = r;
     error = "";
   }
-  // Ask the server to verify the store subscription until it shows up as a
-  // paid plan (RevenueCat can lag a few seconds behind the store).
-  async function syncUntilActive() {
+  // Ask the server to verify the store subscription until it shows the plan
+  // just bought (RevenueCat can lag a few seconds behind the store). Waiting
+  // only for "not free" ended a Starter → Standard switch on the very first
+  // answer, which still said Starter, so the upgrade looked like it never took.
+  const reached = (account, target) =>
+    target ? planOf(account) === target : planOf(account) !== "free";
+  async function syncUntilActive(target = null) {
     let last = null,
       failure = null;
     for (let i = 0; i < SYNC_ATTEMPTS; i++) {
@@ -288,7 +292,7 @@ export function createCommunity({
         failure = e;
         continue;
       }
-      if (planOf(last) !== "free") break;
+      if (reached(last, target)) break;
     }
     if (!last) throw failure;
     return last;
@@ -317,8 +321,11 @@ export function createCommunity({
       // server-verified plan below is what grants quotas and the feed.
       const confirmed = planFromCustomerInfo(done);
       if (confirmed) onPurchased(confirmed);
-      setAccount(await syncUntilActive());
-      toast(t(plan() === "free" ? "purchasePending" : "purchaseActivated"));
+      const target = action === "checkout" ? planId : null;
+      setAccount(await syncUntilActive(target));
+      toast(
+        t(reached(account, target) ? "purchaseActivated" : "purchasePending"),
+      );
       render();
     } finally {
       stop();
@@ -499,6 +506,11 @@ export function createCommunity({
     capture,
     plan,
     refreshAccount,
+    // Asks the server to read the store subscription again now (after a
+    // purchase whose own sync never finished).
+    async syncAccount() {
+      return setAccount(await api("/api/billing/sync", {}));
+    },
     // Publish a saved dream as-is (its own "share" box). The server still
     // requires a paid plan and applies the daily publishing allowance.
     async publishRecord(record) {

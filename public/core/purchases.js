@@ -31,7 +31,9 @@ export function planFromCustomerInfo(info, now = Date.now()) {
   const found = [];
   const active = info.entitlements?.active || {};
   for (const [id, e] of Object.entries(active)) {
-    const plan = planFromProduct(id) || planFromProduct(e?.productIdentifier);
+    // The product bought decides, as on the server; the entitlement's name is
+    // only the fallback.
+    const plan = planFromProduct(e?.productIdentifier) || planFromProduct(id);
     const until =
       Number(e?.expirationDateMillis) || Date.parse(e?.expirationDate || "");
     if (plan && (!Number.isFinite(until) || until > now))

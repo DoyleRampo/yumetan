@@ -119,34 +119,49 @@ const at = (key) => authText(key, displayLanguage());
 const language = () => options.language;
 const ct = (key) => communityText(key, language());
 const signedIn = () => Boolean(cloud?.state.enabled && !cloud.isAnonymous());
-// The plan the app behaves by: the live server-verified plan, or (offline, or
-// while the server still catches up with a purchase the store already
-// confirmed) the plan remembered for this account. Server-side allowances
-// (AI readings, the feed) always follow the server's own verification.
-function displayPlan() {
-  const live = social.plan();
-  if (live !== "free") return live;
+const PLAN_RANK = { free: 0, starter: 1, standard: 2 };
+// The remembered plan for the signed-in account, while it has not expired.
+function cachedPlan() {
   const cached = options.planCache;
   return signedIn() &&
     cached &&
     cached.uid === cloud.uid() &&
     ["starter", "standard"].includes(cached.plan) &&
     Number(cached.paidUntil) > Date.now()
-    ? cached.plan
-    : "free";
+    ? cached
+    : null;
+}
+// The plan the app behaves by: the live server-verified plan, or (offline, or
+// while the server still catches up with a purchase the store already
+// confirmed) the plan remembered for this account. Server-side allowances
+// (AI readings, the feed) always follow the server's own verification.
+// Whichever is better wins: a Starter member who just bought Standard is
+// Standard from the moment the store says so, not once the server catches up.
+function displayPlan() {
+  const live = social.plan(),
+    cached = cachedPlan()?.plan || "free";
+  return PLAN_RANK[cached] > PLAN_RANK[live] ? cached : live;
+}
+// The store confirmed a better plan than the server reports: the sync after
+// that purchase never finished, so the server has yet to hear of it.
+function storeAhead() {
+  const cached = cachedPlan();
+  return Boolean(
+    cached?.storeConfirmed && PLAN_RANK[cached.plan] > PLAN_RANK[social.plan()],
+  );
 }
 // Remember the plan for this account. A store confirmation (`storeConfirmed`)
-// is kept until it expires even if the server has not caught up yet.
+// is kept until it expires even if the server has not caught up yet, and a
+// lower server answer (the old plan, right after a switch) never replaces it.
 function rememberPlan(plan, paidUntil, storeConfirmed = false) {
   if (!signedIn()) return;
   const cached = options.planCache,
     active =
       ["starter", "standard"].includes(plan) && Number(paidUntil) > Date.now();
   if (
-    !active &&
-    cached?.uid === cloud.uid() &&
-    cached.storeConfirmed &&
-    Number(cached.paidUntil) > Date.now()
+    !storeConfirmed &&
+    cachedPlan()?.storeConfirmed &&
+    PLAN_RANK[cached.plan] > PLAN_RANK[active ? plan : "free"]
   )
     return;
   const next = {
@@ -1182,13 +1197,26 @@ async function refreshPlan() {
   if (!signedIn()) return;
   try {
     await social.refreshAccount();
+    // A purchase the server never recorded (the app closed, or the API was
+    // asleep, while it verified): ask it to read the store again now rather
+    // than leave the member on the old plan until a webhook happens to land.
+    if (storeAhead()) await social.syncAccount();
   } catch {}
 }
 // The plan only affects the character collection, so it is refreshed in the
 // background: a sleeping API instance must never delay login or app start.
-let planRefresh = null;
+let planRefresh = null,
+  planRefreshedAt = 0;
+// Coming back to the app re-reads the plan too (at most once a minute), so a
+// renewal or a purchase the server confirmed meanwhile shows without a restart.
+function refreshPlanOnReturn() {
+  if (!cloud || cloud.isAnonymous() || authChanging) return;
+  if (Date.now() - planRefreshedAt < 60000) return;
+  refreshPlanInBackground();
+}
 function refreshPlanInBackground() {
   if (planRefresh) return planRefresh;
+  planRefreshedAt = Date.now();
   const before = options.planCache?.plan;
   planRefresh = refreshPlan()
     .then(() => {
@@ -2586,17 +2614,21 @@ window.addEventListener("online", () => syncCloud());
 window.addEventListener("focus", () => {
   resumeNativeLogin();
   if (!authChanging) syncCloud();
+  refreshPlanOnReturn();
 });
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
     resumeNativeLogin();
     if (!authChanging) syncCloud();
+    refreshPlanOnReturn();
   }
 });
 await boot();
 if (native) {
   plugins.App?.addListener("appStateChange", ({ isActive }) => {
-    if (isActive) resumeNativeLogin();
+    if (!isActive) return;
+    resumeNativeLogin();
+    refreshPlanOnReturn();
   });
   plugins.App?.addListener("backButton", () => {
     if (hasBack()) goBack();

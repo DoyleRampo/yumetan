@@ -8,6 +8,12 @@ import { fault, memberPath, dayKey, monthKey } from "./access.js";
 // RevenueCat's REST API, which is the only source of truth.
 const API_BASE = "https://api.revenuecat.com/v1";
 const ENTITLEMENTS = ["standard", "starter"];
+// When `account` re-reads RevenueCat by itself (see `stale`): at most once a
+// minute, for up to ten minutes after a paid period ends, and every six hours
+// otherwise.
+const RESYNC_RETRY_MS = 60000;
+const RESYNC_AFTER_EXPIRY_MS = 10 * 60000;
+const RESYNC_ACTIVE_MS = 6 * 3600000;
 // Firebase UIDs only; RevenueCat anonymous IDs ($RCAnonymousID:…) never map to a member.
 const anonymous = (id) =>
   typeof id !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(id);
@@ -20,15 +26,28 @@ function sameSecret(a, b) {
 export function membershipFromSubscriber(subscriber, at) {
   const entitlements = subscriber?.entitlements || {},
     subscriptions = subscriber?.subscriptions || {};
-  for (const plan of ENTITLEMENTS) {
-    const e = entitlements[plan];
-    if (!e || !PLANS[plan]) continue;
+  // The product that was bought names the plan; the entitlement's own name is
+  // the fallback. An entitlement that several products unlock (one shared
+  // "starter" for both plans, say) would otherwise hold a Standard member to
+  // Starter's allowances. With more than one active, the best plan wins.
+  let entitled = null;
+  for (const [id, e] of Object.entries(entitlements)) {
+    if (!e || typeof e !== "object") continue;
     const expires = e.expires_date ? Date.parse(e.expires_date) : NaN;
     if (!Number.isFinite(expires) || expires <= at) continue;
     const product = String(e.product_identifier || "");
     const base = product.split(":")[0];
+    const plan =
+      planFromProduct(base) || (ENTITLEMENTS.includes(id) ? id : null);
+    if (!plan || !PLANS[plan]) continue;
+    if (
+      entitled &&
+      (ENTITLEMENTS.indexOf(plan) > ENTITLEMENTS.indexOf(entitled.plan) ||
+        (plan === entitled.plan && expires <= entitled.paidUntil))
+    )
+      continue;
     const sub = subscriptions[product] || subscriptions[base] || {};
-    return {
+    entitled = {
       plan,
       cycle: cycleFromProduct(base),
       status: "active",
@@ -39,6 +58,7 @@ export function membershipFromSubscriber(subscriber, at) {
       sandbox: Boolean(sub.is_sandbox),
     };
   }
+  if (entitled) return entitled;
   // Entitlements are the preferred source, but a RevenueCat project whose
   // entitlements are not (yet) named after the plans still has the store
   // subscription itself: an active product naming a plan grants that plan.
@@ -145,8 +165,32 @@ export function createBilling({
       });
     });
   }
+  // Renewals reach the server by webhook. One that never arrives (the API
+  // asleep on a free instance, a delivery given up on, a sandbox renewing every
+  // few minutes) left the stored paid period to run out, and a paying member
+  // fell back to free for good. Only members RevenueCat already knows are
+  // re-checked: looking up anyone else would create a subscriber there.
+  function stale(member, at) {
+    if (!configured || member.source !== "revenuecat") return false;
+    const synced = Number(member.lastSyncedAt) || 0;
+    if (at - synced < RESYNC_RETRY_MS) return false;
+    const paidUntil = Number(member.paidUntil) || 0;
+    // A paid period has ended since the last check: ask again, for a while.
+    if (member.plan !== "free" && paidUntil <= at)
+      return synced < paidUntil + RESYNC_AFTER_EXPIRY_MS;
+    // Otherwise now and then, for an upgrade or a refund that went unheard.
+    return at - synced > RESYNC_ACTIVE_MS;
+  }
   async function account(uid) {
-    const member = await access.member(uid);
+    let member = await access.member(uid);
+    if (!anonymous(uid) && stale(member, now())) {
+      try {
+        await refresh(uid);
+        member = await access.member(uid);
+      } catch {
+        // RevenueCat unreachable: answer from what is stored.
+      }
+    }
     const plan = activePlan(member, now());
     return {
       plan: member.suspended ? "free" : plan,
@@ -191,15 +235,21 @@ export function createBilling({
       if (!event || typeof event !== "object") throw fault(400, "invalidInput");
       if (event.type === "TEST") return { synced: 0 };
       // The event body is never trusted for entitlements; only the user IDs it names.
+      // A TRANSFER (a restore on another account) names its users only in
+      // transferred_from / transferred_to: both sides must be re-read, or the
+      // new owner stays free while the old one keeps the plan.
+      const list = (v) => (Array.isArray(v) ? v : []);
       const ids = [
         ...new Set(
           [
             event.app_user_id,
             event.original_app_user_id,
-            ...(Array.isArray(event.aliases) ? event.aliases : []),
+            ...list(event.aliases),
+            ...list(event.transferred_to),
+            ...list(event.transferred_from),
           ].filter((id) => !anonymous(id)),
         ),
-      ].slice(0, 5);
+      ].slice(0, 10);
       for (const uid of ids) await refresh(uid);
       return { synced: ids.length };
     },

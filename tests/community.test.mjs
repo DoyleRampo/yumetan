@@ -12,7 +12,7 @@ import {
   activePlan,
 } from "../public/core/plans.js";
 import { communityMessages } from "../public/core/community-i18n.js";
-import { createCommunity } from "../public/community.js";
+import { createCommunity, communityText } from "../public/community.js";
 const at = Date.parse("2026-09-17T10:00:00Z");
 function setup() {
   const store = new MemoryStore();
@@ -658,4 +658,64 @@ test("a failed block list or timeline keeps the plan the server confirmed", asyn
   await free.community.enter("community");
   assert.ok(free.asked.includes("/api/community/teaser"));
   assert.equal(free.community.plan(), "free");
+});
+// A Starter member switching to Standard: the first sync still answers
+// Starter, because RevenueCat lags the store by a few seconds. The loop used to
+// stop at "not free" and report the upgrade as done while it was not.
+test("a plan switch keeps syncing until the server reports the plan bought", async () => {
+  const button = {
+    tagName: "BUTTON",
+    dataset: { social: "checkout", plan: "standard" },
+  };
+  const previous = globalThis.document;
+  globalThis.document = {
+    querySelector: () => null,
+    querySelectorAll: () => [button],
+    createElement: () => ({ remove() {} }),
+    body: { append() {} },
+  };
+  try {
+    const answers = [
+      { plan: "starter", paidUntil: Date.now() + 86400000 },
+      { plan: "starter", paidUntil: Date.now() + 86400000 },
+      { plan: "standard", paidUntil: Date.now() + 86400000 },
+    ];
+    let syncs = 0;
+    const toasts = [];
+    const community = createCommunity({
+      api: async (path) => {
+        if (path === "/api/account")
+          return {
+            plan: "starter",
+            paidUntil: Date.now() + 86400000,
+            billingConfigured: true,
+          };
+        if (path === "/api/billing/sync") return answers[syncs++];
+        return {};
+      },
+      language: () => "ja",
+      esc: (s) => String(s),
+      navigate: () => {},
+      render: () => {},
+      toast: (m) => toasts.push(m),
+      run: async (fn) => fn(),
+      markSaved: () => {},
+      signedIn: () => true,
+      nickname: () => "Dreamer",
+      character: () => ({ image: "", setId: "human" }),
+      currentType: () => "challenge",
+      isNative: () => true,
+      uid: () => "alice",
+      purchases: { available: () => true, buy: async () => true },
+      wait: async () => {},
+    });
+    await community.enter("plans");
+    community.bind();
+    await button.onclick();
+    assert.equal(syncs, 3);
+    assert.equal(community.plan(), "standard");
+    assert.equal(toasts.at(-1), communityText("purchaseActivated", "ja"));
+  } finally {
+    globalThis.document = previous;
+  }
 });

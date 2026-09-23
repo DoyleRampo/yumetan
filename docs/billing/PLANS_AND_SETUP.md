@@ -152,6 +152,10 @@ AI読み解きは全プランで夢の記録とセットです。回数は夢の
 - アプリはRevenueCatの App User ID にFirebase UIDを使います。購入・復元後に `POST /api/billing/sync` を呼び、サーバーがRevenueCat REST API（`GET /v1/subscribers/{uid}`）で契約を照会して `memberships/{uid}` を更新します。ストア側の反映が遅れることがあるため、アプリは「登録する」を押してから反映されるまで全画面のローディング（ストアに接続 → プランを反映）を表示し、有料プランになるまで最大6回（2.5秒間隔）同期を繰り返します。ストアが返した購入情報（CustomerInfo）のプランは、サーバー反映を待つ間もアプリ内の表示・端末内の記録枠に使います。
 - Webhookは Authorization ヘッダーを定数時間比較で検証し、イベント本文の権利情報は信用せず、含まれるユーザーIDについて同じ照会を行います。匿名ID（`$RCAnonymousID:…`）は無視します。`TEST` イベントは受理のみ。
 - 期限切れ・未知の製品は無料扱い。解約予定は `cancelAtPeriodEnd` として表示。古い照会結果が後から届いても上書きしません（`request_date_ms` で判定）。
+- Webhook が届かなかった更新（無料インスタンスのスリープ中、配信の打ち切り、数分ごとに更新される Sandbox など）で有料会員がフリーに戻らないよう、`GET /api/account` は保存済みの有料期間が切れていればRevenueCatに照会し直します（期限後10分間は1分に1回まで、それ以外は6時間に1回）。照会するのはRevenueCatに一度でも同期済みの会員だけです（未登録のIDを照会するとRevenueCat側に購読者が作られるため）。
+- プランは購入した製品IDで決め、Entitlement名は製品IDにプラン名が無いときの補助です。複数のEntitlementが有効ならスタンダードを優先します。
+- `TRANSFER`（別アカウントでの復元）は `transferred_from` / `transferred_to` の両方を照会し直します。
+- アプリは、購入後の同期が完了しないまま（アプリ終了・サーバー起動待ちなど）ストアが確認したプランがサーバーより上なら、起動時・アプリに戻ったとき（1分に1回まで）に `POST /api/billing/sync` をもう一度呼びます。プラン変更（スターター→スタンダード）では、サーバーが新しいプランを返すまで同期を繰り返します。
 - Sandbox購入も有効化します（Sandboxテスター/ライセンステスターは開発者が登録した人だけが使えるため）。本番配布前にSandboxで購入・復元・解約・期限切れ・Webhook再送を確認してください。
 
 参考: [RevenueCat Webhooks](https://www.revenuecat.com/docs/integrations/webhooks)、[REST API v1](https://www.revenuecat.com/docs/api-v1)、[Capacitor SDK](https://github.com/RevenueCat/purchases-capacitor)。

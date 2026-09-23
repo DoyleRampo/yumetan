@@ -501,3 +501,127 @@ test("a subscription whose entitlement is missing still grants the plan its prod
     "free",
   );
 });
+// A renewal the webhook never delivered (the API asleep, a sandbox renewing
+// every five minutes) used to leave the stored period to run out, and the
+// member stayed free until they happened to buy or restore again.
+test("a lapsed stored period is re-read from RevenueCat before the member is called free", async () => {
+  const s = billingFixture();
+  let clock = now;
+  const access = createAccess({ store: s.store, now: () => clock });
+  const fetches = [];
+  let response = subscriber();
+  const billing = createBilling({
+    access,
+    env,
+    fetch: async (url) => {
+      fetches.push(url);
+      return { ok: true, status: 200, json: async () => response };
+    },
+  });
+  // Bought a month: stored with RevenueCat's expiry.
+  await billing.sync({ uid: "alice" });
+  assert.equal((await billing.account("alice")).plan, "starter");
+  assert.equal(fetches.length, 1, "an active member is not re-read");
+  // The month ends; RevenueCat renewed it but no webhook arrived.
+  const renewed = now + 86400000 * 60;
+  clock = now + 86400000 * 30 + 1000;
+  response = subscriber({
+    entitlements: {
+      starter: {
+        expires_date: iso(renewed),
+        product_identifier: "yumetan_starter_monthly",
+      },
+    },
+  });
+  response.request_date_ms = clock;
+  const account = await billing.account("alice");
+  assert.equal(account.plan, "starter");
+  assert.equal(account.paidUntil, renewed);
+  assert.equal(fetches.length, 2);
+  // RevenueCat is asked at most once a minute, and not while it is unreachable.
+  clock += 1000;
+  await billing.account("alice");
+  assert.equal(fetches.length, 2);
+  // A member RevenueCat has never seen is not looked up (that would create one).
+  assert.equal((await billing.account("carol")).plan, "free");
+  assert.equal(fetches.length, 2);
+  // A failing RevenueCat answers from what is stored.
+  await s.store.transaction(async (tx) =>
+    tx.set("memberships/dave", {
+      plan: "starter",
+      status: "active",
+      paidUntil: clock - 1,
+      source: "revenuecat",
+      lastSyncedAt: clock - 120000,
+    }),
+  );
+  const failing = createBilling({
+    access,
+    env,
+    fetch: async () => {
+      throw new Error("network");
+    },
+  });
+  assert.equal((await failing.account("dave")).plan, "free");
+});
+test("a transfer re-reads both accounts; the product bought decides the plan", async () => {
+  const s = billingFixture();
+  s.respond(subscriber());
+  const r = await s.billing.webhook("hook-secret", {
+    event: {
+      type: "TRANSFER",
+      transferred_from: ["olduser"],
+      transferred_to: ["newuser"],
+    },
+  });
+  assert.equal(r.synced, 2);
+  assert.deepEqual(s.calls.map((c) => c.url.split("/").at(-1)).sort(), [
+    "newuser",
+    "olduser",
+  ]);
+  // One entitlement unlocked by both plans' products: Standard stays Standard.
+  const expires = iso(now + 86400000 * 30);
+  const shared = membershipFromSubscriber(
+    {
+      entitlements: {
+        starter: {
+          expires_date: expires,
+          product_identifier: "com.doyle.yumetan.standard.monthly",
+        },
+      },
+    },
+    now,
+  );
+  assert.equal(shared.plan, "standard");
+  // An entitlement with its own name still counts when its product names no plan.
+  assert.equal(
+    membershipFromSubscriber(
+      {
+        entitlements: {
+          standard: { expires_date: expires, product_identifier: "premium_1" },
+        },
+      },
+      now,
+    ).plan,
+    "standard",
+  );
+  // With several active, the best plan wins.
+  assert.equal(
+    membershipFromSubscriber(
+      {
+        entitlements: {
+          starter: {
+            expires_date: expires,
+            product_identifier: "com.doyle.yumetan.starter.monthly",
+          },
+          standard: {
+            expires_date: expires,
+            product_identifier: "com.doyle.yumetan.standard.monthly",
+          },
+        },
+      },
+      now,
+    ).plan,
+    "standard",
+  );
+});
