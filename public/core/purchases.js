@@ -80,6 +80,25 @@ export function createPurchases({ cap, plugins = {}, config } = {}) {
       }
       return true;
     },
+    // Localized store prices ({ productId: "¥490" }) for display next to the purchase
+    // button, so the amount shown is what the store will actually charge.
+    async prices(uid) {
+      const p = await ready(uid);
+      const offerings = await p.getOfferings();
+      const out = {};
+      for (const o of [
+        offerings.current,
+        ...Object.values(offerings.all || {}),
+      ])
+        for (const x of o?.availablePackages || []) {
+          const id = String(x.product?.identifier || "")
+            .split(":")[0]
+            .toLowerCase();
+          if (id && x.product?.priceString && !out[id])
+            out[id] = x.product.priceString;
+        }
+      return out;
+    },
     async restore(uid) {
       const p = await ready(uid);
       await p.restorePurchases();

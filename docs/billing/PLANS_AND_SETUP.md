@@ -122,6 +122,8 @@
 
 - `SUPPORT_URL` に問い合わせページを設定。通報は定期確認し、必要に応じユーザーを停止。`memberships/{uid}.suspended=true` は管理者のみが設定。
 - 運営者のFirebase Custom Claimに `moderator: true` を付与。`GET /api/moderation/reports` で未処理通報、`POST /api/moderation/reports/:id` に `{ "action": "hide" }` または `dismiss` で処理。一般ユーザーはアクセス不可。
+- 利用規約 `public/legal/terms.html` とプライバシーポリシー `public/legal/privacy.html` のプレースホルダー（事業者名・連絡先・管轄裁判所・対象年齢）を埋め、App Store Connect の「プライバシーポリシー URL」に `https://<サーバー>/legal/privacy.html` を登録する。独自の EULA を使う場合は `https://<サーバー>/legal/terms.html` を「使用許諾契約」に登録する（未登録なら Apple 標準 EULA が適用される）。
+- RevenueCat の秘密 API キーは購読者の削除（`DELETE /v1/subscribers/{uid}`、アカウント削除時）にも使う。RevenueCat の API キー設定で削除権限を持つキーにする。
 - iOS/Androidでは外部決済ボタンを表示せず、ストア内購入・復元だけを提供します。自動更新・取消条件・事業者/問い合わせ情報をアプリ内とストア掲載情報に明記してください。配布地域/ストア条件の審査は別途必要です。[Appleのガイドライン](https://developer.apple.com/jp/app-store/review/guidelines/)
 
 ## 検証の範囲

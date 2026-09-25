@@ -239,7 +239,7 @@ export function registerCommunity(
         reactions[old.stamp] = Math.max(0, (reactions[old.stamp] || 0) - 1);
       if (stamp) reactions[stamp] = (reactions[stamp] || 0) + 1;
       tx.set(path, { ...fresh, reactions });
-      if (stamp) tx.set(reactionPath, { stamp });
+      if (stamp) tx.set(reactionPath, { stamp, owner: user.uid });
       else tx.delete(reactionPath);
     });
     return { ok: true };
@@ -345,6 +345,7 @@ export function registerCommunity(
     await store.transaction(async (tx) =>
       tx.set(`communityBlocks/${user.uid}/targets/${p.owner}`, {
         alias: p.alias,
+        target: p.owner,
         at: new Date(now()).toISOString(),
       }),
     );

@@ -34,7 +34,9 @@ window.__authCalls=[];
 const cloud=window.YumetanCloud={state:{enabled:true,user:user()}, ready:Promise.resolve({enabled:true}), uid:()=>uid,isAnonymous:anon,email:()=>anon()?'':uid+'@test.invalid', providers:()=>anon()?[]:['google.com'],onUser:cb=>listeners.push(cb),idToken:async()=> 'test',
 syncSnapshot: async snapshot => {const res=await fetch('/__test/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,snapshot})});if(!res.ok)throw Error('offline');return res.json();},
 signInProvider:async (provider,opts)=>{window.__authCalls.push({provider,opts});if(window.__cancel)throw {code:'auth/popup-closed-by-user'};if(!opts.link){uid=provider==='line'?'member-b':'member-a';localStorage.setItem('auth.test.uid',uid);}cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();},
-signOut:async()=>{uid='guest-'+crypto.randomUUID();localStorage.setItem('auth.test.uid',uid);cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();}};
+signOut:async()=>{uid='guest-'+crypto.randomUUID();localStorage.setItem('auth.test.uid',uid);cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();},
+forget:async()=>{window.__forgot=(window.__forgot||0)+1;uid='guest-'+crypto.randomUUID();localStorage.setItem('auth.test.uid',uid);cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();},
+wipeGuest:async()=>{window.__wiped=uid;uid='guest-'+crypto.randomUUID();localStorage.setItem('auth.test.uid',uid);cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();}};
 `,
     }),
   );
@@ -193,4 +195,88 @@ test("declining guest import leaves both accounts intact", async ({ page }) => {
   await page.locator("[data-action=import-guest]").click();
   await page.locator("nav [data-go=history]").click();
   await expect(page.locator(".entry")).toContainText("ゲストの夢");
+});
+
+test("account deletion asks for confirmation, calls the server once and leaves the device as a fresh guest", async ({
+  page,
+}) => {
+  const db = new Map([
+    [
+      "member-a",
+      {
+        profile: profile("アカウントA"),
+        records: [dream("a-dream", "Aだけの夢")],
+        deleted: [],
+      },
+    ],
+  ]);
+  await setup(page, db);
+  const deletions = [];
+  await page.route("**/api/account/delete", (r) => {
+    deletions.push({
+      body: r.request().postDataJSON(),
+      auth: r.request().headers().authorization,
+    });
+    r.fulfill({ json: { ok: true } });
+  });
+  await page.goto("/");
+  await page.locator(".onboard-account > summary").click();
+  await page.locator("[data-auth-provider=google]").click();
+  await expect(page.locator("main")).toContainText("アカウントA");
+  await page.locator("nav [data-go=settings]").click();
+  await expect(page.locator("[data-action=erase-guest]")).toHaveCount(0);
+  await page.locator(".danger-zone > summary").click();
+  await expect(page.locator(".danger-zone")).toContainText("App Store");
+  // Cancelling the dialog changes nothing.
+  page.once("dialog", (d) => d.dismiss());
+  await page.locator("[data-action=delete-account]").click();
+  await expect(page.locator("main")).toContainText("アカウントA");
+  expect(deletions).toHaveLength(0);
+  page.once("dialog", (d) => {
+    expect(d.message()).toContain("App Store");
+    d.accept();
+  });
+  await page.locator("[data-action=delete-account]").click();
+  await expect(page.locator("#toast")).toContainText("削除しました");
+  await expect(page.locator("#nickname")).toBeVisible();
+  await expect(page.locator("main")).not.toContainText("アカウントA");
+  expect(deletions).toEqual([
+    { body: { confirm: true, language: "ja" }, auth: "Bearer test" },
+  ]);
+  expect(
+    await page.evaluate(() => [
+      localStorage.getItem("yumetan.v4.member-a"),
+      localStorage.getItem("yumetan.v4.member-a.quiz"),
+      window.__forgot,
+      localStorage.getItem("auth.test.uid").startsWith("guest-"),
+    ]),
+  ).toEqual([null, null, 1, true]);
+  // A guest sees the device-erase option instead of account deletion.
+  await page.locator("#nickname").fill("ゲスト");
+  await page.locator("#profile-form button[type=submit]").click();
+  for (let i = 0; i < 16; i++) {
+    await page.locator('[data-answer="0"]').click();
+    await page.locator("[data-action=quiz-next]").click();
+  }
+  await page.locator("[data-action=begin]").click();
+  await page.locator("nav [data-go=settings]").click();
+  await expect(page.locator("[data-action=delete-account]")).toHaveCount(0);
+  await page.locator(".danger-zone > summary").click();
+  page.once("dialog", (d) => d.accept());
+  await page.locator("[data-action=erase-guest]").click();
+  await expect(page.locator("#nickname")).toBeVisible();
+  expect(await page.evaluate(() => window.__wiped)).toMatch(/^guest-/);
+  expect(deletions).toHaveLength(1);
+});
+
+test("terms and privacy pages are served in Japanese and English and describe account deletion", async ({
+  page,
+}) => {
+  await page.goto("/legal/privacy.html?lang=en");
+  await expect(page.locator("h1:visible")).toHaveText("Privacy Policy");
+  await expect(page.locator("main")).toContainText("Delete my account");
+  await page.goto("/legal/terms.html?lang=ja");
+  await expect(page.locator("h1:visible")).toHaveText("利用規約");
+  await expect(page.locator("main")).toContainText("自動更新");
+  await expect(page.locator("main")).toContainText("¥490");
 });

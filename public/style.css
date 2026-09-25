@@ -824,6 +824,28 @@ select {
   color: #fff;
   border: 1px solid #06c755;
 }
+.danger-zone {
+  margin-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.danger-zone summary {
+  color: #f0b1b1;
+}
+.legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.purchase-summary {
+  margin: 14px 0 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.purchase-summary strong {
+  display: block;
+  font-size: 18px;
+}
 .account-card summary {
   cursor: pointer;
   padding: 12px 0;

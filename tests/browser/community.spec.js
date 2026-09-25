@@ -146,6 +146,19 @@ test("Free keeps one dream and one editable diary per date; plans and paid feed 
   await page.locator("[data-social=yearly]").click();
   await expect(page.locator("main")).toContainText("¥4,900");
   await expect(page.locator("main")).toContainText("¥9,800");
+  // Guideline 3.1.2: Terms of Use and Privacy Policy links accompany the plans.
+  await expect(
+    page.locator(".legal-links a[href*='/legal/terms.html']"),
+  ).toBeVisible();
+  await expect(
+    page.locator(".legal-links a[href*='/legal/privacy.html']"),
+  ).toBeVisible();
+  await page.locator("[data-social=plan-detail][data-plan=starter]").click();
+  await expect(page.locator("main")).toContainText("¥4,900");
+  await expect(
+    page.locator(".legal-links a[href*='/legal/privacy.html?lang=']").first(),
+  ).toBeVisible();
+  await page.locator("[data-social=plans]").first().click();
   for (const lang of ["ja", "ko", "zh", "en"]) {
     await page.locator("#language").selectOption(lang);
     await expect(page.locator("main")).not.toContainText("undefined");

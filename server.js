@@ -11,6 +11,7 @@ import { createAccess, fault } from "./server/access.js";
 import { createBilling } from "./server/billing.js";
 import { createAI } from "./server/openai.js";
 import { registerCommunity } from "./server/community.js";
+import { registerAccount } from "./server/account.js";
 try {
   process.loadEnvFile();
 } catch {}
@@ -92,6 +93,11 @@ app.post(
   "/api/billing/sync",
   asyncRoute(async (req, res) => res.json(await billing.sync(await user(req)))),
 );
+registerAccount(app, {
+  access: verifiedAccess,
+  asyncRoute,
+  deleteUser: services.deleteUser,
+});
 registerCommunity(app, {
   access: verifiedAccess,
   asyncRoute,

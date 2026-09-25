@@ -1,0 +1,15 @@
+:root { color-scheme: dark; }
+body { margin: 0; background: #0f1222; color: #ece9f7; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", "Noto Sans KR", "Noto Sans SC", sans-serif; line-height: 1.75; }
+main { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 18px; margin: 32px 0 8px; }
+p, li { font-size: 15px; }
+a { color: #f3d27a; text-underline-offset: 3px; }
+.meta { color: #b8b3cc; font-size: 13px; }
+.lang { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 24px; }
+.lang a { padding: 6px 12px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; text-decoration: none; color: inherit; font-size: 13px; }
+.lang a[aria-current="true"] { background: rgba(243,210,122,.18); border-color: #f3d27a; }
+section[hidden] { display: none; }
+.placeholder { background: rgba(240,177,177,.18); border-bottom: 1px dashed #f0b1b1; padding: 0 3px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+td, th { border-bottom: 1px solid rgba(255,255,255,.12); padding: 6px 4px; text-align: left; vertical-align: top; }

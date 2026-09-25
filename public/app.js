@@ -40,6 +40,7 @@ import {
   migrateLegacy,
   legacyAnswers,
   write,
+  remove,
   normalizeRecord,
   normalizeProfile,
   parseBackup,
@@ -96,9 +97,13 @@ const purchases = createPurchases({
   plugins,
   config: window.YUMETAN_CONFIG,
 });
+// Terms of Use and Privacy Policy are served by the API server (public/legal/) in the app's language.
+const legalUrl = (kind) =>
+  `${(options.apiBase || window.YUMETAN_CONFIG?.apiBase || location.origin).replace(/\/$/, "")}/legal/${kind}.html?lang=${language()}`;
 const social = createCommunity({
   api,
   purchases,
+  legalUrl,
   uid: () => cloud?.uid() || null,
   language,
   esc,
@@ -475,7 +480,7 @@ function detailView() {
 function settingsView() {
   const cloudOn = cloud?.state.enabled,
     signed = cloudOn && !cloud.isAnonymous();
-  return `<div class="narrow"><h1>${t("settings")}</h1><div class="card"><h2>${ct("plans")}</h2><button class="btn primary" data-go="plans">${ct("plans")}</button></div><div class="card"><h2>${t("profile")}</h2><p>${esc(state.profile?.nickname)} · ${languageNames[language()]}</p><div class="row">${button("edit", "profile", "ghost")}${button("retake", "retake", "ghost")}</div><p class="help">${t("privacy")}</p></div>
+  return `<div class="narrow"><h1>${t("settings")}</h1><div class="card"><h2>${ct("plans")}</h2><button class="btn primary" data-go="plans">${ct("plans")}</button></div><div class="card"><h2>${ct("legal")}</h2><p class="help legal-links"><a href="${esc(legalUrl("terms"))}" target="_blank" rel="noopener noreferrer">${ct("termsOfUse")}</a><a href="${esc(legalUrl("privacy"))}" target="_blank" rel="noopener noreferrer">${ct("privacyPolicy")}</a></p></div><div class="card"><h2>${t("profile")}</h2><p>${esc(state.profile?.nickname)} · ${languageNames[language()]}</p><div class="row">${button("edit", "profile", "ghost")}${button("retake", "retake", "ghost")}</div><p class="help">${t("privacy")}</p></div>
  <form id="character-form" class="card"><fieldset class="character-set-field"><legend>${t("characterSet")}</legend><p class="help">${t("characterSetHint")}</p><div class="character-set-options">${CHARACTER_SETS.map((set) => `<label class="character-set-option"><input type="radio" name="character-set" value="${set.id}" ${options.characterSet === set.id ? "checked" : ""}><span class="character-set-label">${localized(set.label, language())}</span>${avatar(typeById(currentType()?.id), null, false, set.id)}<span>${localized(set.names, language())}</span></label>`).join("")}</div></fieldset><button type="submit" class="btn primary">${t("save")}</button></form>
  <form id="settings-form" class="card"><h2>AI</h2><label class="check"><input type="checkbox" id="engine" ${options.engine === "ai" ? "checked" : ""}><span>${t("ai")}</span></label><p class="help">${ct("planAIHint")}</p>${input("apiUrl", "api-url", options.apiBase, "url", 'placeholder="https://…"')}<div class="row"><button type="submit" class="btn primary">${t("save")}</button>${button("testConnection", "health", "ghost")}</div></form>
  <form id="alarm-form" class="card"><h2>${t("alarm")}</h2>${input("alarmTime", "alarm-time", options.alarmTime || "07:00", "time", "required")}<p class="help">${t(native && cap.getPlatform() === "android" ? "alarmHint" : "alarmManual")}</p><button type="submit" class="btn primary">${t(native && cap.getPlatform() === "android" ? "alarmOpen" : "save")}</button><p id="alarm-status" class="status" role="status"></p>${native && cap.getPlatform() === "ios" ? `<p class="help">${t("notifyHint")}</p><div class="row">${button("notifyWake", "notify-wake", "ghost")}${button("cancelWake", "cancel-wake", "ghost")}</div>` : ""}</form>
@@ -501,7 +506,65 @@ function accountView(onboard = false) {
   ${signed && pendingGuestKey ? `<button type="button" class="btn ghost" data-action="import-guest">${at("importLater")}</button>` : ""}
   ${!enabled ? `<button type="button" class="btn ghost" data-action="auth-retry">${at("reconnect")}</button>` : ""}
   ${!signed && enabled ? `<details><summary>${at("email")}</summary><form id="account-form">${input("email", "email", "", "email", 'required autocomplete="email"')}${input("password", "password", "", "password", 'minlength="6" autocomplete="current-password"')}<div class="row"><button type="submit" class="btn primary">${t("signIn")}</button>${button("signUp", "signup", "ghost")}${button("resetPassword", "reset-password", "small ghost")}</div></form></details>` : ""}
-  ${onboard && !signed ? `<button type="button" class="btn ghost full" data-action="guest">${at("guest")}</button>` : ""}</section>`;
+  ${onboard && !signed ? `<button type="button" class="btn ghost full" data-action="guest">${at("guest")}</button>` : ""}
+  ${!onboard && enabled && signed ? `<details class="danger-zone"><summary>${at("dangerZone")}</summary><p class="help">${at("deleteHint")}</p><button type="button" class="btn danger ghost" data-action="delete-account">${at("deleteAccount")}</button></details>` : ""}
+  ${!onboard && enabled && !signed ? `<details class="danger-zone"><summary>${at("eraseGuest")}</summary><p class="help">${at("eraseGuestHint")}</p><button type="button" class="btn danger ghost" data-action="erase-guest">${at("eraseGuest")}</button></details>` : ""}</section>`;
+}
+// Account deletion (Guideline 5.1.1): the server erases every record it holds and the
+// Firebase user; this device then forgets the account's cache and continues as a guest.
+async function deleteAccount() {
+  if (!cloud?.state.enabled || cloud.isAnonymous()) return;
+  if (!confirm(at("deleteConfirm"))) return;
+  authChanging = true;
+  stopCloudWatch?.();
+  try {
+    disableActionButtons();
+    await cancelNativeAuth();
+    const gone = storageKey;
+    try {
+      await api("/api/account/delete", { confirm: true });
+    } catch {
+      throw new Error(at("deleteFailed"));
+    }
+    await forgetLocal(gone);
+    await cloud.forget();
+    await switchAccount();
+    dirty = false;
+    processing = false;
+    navigate("onboard", true);
+    toast(at("deleted"));
+  } finally {
+    authChanging = false;
+    watchAccount();
+  }
+}
+async function eraseGuest() {
+  if (!cloud?.state.enabled || !cloud.isAnonymous()) return;
+  if (!confirm(at("eraseGuestConfirm"))) return;
+  authChanging = true;
+  stopCloudWatch?.();
+  try {
+    disableActionButtons();
+    const gone = storageKey;
+    try {
+      await cloud.wipeGuest();
+    } catch {
+      throw new Error(at("deleteFailed"));
+    }
+    await forgetLocal(gone);
+    await forgetLocal("yumetan.v4.local");
+    await switchAccount();
+    dirty = false;
+    processing = false;
+    navigate("onboard", true);
+    toast(at("deleted"));
+  } finally {
+    authChanging = false;
+    watchAccount();
+  }
+}
+async function forgetLocal(key) {
+  for (const k of [key, `${key}.guest-import`, `${key}.quiz`]) await remove(k);
 }
 function showSyncStatus(value) {
   syncStatus = value;
@@ -1469,6 +1532,8 @@ const actions = {
   },
   signup: () => account("signup"),
   signout: () => account("signout"),
+  "delete-account": deleteAccount,
+  "erase-guest": eraseGuest,
   "reset-password": () => account("reset"),
   edit: () => {
     const r = state.records.find((r) => r.id === selectedId);

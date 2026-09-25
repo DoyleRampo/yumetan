@@ -13,6 +13,10 @@ export async function write(key, value) {
   if (preferences) await preferences.set({ key, value: raw });
   else localStorage.setItem(key, raw);
 }
+export async function remove(key) {
+  if (preferences) await preferences.remove({ key });
+  else localStorage.removeItem(key);
+}
 export const typeAlias = (id) =>
   ({ dejavu: "deja", partial: "aware" })[id] || id;
 export function legacyAnswers(typeState) {

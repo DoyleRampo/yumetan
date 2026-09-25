@@ -31,6 +31,15 @@ npm start
 
 **本番ではFirebaseのプロバイダ設定、Apple/LINEの認証情報が必要です。LINEはIdentity PlatformのOIDCを利用します。** [接続設定・同期仕様・検証手順](docs/auth/LOGIN_AND_SYNC.md)を参照してください。
 
+## v4.5: アカウント削除・規約ページ（App Store 審査対応）
+
+- 設定 → アカウント・同期 → **アカウントの削除** から、アプリ内でアカウントを削除できます（App Store Review Guideline 5.1.1(v)）。サーバーの `POST /api/account/delete` が、夢・日記・写真・プロフィール・診断回答・会員情報・使用数・公開投稿（コメント・スタンプ含む）・他の投稿への本人のコメントとスタンプ・ブロック（双方向）・通報・RevenueCat の購読者情報を削除し、最後に Firebase Auth のユーザーを削除します。端末側のキャッシュも消去し、ゲストとして再開します。ストアのサブスクリプションは削除では解約されないため、確認ダイアログと規約で App Store / Google Play からの解約を案内します。
+- ゲストは同じ場所の **この端末の記録をすべて消去** で、匿名 UID 配下の記録と端末内キャッシュを削除できます。
+- `public/legal/terms.html`（利用規約）と `public/legal/privacy.html`（プライバシーポリシー）を日本語・英語で配信します（`?lang=ja|en`）。設定画面・プラン一覧・プラン詳細からリンクし、購入ボタンの直上にプラン名・期間（自動更新）・価格・両リンクを表示します（Guideline 3.1.2）。ネイティブアプリでは `API_URL` のサーバーから開きます。**事業者名・連絡先・管轄裁判所・対象年齢のプレースホルダー（`.placeholder`）を公開前に埋めてください。**
+- ネイティブアプリでは RevenueCat の `getOfferings()` から取得したストア表示価格（`priceString`）を優先して表示し、取得できないときだけカタログの円建て価格を表示します。
+- アカウント削除のコレクショングループ検索用に `firestore.indexes.json` へ `comments.owner` / `reactions.owner` / `targets.target` のフィールド設定（コレクショングループ）を追加しました。`firebase deploy --only firestore:indexes` で反映してください。
+- 審査対応の全体計画は [docs/appstore/REVIEW_2_1_INFORMATION_NEEDED_PLAN.md](docs/appstore/REVIEW_2_1_INFORMATION_NEEDED_PLAN.md)、開発者本人が行う作業は [docs/appstore/OWNER_TASKS.md](docs/appstore/OWNER_TASKS.md) を参照してください。
+
 ## v4.3: プランと「みんなの夢」
 
 無料・スターター（月490円 / 年4,900円）・スタンダード（月980円 / 年9,800円）を追加しました。[全利用制限・費用試算・運用手順](docs/billing/PLANS_AND_SETUP.md)を参照してください。
@@ -52,6 +61,7 @@ AIをオンにすると、明示的に「分析」を押した際に夢と前日
 
 - `GET /api/health`：接続設定の有無（秘密値は返しません）
 - `GET /api/account`：会員状態・使用数・次回AI枠更新
+- `POST /api/account/delete`（`{ "confirm": true }`）：アカウントと全データの削除
 - `POST /api/billing/sync`：ストア購入・復元後にRevenueCatの契約状態をサーバーへ反映
 - `POST /api/billing/revenuecat`：RevenueCat Webhook（Authorizationヘッダーの共有秘密で検証）
 - `GET /api/community/feed`、`POST /api/community/publish`、`GET /api/community/mine`

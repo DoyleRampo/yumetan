@@ -53,6 +53,42 @@ export function createCloudClient({ A, fs, auth, db }) {
       return res.user;
     },
     resetPassword: (email) => A.sendPasswordResetEmail(auth, email),
+    // After the server deleted the account: drop the dead session and start a fresh guest.
+    async forget() {
+      state.user = null;
+      try {
+        await A.signOut(auth);
+      } catch {}
+      try {
+        state.user = (await A.signInAnonymously(auth)).user;
+      } catch {}
+      return state.user;
+    },
+    // Guests have no server account; their records live under their anonymous UID and
+    // are removed here by the owner. The anonymous user itself is deleted when Firebase
+    // allows it (recent sign-in); otherwise it is simply abandoned.
+    async wipeGuest() {
+      if (!state.user?.isAnonymous) throw new Error("auth/no-current-user");
+      const owner = uid();
+      for (const kind of ["dreams", "diary", "deleted"]) {
+        const docs = await fs.getDocsFromServer(col(kind, owner));
+        for (const d of docs.docs) await fs.deleteDoc(d.ref);
+      }
+      await fs.deleteDoc(root(owner));
+      const user = state.user;
+      state.user = null;
+      try {
+        await A.deleteUser(user);
+      } catch {
+        try {
+          await A.signOut(auth);
+        } catch {}
+      }
+      try {
+        state.user = (await A.signInAnonymously(auth)).user;
+      } catch {}
+      return state.user;
+    },
     async signOut() {
       await A.signOut(auth);
       state.user = null;

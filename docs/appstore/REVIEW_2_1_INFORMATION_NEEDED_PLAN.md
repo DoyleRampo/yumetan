@@ -2,6 +2,8 @@
 
 作成日: 2026-09-25 / 対象: ユメタン iOS（`com.doyle.yumetan`、バージョン 1.0）
 
+> **進捗（2026-09-25）**: §3 のうち A（アカウント削除）、B（規約ページ・購入画面の表示）、C の削除連携（スタンプ・ブロックへの所有者情報付与）、E の `appId` 統一はブランチ `claude/beautiful-einstein-46ib3a` で実装済み。D（メール/パスワードログイン）は UI が既にあり、Firebase 側の有効化だけが残る。開発者本人が行う残作業は [OWNER_TASKS.md](OWNER_TASKS.md) にまとめた。
+
 ## 1. フィードバックの正しい解釈
 
 - **却下理由はバグや規約違反ではない。** 「App Review 履歴が少ない開発者アカウントからの新規提出なので、審査を完了するために追加情報が必要」という定型の情報要求（Information Needed）。7項目に答えれば審査が再開される。
@@ -40,7 +42,7 @@
 
 Apple の要件: アプリ内から開始でき、**一時停止や無効化ではなく本当に削除**すること。削除前に確認と、サブスクリプションは別途 App Store の「サブスクリプション」設定から解約が必要である旨の案内を出すこと。
 
-1. **サーバー**: `POST /api/account/delete`（非匿名の Firebase Bearer トークン必須、`auth_time` が直近5分以内でなければ `reauthRequired` を返す）。
+1. **サーバー**: `POST /api/account/delete`（非匿名の Firebase Bearer トークン必須、本文 `{ "confirm": true }`）。実装では再認証は要求しない（ネイティブの外部ブラウザ再認証は審査員の操作を複雑にするため）。代わりにトークンは失効確認付きで検証し、クライアントで明示的な確認ダイアログを出す。
    - Firestore: ユーザー UID 配下の `dreams` / `diary` / プロフィール / 診断回答 / 表示キャラクター / `memberships/{uid}` / 公開投稿（`communityPosts` の本人分は非公開化ではなく削除）/ 本人のコメント / スタンプ / `communityBlocks/{uid}` / 本人が出した通報 を削除。`firebase-admin` の `recursiveDelete` を利用。
    - RevenueCat: `DELETE /v1/subscribers/{uid}`（`REVENUECAT_SECRET_API_KEY`）で購読者情報を削除。失敗しても Firebase 側の削除は継続し、ログに残す。
    - 最後に `getAuth().deleteUser(uid)`。
