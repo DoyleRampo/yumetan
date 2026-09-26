@@ -121,6 +121,24 @@ const strings = {
     "이 인증 정보는 다른 계정에서 사용 중이에요. 기존 방식으로 로그인한 뒤 설정에서 연결하세요.",
     "此身份已属于其他账号，请用原方式登录后在设置中关联。",
   ],
+  emailInUse: [
+    "このメールアドレスは既に登録されています。ログインしてください。",
+    "This email is already registered. Please sign in.",
+    "이미 등록된 이메일이에요. 로그인해 주세요.",
+    "该邮箱已注册，请直接登录。",
+  ],
+  credentials: [
+    "メールアドレスまたはパスワードが正しくありません。",
+    "Incorrect email or password.",
+    "이메일 또는 비밀번호가 올바르지 않아요.",
+    "邮箱或密码不正确。",
+  ],
+  weakPassword: [
+    "パスワードは6文字以上で設定してください。",
+    "Use a password of at least 6 characters.",
+    "비밀번호는 6자 이상으로 설정해 주세요.",
+    "密码至少需要6个字符。",
+  ],
   failed: [
     "ログインできませんでした。接続を確認して再試行してください。",
     "Could not sign in. Check your connection and retry.",
@@ -149,29 +167,34 @@ const strings = {
 export function authText(key, language = "ja") {
   return strings[key]?.[{ ja: 0, en: 1, ko: 2, zh: 3 }[language] ?? 0] || key;
 }
+const errorCodes = {
+  cancelled: ["auth/popup-closed-by-user", "auth/cancelled-popup-request"],
+  popup: ["auth/popup-blocked"],
+  config: [
+    "auth/operation-not-allowed",
+    "auth/unauthorized-domain",
+    "auth/invalid-provider-id",
+    "authNotConfigured",
+  ],
+  emailInUse: ["auth/email-already-in-use"],
+  conflict: [
+    "auth/account-exists-with-different-credential",
+    "auth/credential-already-in-use",
+  ],
+  credentials: [
+    "auth/invalid-email",
+    "auth/invalid-credential",
+    "auth/invalid-login-credentials",
+    "auth/user-not-found",
+    "auth/wrong-password",
+    "auth/user-disabled",
+  ],
+  weakPassword: ["auth/weak-password"],
+  retry: ["authExpired"],
+};
 export function authError(code, language) {
-  const key = [
-    "auth/popup-closed-by-user",
-    "auth/cancelled-popup-request",
-  ].includes(code)
-    ? "cancelled"
-    : code === "auth/popup-blocked"
-      ? "popup"
-      : [
-            "auth/operation-not-allowed",
-            "auth/unauthorized-domain",
-            "auth/invalid-provider-id",
-            "authNotConfigured",
-          ].includes(code)
-        ? "config"
-        : [
-              "auth/account-exists-with-different-credential",
-              "auth/credential-already-in-use",
-              "auth/email-already-in-use",
-            ].includes(code)
-          ? "conflict"
-          : code === "authExpired"
-            ? "retry"
-            : "failed";
+  const key =
+    Object.keys(errorCodes).find((k) => errorCodes[k].includes(code)) ||
+    "failed";
   return authText(key, language);
 }

@@ -83,6 +83,9 @@ let t = translator("ja"),
   syncTask = null,
   voice = null;
 let pendingGuestKey = null;
+// Email panel: null = closed, "choose" | "signin" | "signup" = open, "registered" = done.
+let emailMode = null,
+  signupEmail = "";
 let authChanging = false,
   stopCloudWatch = null,
   syncStatus = "pending",
@@ -314,7 +317,7 @@ function navigate(next, force = false) {
 }
 function profileView() {
   const p = draft || state.profile || {};
-  return `<div class="narrow"><p class="eyebrow">WELCOME TO YOUR DREAM WORLD</p><h1>${t("welcome")}</h1><p class="muted">${t("profileHint")}</p>${!state.profile ? `<details class="onboard-account"><summary>${t("accountOptional")}</summary>${accountView(true)}</details>` : ""}<form id="profile-form" class="card">
+  return `<div class="narrow"><p class="eyebrow">WELCOME TO YOUR DREAM WORLD</p><h1>${t("welcome")}</h1><p class="muted">${t("profileHint")}</p>${!state.profile ? `<details class="onboard-account" ${emailMode ? "open" : ""}><summary>${t("accountOptional")}</summary>${accountView(true)}</details>` : ""}<form id="profile-form" class="card">
  ${input("nickname", "nickname", p.nickname, "text", 'required maxlength="20" autocomplete="nickname"')}
  <label class="field"><span>${t("age")}</span><select id="ageGroup" class="input">${["10", "20", "30", "40", "50", "60"].map((a) => `<option value="${a === "60" ? "60代以上" : a + "代"}" ${p.ageGroup === (a === "60" ? "60代以上" : a + "代") ? "selected" : ""}>${t("age" + a)}</option>`).join("")}</select></label>
  <p class="help">${t("language")}: ${languageNames[language()]}</p><button class="btn primary full" type="submit">${t(state.profile?.typeAnswers ? "save" : "startQuiz")}</button></form><details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
@@ -500,8 +503,24 @@ function accountView(onboard = false) {
     .join("")}</div>
   ${signed && pendingGuestKey ? `<button type="button" class="btn ghost" data-action="import-guest">${at("importLater")}</button>` : ""}
   ${!enabled ? `<button type="button" class="btn ghost" data-action="auth-retry">${at("reconnect")}</button>` : ""}
-  ${!signed && enabled ? `<details><summary>${at("email")}</summary><form id="account-form">${input("email", "email", "", "email", 'required autocomplete="email"')}${input("password", "password", "", "password", 'minlength="6" autocomplete="current-password"')}<div class="row"><button type="submit" class="btn primary">${t("signIn")}</button>${button("signUp", "signup", "ghost")}${button("resetPassword", "reset-password", "small ghost")}</div></form></details>` : ""}
+  ${!signed && enabled ? emailAuthView() : ""}
   ${onboard && !signed ? `<button type="button" class="btn ghost full" data-action="guest">${at("guest")}</button>` : ""}</section>`;
+}
+function emailAuthView() {
+  let body;
+  if (emailMode === "registered")
+    body = `<p class="help">${t("signUpDone")}</p>${button("backToSignIn", "email-signin", "primary")}`;
+  else if (emailMode === "signin" || emailMode === "signup") {
+    const signup = emailMode === "signup";
+    body = `<form id="account-form">${input("email", "email", signupEmail, "email", 'required autocomplete="email"')}${input("password", "password", "", "password", `required minlength="6" autocomplete="${signup ? "new" : "current"}-password"`)}<div class="row"><button type="submit" class="btn primary">${t(signup ? "signUp" : "signIn")}</button>${signup ? button("backToSignIn", "email-signin", "ghost") : button("back", "email-choose", "ghost")}</div></form>`;
+  } else
+    body = `<p class="help">${t("emailChoice")}</p><div class="row">${button("signUp", "email-signup", "primary")}${button("signIn", "email-signin", "ghost")}</div>`;
+  return `<details id="email-auth" ${emailMode ? "open" : ""}><summary>${at("email")}</summary>${body}</details>`;
+}
+function setEmailMode(mode) {
+  emailMode = mode;
+  render();
+  $("#email")?.focus();
 }
 function showSyncStatus(value) {
   syncStatus = value;
@@ -707,8 +726,16 @@ function bindForms() {
   if ($("#account-form"))
     $("#account-form").onsubmit = (e) => {
       e.preventDefault();
-      run(() => account("signin"));
+      run(() => account(emailMode === "signup" ? "signup" : "signin"));
     };
+  // Keep the email panel (and the onboarding account panel around it) open across
+  // re-renders while the user is in the email flow; closing either ends the flow.
+  $("#email-auth")?.addEventListener("toggle", (e) => {
+    emailMode = e.target.open ? emailMode || "choose" : null;
+  });
+  $(".onboard-account")?.addEventListener("toggle", (e) => {
+    if (!e.target.open) emailMode = null;
+  });
 }
 async function run(fn) {
   if (processing) return;
@@ -1179,6 +1206,21 @@ async function account(mode, provider = null) {
     !confirm(at("signoutConfirm"))
   )
     return;
+  if (mode === "signup") {
+    if (!$("#account-form")?.reportValidity()) return;
+    try {
+      await cloud.signUp(email, password);
+    } catch (error) {
+      throw new Error(authError(error.code, language()));
+    }
+    // Registration never signs in: the user returns to the sign-in screen and
+    // logs in, which starts onboarding and the 16-type quiz like other methods.
+    signupEmail = email;
+    emailMode = "registered";
+    render();
+    toast(t("signUpDone"));
+    return;
+  }
   // Start popup OAuth directly in the click event, before awaiting storage/network.
   const sourceKey = storageKey,
     guest = !cloud || cloud.isAnonymous() ? structuredClone(state) : null;
@@ -1207,27 +1249,16 @@ async function account(mode, provider = null) {
       toast(at("waiting"));
       return;
     }
-    if (mode === "reset") {
-      await cloud.resetPassword(email);
-      toast(t("resetSent"));
-      return;
-    }
-    if (mode === "signup") {
-      if (
-        !$("#account-form").reportValidity() ||
-        !password ||
-        password.length < 6
-      )
-        return;
-      login = cloud.signUp(email, password);
-    } else if (mode === "signin") {
-      if (!email || !password) return;
+    if (mode === "signin") {
+      if (!$("#account-form")?.reportValidity()) return;
       login = cloud.signIn(email, password);
     } else if (mode === "signout") {
       await cancelNativeAuth();
       login = cloud.signOut();
     }
     await login;
+    emailMode = null;
+    signupEmail = "";
     if (syncTask) await syncTask;
     await switchAccount();
     await offerGuestImport(sourceKey, guest);
@@ -1467,9 +1498,10 @@ const actions = {
       await offerGuestImport(pendingGuestKey, await read(pendingGuestKey));
     render();
   },
-  signup: () => account("signup"),
   signout: () => account("signout"),
-  "reset-password": () => account("reset"),
+  "email-choose": () => setEmailMode("choose"),
+  "email-signin": () => setEmailMode("signin"),
+  "email-signup": () => setEmailMode("signup"),
   edit: () => {
     const r = state.records.find((r) => r.id === selectedId);
     processing = false;

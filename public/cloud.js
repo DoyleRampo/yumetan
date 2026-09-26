@@ -7,7 +7,7 @@ cloud.ready = (async () => {
   if (!cfg?.apiKey || !cfg.projectId) return cloud.state;
   try {
     const V = "10.14.1";
-    const [{ initializeApp }, A, fs] = await Promise.all([
+    const [{ initializeApp, deleteApp }, A, fs] = await Promise.all([
       import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
       import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
       import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`),
@@ -26,7 +26,10 @@ cloud.ready = (async () => {
         tabManager: fs.persistentMultipleTabManager(),
       }),
     });
-    Object.assign(cloud, createCloudClient({ A, fs, auth, db }));
+    Object.assign(
+      cloud,
+      createCloudClient({ A, fs, auth, db, initializeApp, deleteApp }),
+    );
   } catch (e) {
     cloud.state.error = e.code || "auth/unavailable";
   }

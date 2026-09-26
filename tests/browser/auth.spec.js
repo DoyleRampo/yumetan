@@ -34,7 +34,9 @@ window.__authCalls=[];
 const cloud=window.YumetanCloud={state:{enabled:true,user:user()}, ready:Promise.resolve({enabled:true}), uid:()=>uid,isAnonymous:anon,email:()=>anon()?'':uid+'@test.invalid', providers:()=>anon()?[]:['google.com'],onUser:cb=>listeners.push(cb),idToken:async()=> 'test',
 syncSnapshot: async snapshot => {const res=await fetch('/__test/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,snapshot})});if(!res.ok)throw Error('offline');return res.json();},
 signInProvider:async (provider,opts)=>{window.__authCalls.push({provider,opts});if(window.__cancel)throw {code:'auth/popup-closed-by-user'};if(!opts.link){uid=provider==='line'?'member-b':'member-a';localStorage.setItem('auth.test.uid',uid);}cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();},
-signOut:async()=>{uid='guest-'+crypto.randomUUID();localStorage.setItem('auth.test.uid',uid);cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();}};
+signOut:async()=>{uid='guest-'+crypto.randomUUID();localStorage.setItem('auth.test.uid',uid);cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();},
+signUp:async (email,password)=>{window.__signUps=(window.__signUps||[]).concat(email);window.__signUpUid=uid;return {uid:'email-'+email,email};},
+signIn:async (email,password)=>{if(!(window.__signUps||[]).includes(email)||password!=='secret1')throw {code:'auth/invalid-credential'};uid='email-'+email;localStorage.setItem('auth.test.uid',uid);cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();}};
 `,
     }),
   );
@@ -193,4 +195,50 @@ test("declining guest import leaves both accounts intact", async ({ page }) => {
   await page.locator("[data-action=import-guest]").click();
   await page.locator("nav [data-go=history]").click();
   await expect(page.locator(".entry")).toContainText("ゲストの夢");
+});
+test("email: choose sign up or sign in; registration returns to sign-in and a new account starts onboarding and the quiz", async ({
+  page,
+}) => {
+  const db = new Map();
+  await setup(page, db);
+  await page.goto("/");
+  const panel = page.locator("#email-auth");
+  await page.locator(".onboard-account > summary").click();
+  await panel.locator("summary").click();
+  await expect(panel.locator("[data-action=email-signup]")).toBeVisible();
+  await expect(panel.locator("[data-action=email-signin]")).toBeVisible();
+  await expect(panel.locator("#account-form")).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText("パスワードを再設定");
+  await panel.locator("[data-action=email-signup]").click();
+  await expect(panel.locator("#password")).toHaveAttribute(
+    "autocomplete",
+    "new-password",
+  );
+  await panel.locator("#email").fill("new@test.invalid");
+  await panel.locator("#password").fill("secret1");
+  await panel.locator("#account-form button[type=submit]").click();
+  await expect(panel).toContainText("登録が完了しました");
+  // Registration leaves the guest session alone; the account is not linked to it.
+  expect(await page.evaluate(() => window.__signUpUid)).toMatch(/^guest-/);
+  expect(
+    await page.evaluate(() => localStorage.getItem("auth.test.uid")),
+  ).toBeNull();
+  await expect(page.locator("#nickname")).toBeVisible();
+  await panel.locator("[data-action=email-signin]").click();
+  await expect(panel.locator("#email")).toHaveValue("new@test.invalid");
+  await expect(panel.locator("[data-action=email-signup]")).toHaveCount(0);
+  await panel.locator("#password").fill("wrong-1");
+  await panel.locator("#account-form button[type=submit]").click();
+  await expect(page.locator("#toast")).toContainText(
+    "メールアドレスまたはパスワードが正しくありません",
+  );
+  await panel.locator("#password").fill("secret1");
+  await panel.locator("#account-form button[type=submit]").click();
+  // Signed in as a brand-new account: onboarding (registration) then the 16-type quiz.
+  await expect(page.locator("#nickname")).toBeVisible();
+  await expect(page.locator("#email-auth")).toHaveCount(0);
+  await page.locator("#nickname").fill("メール会員");
+  await page.locator("#profile-form button[type=submit]").click();
+  await expect(page.locator("[data-action=quiz-next]")).toBeVisible();
+  expect(db.get("email-new@test.invalid").profile.nickname).toBe("メール会員");
 });
