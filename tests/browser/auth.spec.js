@@ -38,6 +38,7 @@ const cloud=window.YumetanCloud={state:{enabled:${readyDelay}===0,user:user()}, 
 syncSnapshot: async snapshot => {const res=await fetch('/__test/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,snapshot})});if(!res.ok)throw Error('offline');return res.json();},
 signInProvider:async (provider,opts)=>{window.__authCalls.push({provider,opts});if(window.__cancel)throw {code:'auth/popup-closed-by-user'};if(!opts.link){uid=provider==='line'?'member-b':'member-a';localStorage.setItem('auth.test.uid',uid);}cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();},
 signOut:async()=>{uid='guest-'+crypto.randomUUID();localStorage.setItem('auth.test.uid',uid);cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();},
+watch:(cb)=>{window.__watchers=(window.__watchers||[]).concat(cb);return()=>{};},
 signUp:async (email,password)=>{window.__signUps=(window.__signUps||[]).concat(email);window.__signUpUid=uid;return {uid:'email-'+email,email};},
 signIn:async (email,password)=>{if(!(window.__signUps||[]).includes(email)||password!=='secret1')throw {code:'auth/invalid-credential'};uid='email-'+email;localStorage.setItem('auth.test.uid',uid);cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();}};
 `,
@@ -462,4 +463,32 @@ test("email: choose sign up or sign in; registration returns to sign-in and a ne
   await page.locator("#profile-form button[type=submit]").click();
   await expect(page.locator("[data-action=quiz-next]")).toBeVisible();
   expect(db.get("email-new@test.invalid").profile.nickname).toBe("メール会員");
+});
+test("typed email and password survive returning to the app (cloud watch resubscription, focus, visibility)", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.goto("/");
+  await page.locator("[data-action=intro-skip]").click();
+  const panel = page.locator("#email-auth");
+  await panel.locator("summary").click();
+  await panel.locator("[data-action=email-signin]").click();
+  await panel.locator("#email").fill("typing@test.invalid");
+  await panel.locator("#password").fill("half-typed");
+  // Returning to the app: the cloud watch delivers a snapshot again and the
+  // window regains focus and visibility. Nothing changed, so nothing may be wiped.
+  await page.evaluate(async () => {
+    (window.__watchers || []).forEach((cb) => cb());
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("visibilitychange"));
+    await new Promise((r) => setTimeout(r, 600));
+  });
+  await expect(panel.locator("#email")).toHaveValue("typing@test.invalid");
+  await expect(panel.locator("#password")).toHaveValue("half-typed");
+  await expect(panel.locator("#password")).toBeFocused();
+  // Even a real redraw (mode switch and back) keeps what was typed.
+  await panel.locator("[data-action=email-choose]").click();
+  await panel.locator("[data-action=email-signin]").click();
+  await expect(panel.locator("#email")).toHaveValue("typing@test.invalid");
+  await expect(panel.locator("#password")).toHaveValue("half-typed");
 });

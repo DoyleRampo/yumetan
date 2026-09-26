@@ -111,8 +111,9 @@ let t = translator("ja"),
   voice = null;
 let pendingGuestKey = null;
 // Email panel: null = closed, "choose" | "signin" | "signup" = open, "registered" = done.
+// What was typed survives re-renders (a sync, a plan refresh, returning to the app).
 let emailMode = null,
-  signupEmail = "";
+  emailDraft = { email: "", password: "" };
 let authChanging = false,
   stopCloudWatch = null,
   syncStatus = "pending",
@@ -515,6 +516,9 @@ function render() {
     share: () => social.view("share"),
     "community-post": () => social.view("community-post"),
   };
+  const keepFocus = ["email", "password"].includes(document.activeElement?.id)
+    ? document.activeElement.id
+    : null;
   $("#app").dataset.page = page;
   $("#app").innerHTML =
     (hasBack()
@@ -523,6 +527,11 @@ function render() {
   wrapJapaneseLabels($("#app"), displayLanguage());
   updateHomeFit();
   bindForms();
+  if (keepFocus) {
+    const el = $(`#${keepFocus}`);
+    el?.focus({ preventScroll: true });
+    el?.setSelectionRange?.(el.value.length, el.value.length);
+  }
   bindLanguage();
   social.bind();
   document.querySelectorAll("[data-catalog-group]").forEach(
@@ -1202,7 +1211,7 @@ function emailAuthView() {
     body = `<p class="help">${t("signUpDone")}</p>${button("backToSignIn", "email-signin", "primary")}`;
   else if (emailMode === "signin" || emailMode === "signup") {
     const signup = emailMode === "signup";
-    body = `<form id="account-form">${input("email", "email", signupEmail, "email", 'required autocomplete="email"')}${input("password", "password", "", "password", `required minlength="6" autocomplete="${signup ? "new" : "current"}-password"`)}<div class="row"><button type="submit" class="btn primary">${t(signup ? "signUp" : "signIn")}</button>${signup ? button("backToSignIn", "email-signin", "ghost") : button("back", "email-choose", "ghost")}</div></form>`;
+    body = `<form id="account-form">${input("email", "email", emailDraft.email, "email", 'required autocomplete="email"')}${input("password", "password", emailDraft.password, "password", `required minlength="6" autocomplete="${signup ? "new" : "current"}-password"`)}<div class="row"><button type="submit" class="btn primary">${t(signup ? "signUp" : "signIn")}</button>${signup ? button("backToSignIn", "email-signin", "ghost") : button("back", "email-choose", "ghost")}</div></form>`;
   } else
     body = `<p class="help">${t("emailChoice")}</p><div class="row">${button("signUp", "email-signup", "primary")}${button("signIn", "email-signin", "ghost")}</div>`;
   return `<details id="email-auth" ${emailMode ? "open" : ""}><summary>${at("email")}</summary>${body}</details>`;
@@ -1343,8 +1352,12 @@ function watchAccount() {
     stopCloudWatch = cloud.watch(
       () => {
         if (authChanging) return;
+        // A (re)subscription delivers the current snapshot too. Redraw only when
+        // the sync changed something, so typed-in forms are not wiped for nothing.
+        const before = JSON.stringify(state);
         syncCloud().then(() => {
-          if (!dirty && !processing) render();
+          if (!dirty && !processing && JSON.stringify(state) !== before)
+            render();
         });
       },
       () => showSyncStatus("pending"),
@@ -1562,11 +1575,14 @@ function bindForms() {
         toast(t("saved"));
       });
     };
-  if ($("#account-form"))
+  if ($("#account-form")) {
     $("#account-form").onsubmit = (e) => {
       e.preventDefault();
       run(() => account(emailMode === "signup" ? "signup" : "signin"));
     };
+    for (const key of ["email", "password"])
+      $(`#${key}`).oninput = (e) => (emailDraft[key] = e.target.value);
+  }
   // Keep the email panel open across re-renders while the user is in the email
   // flow; closing it ends the flow.
   $("#email-auth")?.addEventListener("toggle", (e) => {
@@ -2064,7 +2080,7 @@ async function account(mode, provider = null) {
     }
     // Registration never signs in: the user returns to the sign-in screen and
     // logs in, which starts onboarding and the 16-type quiz like other methods.
-    signupEmail = email;
+    emailDraft = { email, password: "" };
     emailMode = "registered";
     render();
     toast(t("signUpDone"));
@@ -2152,7 +2168,7 @@ async function account(mode, provider = null) {
     }
     await login;
     emailMode = null;
-    signupEmail = "";
+    emailDraft = { email: "", password: "" };
     if (syncTask) await syncTask;
     await switchAccount();
     if (mode === "signout") {
@@ -2291,6 +2307,7 @@ async function switchAccount() {
 async function resumeNativeLogin() {
   if (!native || !cloud || authChanging || processing) return;
   authChanging = true;
+  let switched = false;
   const stopLoading = beginLoading(
     displayLanguage(),
     "connect",
@@ -2301,6 +2318,7 @@ async function resumeNativeLogin() {
     if (!pending) return;
     if (syncTask) await syncTask;
     const guest = pending.guest ? await read(pending.sourceKey) : null;
+    switched = true;
     await switchAccount();
     await completeIntroductionLogin(pending.sourceKey, guest);
     navigate(
@@ -2313,6 +2331,7 @@ async function resumeNativeLogin() {
       storageKey !==
         (cloud.uid() ? `yumetan.v4.${cloud.uid()}` : "yumetan.v4.local")
     ) {
+      switched = true;
       await switchAccount();
       navigate(state.profile?.typeAnswers ? "home" : "onboard", true);
     }
@@ -2320,7 +2339,9 @@ async function resumeNativeLogin() {
   } finally {
     stopLoading();
     authChanging = false;
-    watchAccount();
+    // Returning to the app with no pending login must not resubscribe the cloud
+    // watch: the fresh subscription fires at once and would redraw the screen.
+    if (switched || !stopCloudWatch) watchAccount();
   }
 }
 async function startVoice() {
