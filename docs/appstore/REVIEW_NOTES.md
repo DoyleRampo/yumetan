@@ -14,30 +14,30 @@ Before submitting, give this account the Standard plan in Firestore (`membership
 Thank you for reviewing Yumetan. Answers to each item:
 
 1. Screen recording
-Attached: one recording on an iPhone [iPhone model], iOS [iOS version], from the Home screen: onboarding and the 24-question quiz, recording a dream with the AI reading, signing in, the subscription screen (plan name, length, price, Terms of Use and Privacy Policy links, then a sandbox purchase), the dream feed with stamps, sharing a dream, and account deletion (Settings > Account > Delete account).
+Attached: one recording on an iPhone [iPhone model], iOS [iOS version], from launch: onboarding and quiz, recording a dream with the AI reading, sign-in, the subscription screen (name, length, price, Terms and Privacy links, then a sandbox purchase), the dream feed, sharing a dream, and account deletion.
 
 2. Purpose and audience
-A dream and sleep journal. A 24-question quiz assigns one of 16 playful "dream type" characters; users record dreams (typed, dictated or from a photo of a handwritten note) and sleep check-ins. Members can have GPT read a dream (a reflection on their mood plus a "fortune of the day", labelled as entertainment), read other members' dreams shared that day and react with stamps. Audience: people aged 13+. It is entertainment and self-reflection, not a medical diagnosis, and the app says so.
+A dream and sleep journal. A 24-question quiz assigns one of 16 playful "dream type" characters; users record dreams and sleep check-ins. Members can have GPT read a dream (a mood reflection plus a "fortune of the day", labelled as entertainment), read other members' dreams shared that day and react with stamps. Audience: 13+. Entertainment and self-reflection, not a medical diagnosis, and the app says so.
 
 3. Setup and access
 Sign in with the demo account ("Sign in with email" on the first screen or in Settings > Account):
 Email: yumetan-review@gmail.com
 Password: Yu!6Z8ltlE7PEFSbn5I7Em
-It already has the Standard plan, so all paid features work without purchasing. To exercise the purchase flow: Settings > See plans > Starter > Details > "Subscribe to Starter" opens the App Store sandbox sheet. The Dream feed (4th tab) lists dreams shared today; if empty, share one of your own (Dream > write > "Read this dream" > tick "Share this dream in the dream feed" > save). User content is short dream texts only; we can hide posts and suspend accounts, and users can report a post via the support site linked from Help & support. Account deletion: Settings > Account > Delete account. No sample files are needed.
+It has the Standard plan, so all paid features work without purchasing; the purchase flow is Settings > See plans > Starter > Details > "Subscribe to Starter" (sandbox). The Dream feed (4th tab) lists dreams shared today; if empty, share one of your own (Dream > "Read this dream" > tick "Share this dream in the dream feed" > save). User content is short dream texts only; we can hide posts and suspend accounts, and users can report posts via the support site in Help & support. Account deletion: Settings > Account > Delete account.
 
 4. External services
-Firebase Authentication (Google, Apple, LINE, email/password) and Cloud Firestore; Apple In-App Purchase with RevenueCat for subscription verification; OpenAI API for AI dream readings and handwriting transcription (sent only when the user taps Read this dream / Recognize text); iOS speech recognition; our API server on Render (https://yumetan.onrender.com).
+Firebase Authentication (Google, Apple, LINE, email) and Cloud Firestore; Apple In-App Purchase with RevenueCat; OpenAI API for AI readings and handwriting transcription (only when the user taps the button); iOS speech recognition; our API server on Render (https://yumetan.onrender.com).
 Terms of Use: https://yumetan.onrender.com/legal/terms.html?lang=en
 Privacy Policy: https://yumetan.onrender.com/legal/privacy.html?lang=en
 
 5. Regional differences
-None. The app works identically everywhere, in Japanese, English, Korean and Simplified Chinese. Prices follow the App Store tiers per storefront.
+None. Identical everywhere; UI in Japanese, English, Korean and Simplified Chinese.
 
 6. Regulated industry / third-party material
-Not a medical device; it does not diagnose sleep quality or illness. All 16 characters and illustrations are original works made for this app; no third-party licensed material is used.
+Not a medical device. All characters and illustrations are original works; no third-party licensed material.
 
 7. In-App Purchases
-Four auto-renewable subscriptions: Starter Monthly (com.doyle.yumetan.starter.monthly, 1 month, ¥490), Starter Yearly (…starter.yearly, 1 year, ¥4,900), Standard Monthly (…standard.monthly, 1 month, ¥980), Standard Yearly (…standard.yearly, 1 year, ¥9,800). They raise daily dream entries and AI readings, add handwriting transcription, unlock the human character set and open the full dream feed. Path: Settings > See plans > Details > "Subscribe to …". The purchase screen shows plan name, length, price and the Terms / Privacy links; subscriptions are cancelled in the App Store settings, as stated in the app.
+Four auto-renewable subscriptions: Starter Monthly (com.doyle.yumetan.starter.monthly, 1 month, ¥490), Starter Yearly (…starter.yearly, 1 year, ¥4,900), Standard Monthly (…standard.monthly, 1 month, ¥980), Standard Yearly (…standard.yearly, 1 year, ¥9,800). They raise daily dream entries and AI readings, add handwriting transcription and open the full dream feed. Path: Settings > See plans > Details > "Subscribe to …". The screen shows name, length, price and the Terms / Privacy links; cancellation is in the App Store settings, as stated in the app.
 
 Contact: Yumetan Team, +81 80-8978-7788, yumetan-review@gmail.com
 
