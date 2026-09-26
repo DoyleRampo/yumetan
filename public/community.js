@@ -250,7 +250,7 @@ export function createCommunity({
     const d = shareDraft;
     if (error)
       return `<div class="narrow"><h1>${t("share")}</h1>${status()}${b("refresh", "refresh")}</div>`;
-    return `<div class="narrow"><h1>${t("share")}</h1><p>${t("privacyNote")}</p>${status()}${!signedIn() ? `<p>${t("shareLogin")}</p>${paywall()}` : busy ? "" : `<div class="card"><strong>${t(sharing?.public ? "public" : "private")}</strong>${sharing?.public ? b("unpublish", "unpublish", `data-id="${sharing.id}"`) : ""}<p class="help">${t("shareSnapshot")}</p></div>${d ? `<form id="share-form" class="card"><label class="field"><span>${t("alias")}</span><input id="share-alias" required maxlength="30" value="${esc(d.alias)}"></label><label class="field"><span>${t("postTitle")}</span><input id="share-title" required maxlength="80" value="${esc(d.title)}"></label><label class="field"><span>${t("postText")}</span><textarea id="share-text" rows="9" required maxlength="4000">${esc(d.text)}</textarea></label><p class="help">${t("copyLimit")}</p><label class="check"><input id="share-consent" type="checkbox" required><span>${t("consent")}</span></label><button class="btn primary" type="submit">${t("publish")}</button></form>` : ""}`}</div>`;
+    return `<div class="narrow"><h1>${t("share")}</h1><p>${t("privacyNote")}</p>${status()}${!signedIn() ? `<p>${t("shareLogin")}</p>${paywall()}` : busy ? "" : `<div class="card"><strong>${t(sharing?.public ? "public" : "private")}</strong>${sharing?.public ? b("unpublish", "unpublish", `data-id="${sharing.id}"`) : ""}<p class="help">${t("shareSnapshot")}</p></div>${d ? `<form id="share-form" class="card"><label class="field"><span>${t("alias")}</span><input id="share-alias" required maxlength="30" value="${esc(d.alias)}"></label><label class="field"><span>${t("postTitle")}</span><input id="share-title" required maxlength="80" value="${esc(d.title)}"></label><label class="field"><span>${t("postText")}</span><textarea id="share-text" rows="9" required maxlength="20000">${esc(d.text)}</textarea></label><p class="help">${t("copyLimit")}</p><label class="check"><input id="share-consent" type="checkbox" required><span>${t("consent")}</span></label><button class="btn primary" type="submit">${t("publish")}</button></form>` : ""}`}</div>`;
   }
   function detailView() {
     if (!detail) return `<h1>${t("community")}</h1>${status()}`;
@@ -303,7 +303,7 @@ export function createCommunity({
             : (record.text || "").slice(0, 60),
           text: sharing?.public
             ? sharing.text
-            : (record.text || "").slice(0, 4000),
+            : (record.text || "").slice(0, 20000),
         };
       }
       if (token !== version) return;
@@ -586,7 +586,7 @@ export function createCommunity({
         recordId: record.id,
         alias: nickname().slice(0, 30),
         title: record.text.trim().slice(0, 60),
-        text: record.text.trim().slice(0, 4000),
+        text: record.text.trim().slice(0, 20000),
         typeId: currentType(),
         characterSet: character(null).setId,
         consent: true,

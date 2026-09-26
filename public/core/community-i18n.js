@@ -125,18 +125,6 @@ export const communityMessages = {
     "此帖子暂不可见，可能已设为私密、删除或会员到期。",
     "This post is unavailable. It may be private, removed, or its author’s membership may have expired.",
   ],
-  moderationUnavailable: [
-    "投稿内容の確認が利用できないため、公開を保留しました。",
-    "내용 확인을 사용할 수 없어 공개를 보류했어요.",
-    "内容检查暂不可用，尚未发布。",
-    "Content checking is unavailable, so nothing was published.",
-  ],
-  contentRejected: [
-    "この内容は公開できません。個人情報や相手を傷つける表現がないか見直してください。",
-    "이 내용은 공개할 수 없어요. 개인정보나 유해한 표현을 확인해 주세요.",
-    "此内容无法发布，请检查个人信息或有害表达。",
-    "This content cannot be published. Check for personal information or harmful content.",
-  ],
   accountSuspended: [
     "このアカウントの交流機能は停止されています。",
     "이 계정의 커뮤니티 기능이 정지됐어요.",
@@ -443,10 +431,10 @@ export const communityMessages = {
     "Prices follow the App Store / Google Play listing.",
   ],
   copyLimit: [
-    "公開本文は4,000文字まで。公開する本文は安全性の確認のためOpenAIへ送信されます。",
-    "공개 본문은 4,000자까지예요. 공개할 내용은 안전성 확인을 위해 OpenAI로 전송돼요.",
-    "公开正文最多4,000字；发布内容会发送至OpenAI进行安全检查。",
-    "Posts allow 4,000 characters. Content you publish is sent to OpenAI for safety checking.",
+    "公開本文は20,000文字まで。",
+    "공개 본문은 20,000자까지예요.",
+    "公开正文最多20,000字。",
+    "Posts allow 20,000 characters.",
   ],
   planAIHint: [
     "AIで読み解くと夢・最近の日記、文字認識時は画像をサーバーとOpenAIへ送信します。読み解きは夢1件につき1回、全プランに含まれます。手書き認識は有料プランのみ。保存だけなら端末内で処理します。",

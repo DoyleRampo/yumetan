@@ -16,12 +16,12 @@ Yumetan is a dream and sleep journal. Users answer a 24-question quiz to get one
 No setup is required beyond creating an account (or continuing as a guest). Demo accounts (email/password; "Sign in with email" on the first screen or in Settings → Account):
 - Standard plan (full feed, stamps and AI readings already unlocked): `review-standard@[domain]` / `[password]`
 - Free plan (to test the subscription purchase flow in the App Store sandbox): `review-free@[domain]` / `[password]`
-Navigation: Settings → Plans → choose Monthly/Annual → Details → the purchase button. "Restore purchases" and "Manage / cancel" are on the same screen. The members' feed is the fourth tab; open a post to react with a stamp. User-generated content is limited to short dream texts published by members: every post passes an automated safety check (OpenAI moderation) before it becomes visible, our team can hide posts and suspend accounts, and users can report a post from the support site linked in Help. Account deletion: Settings → Account → Delete account. Contact for this review: Yumetan Team, +81 80-8978-7788. No sample files are needed; the handwriting feature accepts any photo of text.
+Navigation: Settings → Plans → choose Monthly/Annual → Details → the purchase button. "Restore purchases" and "Manage / cancel" are on the same screen. The members' feed is the fourth tab; open a post to react with a stamp. User-generated content is limited to dream texts published by members: our team can hide posts and suspend accounts, and users can report a post from the support site linked in Help. Account deletion: Settings → Account → Delete account. Contact for this review: Yumetan Team, +81 80-8978-7788. No sample files are needed; the handwriting feature accepts any photo of text.
 
 **4. External services**
 - Firebase Authentication (Google, Sign in with Apple, LINE Login, email/password, anonymous guests) and Cloud Firestore for storage and sync.
 - Apple In-App Purchase (auto-renewable subscriptions) with RevenueCat for subscription status verification and webhooks.
-- OpenAI API for AI dream readings, handwriting transcription and safety checks of text before it is published. Data is sent only when the user explicitly taps Read with AI / Recognize / Publish.
+- OpenAI API for AI dream readings and handwriting transcription. Data is sent only when the user explicitly taps Read with AI / Recognize.
 - iOS speech recognition for voice input.
 - Our own Node.js API server hosted on [Fly.io / Render] at `https://[server]`.
 Terms of Use: `https://[server]/legal/terms.html?lang=en` · Privacy Policy: `https://[server]/legal/privacy.html?lang=en`

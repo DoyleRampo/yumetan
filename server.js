@@ -122,11 +122,7 @@ app.post(
   "/api/billing/sync",
   asyncRoute(async (req, res) => res.json(await billing.sync(await user(req)))),
 );
-registerCommunity(app, {
-  access: verifiedAccess,
-  asyncRoute,
-  moderate: (text) => ai.moderate(text),
-});
+registerCommunity(app, { access: verifiedAccess, asyncRoute });
 registerFeatures(app, {
   gate: user,
   callAI: ({ client, ...args }) => ai.call({ ...args, user: client }),

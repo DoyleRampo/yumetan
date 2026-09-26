@@ -43,14 +43,7 @@ function setup() {
       get: (p, f) => routes.set("GET " + p, f),
       post: (p, f) => routes.set("POST " + p, f),
     },
-    {
-      access,
-      asyncRoute: (f) => f,
-      moderate: async (text) => {
-        if (text.includes("REJECT"))
-          throw Object.assign(Error("contentRejected"), { status: 422 });
-      },
-    },
+    { access, asyncRoute: (f) => f },
   );
   async function call(method, path, uid, body = {}, params = {}, query = {}) {
     let out;
@@ -253,13 +246,6 @@ test("simultaneous publications and duplicate retries obey daily and active limi
       consent: false,
     }),
     (e) => e.status === 400,
-  );
-  await assert.rejects(
-    s.call("POST", "/api/community/publish", "alice", {
-      ...data,
-      text: "REJECT",
-    }),
-    (e) => e.status === 422,
   );
 });
 test("a paid member gives one stamp per post; everyone sees the counts", async () => {
@@ -849,4 +835,31 @@ test("the paid feed shows only the dreams published on the member's day, in the 
     [tomorrow],
   );
   await assert.rejects(feed({ day: "yesterday" }), (e) => e.status === 400);
+});
+test("nothing screens what a member publishes, and a whole 20,000-character dream fits", async () => {
+  const s = setup();
+  for (const uid of ["alice", "bob", "carol"]) s.paid(uid);
+  // A dream about jumping from a collapsing building is a dream, not a threat.
+  const dark = await s.call("POST", "/api/community/publish", "alice", {
+    ...post("r-dark"),
+    text: "高いところから飛び降りた夢を見た。地震が起きて、ビルが崩壊しかけていたので、飛び降りなくては行けない状況だった。",
+  });
+  assert.ok(dark.id);
+  const long = await s.call("POST", "/api/community/publish", "bob", {
+    ...post("r-long"),
+    text: "夢".repeat(20000),
+  });
+  assert.ok(long.id);
+  await assert.rejects(
+    s.call("POST", "/api/community/publish", "carol", {
+      ...post("r-too-long"),
+      text: "夢".repeat(20001),
+    }),
+    (e) => e.status === 400,
+  );
+  const feed = await s.call("GET", "/api/community/feed", "carol");
+  assert.deepEqual(
+    feed.posts.map((p) => p.id).sort(),
+    [dark.id, long.id].sort(),
+  );
 });

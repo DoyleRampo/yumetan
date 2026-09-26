@@ -16,7 +16,7 @@ const SCAN_LIMIT = 400;
 const postInput = z.object({
   recordId: ident,
   title: z.string().trim().min(1).max(80),
-  text: z.string().trim().min(1).max(4000),
+  text: z.string().trim().min(1).max(20000),
   alias: z.string().trim().min(1).max(30),
   typeId: z.enum(TYPES.map((t) => t.id)),
   characterSet: z.enum(["human", "animal"]),
@@ -47,10 +47,7 @@ const publicPost = (p) => ({
   publishedAt: p.publishedAt,
   reactions: stampsOf(p),
 });
-export function registerCommunity(
-  app,
-  { access, asyncRoute, moderate = async () => {} },
-) {
+export function registerCommunity(app, { access, asyncRoute }) {
   const { store, now } = access;
   const route = (method, path, fn) =>
     app[method](
@@ -66,7 +63,7 @@ export function registerCommunity(
     if (!p) throw fault(404, "postUnavailable");
     if (ownerOK && p.owner === uid) return p;
     // Sharing is part of the free plan, so a post stays visible whatever its
-    // author pays; only privacy, moderation and suspension hide one.
+    // author pays; only privacy and suspension hide one.
     if (!p.public || p.hidden) throw fault(404, "postUnavailable");
     if ((await access.member(p.owner)).suspended)
       throw fault(404, "postUnavailable");
@@ -287,8 +284,10 @@ export function registerCommunity(
   // Sharing a dream is part of the free plan; the daily and active allowances
   // still apply, and reading other members' dreams stays paid.
   route("post", "/api/community/publish", async (req, user) => {
+    // What a member publishes is not screened: dreams are full of falling,
+    // disasters and death, which content filters take for the real thing.
+    // The operator can still hide a post or suspend an account from Firestore.
     const data = parse(postInput, req.body);
-    await moderate(`${data.alias}\n${data.title}\n${data.text}`);
     const id = postId(user.uid, data.recordId),
       path = `communityPosts/${id}`;
     await store.transaction(async (tx) => {

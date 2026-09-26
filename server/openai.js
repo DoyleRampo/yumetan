@@ -224,14 +224,5 @@ export function createAI({
       status = { at: now, value };
       return value;
     },
-    async moderate(text) {
-      // Social content is sent only when the user explicitly publishes a dream.
-      if (!client) throw fault(503, "moderationUnavailable");
-      const r = await client.moderations.create({
-        model: "omni-moderation-latest",
-        input: text,
-      });
-      if (r.results.some((x) => x.flagged)) throw fault(422, "contentRejected");
-    },
   };
 }
