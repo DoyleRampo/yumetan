@@ -708,6 +708,18 @@ export const messages = {
     "为安全起见，请重新登录后再删除账户。",
     "For your safety, sign in again before deleting your account.",
   ],
+  deleteAccountPassword: [
+    "本人確認のため、パスワードを入力してください。",
+    "본인 확인을 위해 비밀번호를 입력해 주세요.",
+    "为确认身份，请输入密码。",
+    "To confirm it is you, enter your password.",
+  ],
+  deleteAccountFailed: [
+    "アカウントを削除できませんでした。",
+    "계정을 삭제하지 못했어요.",
+    "无法删除账户。",
+    "The account could not be deleted.",
+  ],
   shareDream: [
     "この夢をみんなの夢に公開する",
     "이 꿈을 모두의 꿈에 공개",

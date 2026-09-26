@@ -97,7 +97,19 @@ export function createCloudClient({
     // a recent sign-in for this, which surfaces as auth/requires-recent-login.
     // The journals go first; once the user is gone the rules deny every write,
     // and a surviving profile would restore the old character on the next login.
-    async deleteAccount() {
+    // Confirms an email/password account's password so that a stale sign-in can
+    // still delete the account from the device (Firebase then counts it as recent).
+    async reauthenticate(password) {
+      if (!state.user?.email)
+        throw Object.assign(new Error("auth/no-current-user"), {
+          code: "auth/no-current-user",
+        });
+      await A.reauthenticateWithCredential(
+        state.user,
+        A.EmailAuthProvider.credential(state.user.email, password),
+      );
+    },
+    async deleteAccount({ recent = false } = {}) {
       if (!state.user || state.user.isAnonymous)
         throw Object.assign(new Error("auth/no-current-user"), {
           code: "auth/no-current-user",
@@ -105,6 +117,7 @@ export function createCloudClient({
       // Refuse before touching anything when Firebase would reject the deletion
       // for a stale sign-in, so a failed attempt never leaves a half-empty account.
       if (
+        !recent &&
         !(
           Date.now() - Date.parse(state.user.metadata?.lastSignInTime || 0) <
           300000

@@ -2241,6 +2241,7 @@ async function deleteAccount() {
   if (!signedIn()) return;
   if (!confirm(t("deleteAccountConfirm"))) return;
   authChanging = true;
+  let serverError = null;
   const stop = beginLoading(displayLanguage(), "account", null, {
     overlay: true,
   });
@@ -2250,9 +2251,19 @@ async function deleteAccount() {
     await cancelNativeAuth();
     try {
       await api("/api/account/delete", {});
-    } catch {
-      // No server (or offline): the device can still delete a recent sign-in.
-      await cloud.deleteAccount();
+    } catch (error) {
+      // The device stands in only when the server cannot delete at all: offline,
+      // an older deployment without the route, or no Firebase admin access
+      // (every 5xx is reported as serviceUnavailable). Any other answer, such as
+      // a rejected token or throttling, is shown as it is instead of being
+      // hidden behind a "sign in again" that would not help.
+      if (!["networkError", "serviceUnavailable"].includes(error?.code))
+        throw error;
+      serverError = error;
+      console.warn("Server account deletion failed; deleting from the device", {
+        code: error?.code,
+      });
+      await deleteAccountOnDevice();
     }
     if (syncTask) await syncTask.catch(() => {});
     // Forget every account on this device, not just the deleted one. A cache left
@@ -2273,15 +2284,42 @@ async function deleteAccount() {
     navigate(firstRunPage(), true);
     toast(t("deleteAccountDone"));
   } catch (error) {
+    console.error("Account deletion failed", {
+      code: error?.code,
+      server: serverError?.code,
+    });
+    // Why the server could not do it is kept in the message for a bug report.
+    const detail = serverError?.code ? ` (${serverError.code})` : "";
     throw new Error(
       error?.code === "auth/requires-recent-login"
-        ? t("deleteAccountRecent")
-        : authError(error?.code, displayLanguage()),
+        ? t("deleteAccountRecent") + detail
+        : error?.userMessage
+          ? `${t("deleteAccountFailed")} ${error.userMessage}`
+          : emailAuthError(error?.code, displayLanguage()) + detail,
     );
   } finally {
     stop();
     authChanging = false;
     watchAccount();
+  }
+}
+// Firebase deletes a user from the device only after a recent sign-in. An
+// email/password account confirms its password here instead of signing out
+// and back in; other providers get the "sign in again" message.
+async function deleteAccountOnDevice() {
+  try {
+    await cloud.deleteAccount();
+  } catch (error) {
+    if (
+      error?.code !== "auth/requires-recent-login" ||
+      !cloud.reauthenticate ||
+      !(cloud.providers?.() || []).includes("password")
+    )
+      throw error;
+    const password = prompt(t("deleteAccountPassword"));
+    if (!password) throw error;
+    await cloud.reauthenticate(password);
+    await cloud.deleteAccount({ recent: true });
   }
 }
 async function switchAccount() {

@@ -42,33 +42,68 @@ export function createAccountService({
     }
     return "failed";
   }
-  // Stamps this user gave on other members' posts, with the posts' counts corrected.
-  async function deleteReactions(uid) {
-    const rows = await store.listGroup("reactions", {
-      where: [["owner", "==", uid]],
-      limit: 500,
+  // Removes one stamp and corrects the post's count. Returns whether it existed.
+  async function removeReaction(postPath, reactionPath) {
+    return store.transaction(async (tx) => {
+      const p = await tx.get(postPath),
+        existing = await tx.get(reactionPath);
+      if (!existing) return false;
+      tx.delete(reactionPath);
+      if (p && existing.stamp)
+        tx.set(postPath, {
+          ...p,
+          reactions: {
+            ...p.reactions,
+            [existing.stamp]: Math.max(
+              0,
+              (p.reactions?.[existing.stamp] || 0) - 1,
+            ),
+          },
+        });
+      return true;
     });
+  }
+  // Stamps this user gave on other members' posts. The collection-group query
+  // needs the `reactions.owner` index from firestore.indexes.json; when it has
+  // not been deployed, Firestore answers FAILED_PRECONDITION. A stamp's document
+  // ID is the giver's UID, so the posts are walked instead and deletion goes on
+  // rather than failing the whole account for a missing index.
+  async function deleteReactions(uid) {
+    let rows;
+    try {
+      rows = await store.listGroup("reactions", {
+        where: [["owner", "==", uid]],
+        limit: 500,
+      });
+    } catch (e) {
+      if (e?.code !== 9 && !/FAILED_PRECONDITION|index/i.test(e?.message || ""))
+        throw e;
+      log("reactions index missing; walking posts instead", {
+        message: e?.message,
+      });
+      return deleteReactionsByScan(uid);
+    }
+    let count = 0;
     for (const r of rows) {
       const postPath = r.path.replace(/\/reactions\/[^/]+$/, "");
-      await store.transaction(async (tx) => {
-        const p = await tx.get(postPath),
-          existing = await tx.get(r.path);
-        if (!existing) return;
-        tx.delete(r.path);
-        if (p && existing.stamp)
-          tx.set(postPath, {
-            ...p,
-            reactions: {
-              ...p.reactions,
-              [existing.stamp]: Math.max(
-                0,
-                (p.reactions?.[existing.stamp] || 0) - 1,
-              ),
-            },
-          });
-      });
+      if (await removeReaction(postPath, r.path)) count++;
     }
-    return rows.length;
+    return count;
+  }
+  async function deleteReactionsByScan(uid) {
+    let count = 0,
+      after;
+    for (;;) {
+      const posts = await store.list("communityPosts", { limit: 500, after });
+      for (const p of posts) {
+        const postPath = `communityPosts/${p.id}`,
+          reactionPath = `${postPath}/reactions/${uid}`;
+        if (!(await store.get(reactionPath))) continue;
+        if (await removeReaction(postPath, reactionPath)) count++;
+      }
+      if (posts.length < 500) return count;
+      after = posts.at(-1).id;
+    }
   }
   return {
     configured,
@@ -104,7 +139,15 @@ export function createAccountService({
         await deleteUser(uid);
       } catch (e) {
         // A retry after an earlier partial run: the data is gone, so is the user.
-        if (e?.code !== "auth/user-not-found") throw e;
+        if (e?.code !== "auth/user-not-found") {
+          // Typically the service account lacks the Firebase Authentication
+          // Admin role; the journals are already gone, so a retry is safe.
+          log("Firebase Auth user deletion failed", {
+            code: e?.code,
+            message: e?.message,
+          });
+          throw e;
+        }
       }
       return { deleted: true, posts: posts.length, reactions, billing };
     },

@@ -185,3 +185,45 @@ test("deletion refuses bad IDs and is unavailable without Firebase services", as
     code: "serviceUnavailable",
   });
 });
+test("a missing reactions index does not block deletion: the user's stamps are found by walking the posts", async () => {
+  const f = fixture();
+  const { bobPost } = await populate(f);
+  const calls = [];
+  f.store.listGroup = async () => {
+    calls.push("listGroup");
+    throw Object.assign(
+      Error(
+        "9 FAILED_PRECONDITION: The query requires a COLLECTION_GROUP_ASC index for collection reactions and field owner.",
+      ),
+      { code: 9 },
+    );
+  };
+  const result = await f.accounts.remove("alice");
+  assert.deepEqual(calls, ["listGroup"]);
+  assert.equal(result.reactions, 1);
+  assert.equal(
+    f.store.data.get(`communityPosts/${bobPost}`).reactions.funny,
+    1,
+  );
+  assert.equal(
+    f.store.data.has(`communityPosts/${bobPost}/reactions/alice`),
+    false,
+  );
+  assert.equal(
+    f.store.data.has(`communityPosts/${bobPost}/reactions/carol`),
+    true,
+  );
+  assert.deepEqual(
+    [...f.store.data.keys()].filter((k) => k.includes("alice")),
+    [],
+  );
+  assert.deepEqual(f.deleted, ["alice"]);
+  // Any other query failure still stops the deletion before data is touched.
+  const g = fixture();
+  await populate(g);
+  g.store.listGroup = async () => {
+    throw Object.assign(Error("7 PERMISSION_DENIED"), { code: 7 });
+  };
+  await assert.rejects(g.accounts.remove("alice"), { code: 7 });
+  assert.equal(g.store.data.has("users/alice/dreams/d1"), true);
+});

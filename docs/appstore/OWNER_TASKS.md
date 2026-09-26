@@ -21,7 +21,7 @@
    npx firebase-tools deploy --project yumetan-a31f0 --only firestore:indexes
    ```
 
-   反映しないと、アカウント削除時に「他人の投稿に付けたスタンプ」の横断検索で index エラーになる。
+   未反映でもアカウント削除は失敗しない（「他人の投稿に付けたスタンプ」は投稿を順に見て消す）が、反映すると横断検索で一度に見つかり速い。
 3. Google Cloud Console → IAM で、サーバーが使うサービスアカウント（`FIREBASE_SERVICE_ACCOUNT_JSON` の `client_email`）に **Firebase Admin SDK Administrator Service Agent** ロールがあることを確認する（Auth ユーザー削除に必要）。
 
 ## 3. デモアカウントを 2 つ作る（20 分）

@@ -34,11 +34,13 @@ async function setup(page, db = new Map(), readyDelay = 0) {
 let uid=localStorage.getItem('auth.test.uid') || 'guest-1'; let listeners=[];
 const anon=()=>uid.startsWith('guest'); const user=()=>({uid,isAnonymous:anon()});
 window.__authCalls=[];
-const cloud=window.YumetanCloud={state:{enabled:${readyDelay}===0,user:user()}, ready:new Promise(r=>setTimeout(()=>{cloud.state.enabled=true;r({enabled:true});},${readyDelay})), uid:()=>uid,isAnonymous:anon,email:()=>anon()?'':uid+'@test.invalid', providers:()=>anon()?[]:['google.com'],onUser:cb=>listeners.push(cb),idToken:async()=> 'test',
+const cloud=window.YumetanCloud={state:{enabled:${readyDelay}===0,user:user()}, ready:new Promise(r=>setTimeout(()=>{cloud.state.enabled=true;r({enabled:true});},${readyDelay})), uid:()=>uid,isAnonymous:anon,email:()=>anon()?'':uid+'@test.invalid', providers:()=>anon()?[]:uid.startsWith('email-')?['password']:['google.com'],onUser:cb=>listeners.push(cb),idToken:async()=> 'test',
 syncSnapshot: async snapshot => {const res=await fetch('/__test/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,snapshot})});if(!res.ok)throw Error('offline');return res.json();},
 signInProvider:async (provider,opts)=>{window.__authCalls.push({provider,opts});if(window.__cancel)throw {code:'auth/popup-closed-by-user'};if(!opts.link){uid=provider==='line'?'member-b':'member-a';localStorage.setItem('auth.test.uid',uid);}cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();},
 signOut:async()=>{uid='guest-'+crypto.randomUUID();localStorage.setItem('auth.test.uid',uid);cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();},
 watch:(cb)=>{window.__watchers=(window.__watchers||[]).concat(cb);return()=>{};},
+deleteAccount:async(o)=>{window.__deviceDeletes=(window.__deviceDeletes||0)+1;if(window.__stale&&!o?.recent)throw {code:'auth/requires-recent-login'};uid='guest-'+crypto.randomUUID();localStorage.setItem('auth.test.uid',uid);cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();},
+reauthenticate:async(pw)=>{window.__reauth=pw;if(pw!=='secret1')throw {code:'auth/invalid-credential'};},
 signUp:async (email,password)=>{window.__signUps=(window.__signUps||[]).concat(email);window.__signUpUid=uid;return {uid:'email-'+email,email};},
 signIn:async (email,password)=>{if(!(window.__signUps||[]).includes(email)||password!=='secret1')throw {code:'auth/invalid-credential'};uid='email-'+email;localStorage.setItem('auth.test.uid',uid);cloud.state.user=user();listeners.forEach(cb=>cb(user()));return user();}};
 `,
@@ -491,4 +493,92 @@ test("typed email and password survive returning to the app (cloud watch resubsc
   await panel.locator("[data-action=email-signin]").click();
   await expect(panel.locator("#email")).toHaveValue("typing@test.invalid");
   await expect(panel.locator("#password")).toHaveValue("half-typed");
+});
+test("account deletion: a server refusal is shown as it is; the device stands in only when the server cannot delete", async ({
+  page,
+}) => {
+  const db = new Map([
+    ["member-a", { profile: profile("会員"), records: [], deleted: [] }],
+  ]);
+  await setup(page, db);
+  let answer = { status: 401, json: { code: "loginRequired" } };
+  await page.route("**/api/account/delete", (r) => r.fulfill(answer));
+  page.on("dialog", (d) => d.accept());
+  await page.goto("/");
+  await page.locator("[data-action=intro-skip]").click();
+  await page.locator("[data-auth-provider=google]").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "home");
+  await page.locator("#header [data-go=settings]").click();
+  // The server answered: the reason is shown and nothing is deleted on the device.
+  await page.locator("[data-action=delete-account]").click();
+  await expect(page.locator("#toast")).toContainText(
+    "アカウントを削除できませんでした",
+  );
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "settings");
+  expect(await page.evaluate(() => window.__deviceDeletes || 0)).toBe(0);
+  // The server cannot delete (5xx): the device deletes, but only after a recent
+  // sign-in; a Google account is told to sign in again, with the server's reason.
+  answer = { status: 503, json: { code: "serviceUnavailable" } };
+  await page.evaluate(() => (window.__stale = true));
+  await page.locator("[data-action=delete-account]").click();
+  await expect(page.locator("#toast")).toContainText(
+    "もう一度ログインしてからアカウントを削除してください。 (serviceUnavailable)",
+  );
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "settings");
+  // With a recent sign-in the device deletion goes through.
+  await page.evaluate(() => (window.__stale = false));
+  await page.locator("[data-action=delete-account]").click();
+  await expect(page.locator("#app")).toHaveAttribute(
+    "data-page",
+    "welcome-login",
+  );
+  expect(await page.evaluate(() => window.__deviceDeletes)).toBe(2);
+});
+test("account deletion: an email account confirms its password instead of signing in again", async ({
+  page,
+}) => {
+  const db = new Map([
+    [
+      "email-me@test.invalid",
+      { profile: profile("メール会員"), records: [], deleted: [] },
+    ],
+  ]);
+  await setup(page, db);
+  await page.route("**/api/account/delete", (r) =>
+    r.fulfill({ status: 500, json: { code: "serviceUnavailable" } }),
+  );
+  const prompts = [];
+  page.on("dialog", (d) => {
+    if (d.type() === "prompt") {
+      prompts.push(d.message());
+      return d.accept(prompts.length === 1 ? "wrong-1" : "secret1");
+    }
+    return d.accept();
+  });
+  await page.goto("/");
+  await page.locator("[data-action=intro-skip]").click();
+  await page.evaluate(() => (window.__signUps = ["me@test.invalid"]));
+  await page.locator("#email-auth summary").click();
+  await page.locator("[data-action=email-signin]").click();
+  await page.locator("#email").fill("me@test.invalid");
+  await page.locator("#password").fill("secret1");
+  await page.locator("#account-form button[type=submit]").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "home");
+  await page.evaluate(() => (window.__stale = true));
+  await page.locator("#header [data-go=settings]").click();
+  // A wrong password is reported; the account stays.
+  await page.locator("[data-action=delete-account]").click();
+  await expect(page.locator("#toast")).toContainText(
+    "メールアドレスまたはパスワードが正しくありません",
+  );
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "settings");
+  // The right password deletes without signing out and in.
+  await page.locator("[data-action=delete-account]").click();
+  await expect(page.locator("#app")).toHaveAttribute(
+    "data-page",
+    "welcome-login",
+  );
+  expect(prompts).toHaveLength(2);
+  expect(prompts[0]).toContain("パスワードを入力");
+  expect(await page.evaluate(() => window.__reauth)).toBe("secret1");
 });
