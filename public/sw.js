@@ -1,4 +1,4 @@
-const CACHE = "yumetan-4.8.6";
+const CACHE = "yumetan-4.8.7";
 const SHELL = [
   "./",
   "index.html",

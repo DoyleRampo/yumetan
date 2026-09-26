@@ -709,3 +709,35 @@ test("a cancellation keeps the plan until its end date and says when Free return
     "Cancelled. Standard stays until",
   );
 });
+test("the feed lists only dreams shared today and says so", async ({
+  page,
+}) => {
+  const s = await fixture(page);
+  const old = await s.publish("alice", "A dream shared yesterday.");
+  await s.publish("alice", "A dream shared today.");
+  const yesterday = new Date(Date.now() - 86400000).toISOString();
+  const path = "communityPosts/" + old;
+  s.store.data.set(path, {
+    ...s.store.data.get(path),
+    publishedAt: yesterday,
+    sortKey: `${yesterday}_${old}`,
+  });
+  const requests = [];
+  page.on("request", (r) => {
+    if (r.url().includes("/api/community/feed")) requests.push(r.url());
+  });
+  await boot(page);
+  await page.locator("nav [data-go=community]").click();
+  await expect(page.locator(".feed-card")).toHaveCount(1);
+  await expect(page.locator("main")).toContainText("A dream shared today.");
+  await expect(page.locator("main")).not.toContainText("shared yesterday");
+  await expect(page.locator("main")).toContainText(
+    "Showing the dreams shared today",
+  );
+  const expected = await page.evaluate(() => {
+    const d = new Date();
+    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return `day=${day}&tz=${d.getTimezoneOffset()}`;
+  });
+  expect(requests[0]).toContain(expected);
+});

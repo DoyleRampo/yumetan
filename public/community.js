@@ -262,7 +262,7 @@ export function createCommunity({
     if (page === "share") return shareView();
     if (page === "community-post") return detailView();
     // The timeline: no toolbar, just the dreams. A failed load offers a retry.
-    return `<h1>${t("community")}</h1><p class="help">${t("communityIntro")}</p>${status()}${error ? `<div class="row">${b("refresh", "refresh")}</div>` : ""}${plan() === "free" ? (signedIn() ? teaserView() : paywall()) : `<div class="feed-list timeline">${posts.map((p) => postCard(p)).join("") || (!busy ? `<p class="empty">${t("emptyFeed")}</p>` : "")}</div>${next ? b("nextPage", "next") : ""}`}${pickerView()}`;
+    return `<h1>${t("community")}</h1><p class="help">${t("communityIntro")}</p>${status()}${error ? `<div class="row">${b("refresh", "refresh")}</div>` : ""}${plan() === "free" ? (signedIn() ? teaserView() : paywall()) : `<p class="help">${t("todayOnly")}</p><div class="feed-list timeline">${posts.map((p) => postCard(p)).join("") || (!busy ? `<p class="empty">${t("emptyFeed")}</p>` : "")}</div>${next ? b("nextPage", "next") : ""}`}${pickerView()}`;
   }
   async function refreshAccount() {
     return setAccount(
@@ -316,16 +316,12 @@ export function createCommunity({
         } catch {}
       }
       if (page === "community" && plan() !== "free") {
-        const r = await api("/api/community/feed");
+        const r = await api(`/api/community/feed?${dayQuery()}`);
         if (token !== version) return;
         posts = r.posts;
         next = r.next;
       } else if (page === "community" && signedIn()) {
-        const d = new Date(),
-          day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        const r = await api(
-          `/api/community/teaser?day=${day}&tz=${d.getTimezoneOffset()}`,
-        );
+        const r = await api(`/api/community/teaser?${dayQuery()}`);
         if (token !== version) return;
         teaser = r;
       }
@@ -459,7 +455,7 @@ export function createCommunity({
           }
           if (action === "next") {
             const r = await api(
-              "/api/community/feed?after=" + encodeURIComponent(next),
+              `/api/community/feed?after=${encodeURIComponent(next)}&${dayQuery()}`,
             );
             posts = r.posts;
             next = r.next;
@@ -618,4 +614,10 @@ export function createCommunity({
         await api("/api/community/posts/" + post.id + "/private", {});
     },
   };
+}
+// Today for the member, as the community routes expect it: the local calendar
+// day and the minutes from local midnight to UTC (Date#getTimezoneOffset).
+function dayQuery(d = new Date()) {
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return `day=${day}&tz=${d.getTimezoneOffset()}`;
 }

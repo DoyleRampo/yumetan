@@ -147,17 +147,29 @@ export function registerCommunity(
   // Free members: their own posts in full, plus a daily teaser of a few of
   // today's other posts — name and title whole, TEASER_CHARS of the dream —
   // chosen per user and day so reloading never reveals more of the feed.
-  route("get", "/api/community/teaser", async (req, user) => {
+  // The member's calendar day as a UTC window: `day` (YYYY-MM-DD) and `tz`,
+  // minutes to add to local midnight to reach UTC, as Date#getTimezoneOffset.
+  // Without them, the UTC day of the request.
+  function dayWindow(req) {
     const day = req.query.day
       ? parse(z.string().regex(/^\d{4}-\d{2}-\d{2}$/), req.query.day)
       : dayKey(now());
-    // Minutes to add to local midnight to reach UTC, as Date#getTimezoneOffset.
     const tz = req.query.tz
       ? parse(z.coerce.number().int().min(-840).max(840), req.query.tz)
       : 0;
     const start = Date.parse(`${day}T00:00:00Z`) + tz * 60000,
       end = start + 86400000;
     if (!Number.isFinite(start)) throw fault(400, "invalidInput");
+    return { day, start, end };
+  }
+  const withinDay =
+    ({ start, end }) =>
+    (p) => {
+      const at = Date.parse(p.publishedAt);
+      return at >= start && at < end;
+    };
+  route("get", "/api/community/teaser", async (req, user) => {
+    const { day, start, end } = dayWindow(req);
     // Newest first, so the walk ends at the first post from before this day.
     const { posts: batch } = await publicPosts({
       want: 60,
@@ -221,8 +233,15 @@ export function registerCommunity(
     const after = req.query.after
       ? parse(z.string().regex(/^[0-9TZ:._a-f-]{1,100}$/), req.query.after)
       : undefined;
-    const page = await publicPosts({ after, want: 20 });
-    const batch = page.posts;
+    // Only the dreams published on the member's day: the walk is newest first,
+    // so it ends at the first post from before that day.
+    const window = dayWindow(req);
+    const page = await publicPosts({
+      after,
+      want: 20,
+      stop: (p) => Date.parse(p.publishedAt) < window.start,
+    });
+    const batch = page.posts.filter(withinDay(window));
     // The member's own public posts appear in the timeline too, marked `mine`;
     // they never cost a read and are shown even while hidden or expired.
     const posts = [];

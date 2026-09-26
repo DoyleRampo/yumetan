@@ -803,3 +803,50 @@ test("the timeline, teaser and own posts need no composite index", async () => {
     [own.id],
   );
 });
+test("the paid feed shows only the dreams published on the member's day, in the member's time zone", async () => {
+  const s = setup();
+  s.paid("alice");
+  s.paid("bob");
+  // Published 2026-09-17T10:00Z.
+  const { id: today } = await s.call(
+    "POST",
+    "/api/community/publish",
+    "alice",
+    post("r-today"),
+  );
+  const feed = (q) => s.call("GET", "/api/community/feed", "bob", {}, {}, q);
+  assert.deepEqual(
+    (await feed({})).posts.map((p) => p.id),
+    [today],
+  );
+  // Tokyo (UTC+9): the same day there runs 2026-09-16T15:00Z to 09-17T15:00Z.
+  assert.equal((await feed({ day: "2026-09-17", tz: "-540" })).posts.length, 1);
+  assert.equal((await feed({ day: "2026-09-16", tz: "-540" })).posts.length, 0);
+  // Los Angeles (UTC-7): 10:00Z is still 09-17 there, but 03:00Z would not be.
+  assert.equal((await feed({ day: "2026-09-17", tz: "420" })).posts.length, 1);
+  assert.equal((await feed({ day: "2026-09-18", tz: "420" })).posts.length, 0);
+  // The next day, yesterday's dream is still public but no longer in the feed;
+  // a dream published that day is.
+  s.setTime(at + 86400000);
+  assert.equal((await feed({})).posts.length, 0);
+  const { id: tomorrow } = await s.call(
+    "POST",
+    "/api/community/publish",
+    "alice",
+    post("r-tomorrow"),
+  );
+  const next = await feed({ day: "2026-09-18" });
+  assert.deepEqual(
+    next.posts.map((p) => p.id),
+    [tomorrow],
+  );
+  assert.equal(next.next, null);
+  // The author's own post from another day is not shown either.
+  assert.deepEqual(
+    (await s.call("GET", "/api/community/feed", "alice", {}, {}, {})).posts.map(
+      (p) => p.id,
+    ),
+    [tomorrow],
+  );
+  await assert.rejects(feed({ day: "yesterday" }), (e) => e.status === 400);
+});
