@@ -1,7 +1,14 @@
 import { providerLogin, credentialLogin } from "./auth-providers.js";
 import { mergeAccount, newerProfile } from "./account-sync.js";
 import { normalizeRecord, legacyAnswers } from "./storage.js";
-export function createCloudClient({ A, fs, auth, db }) {
+export function createCloudClient({
+  A,
+  fs,
+  auth,
+  db,
+  initializeApp,
+  deleteApp,
+}) {
   const state = { enabled: true, user: auth.currentUser, A, auth, db, fns: fs };
   const listeners = new Set();
   A.onAuthStateChanged(auth, (user) => {
@@ -58,21 +65,34 @@ export function createCloudClient({ A, fs, auth, db }) {
       return res.user;
     },
     async signUp(email, password) {
-      const res = state.user?.isAnonymous
-        ? await A.linkWithCredential(
-            state.user,
-            A.EmailAuthProvider.credential(email, password),
-          )
-        : await A.createUserWithEmailAndPassword(auth, email, password);
-      state.user = res.user;
-      return res.user;
+      // Create the account in a throwaway auth instance so the current (guest)
+      // session is untouched. Linking the credential to the anonymous user would
+      // hand the new account the guest's local profile and quiz answers, skipping
+      // onboarding. The user then signs in explicitly, like every other method.
+      const app = initializeApp(
+        auth.app.options,
+        `yumetan-signup-${Date.now()}`,
+      );
+      try {
+        const temp = A.initializeAuth(app, {
+          persistence: A.inMemoryPersistence,
+        });
+        const res = await A.createUserWithEmailAndPassword(
+          temp,
+          email,
+          password,
+        );
+        await A.signOut(temp);
+        return { uid: res.user.uid, email: res.user.email };
+      } finally {
+        if (deleteApp) await deleteApp(app).catch(() => {});
+      }
     },
     async signIn(email, password) {
       const res = await A.signInWithEmailAndPassword(auth, email, password);
       state.user = res.user;
       return res.user;
     },
-    resetPassword: (email) => A.sendPasswordResetEmail(auth, email),
     // Used only when the server could not delete the account: Firebase requires
     // a recent sign-in for this, which surfaces as auth/requires-recent-login.
     // The journals go first; once the user is gone the rules deny every write,

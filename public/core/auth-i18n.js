@@ -175,6 +175,24 @@ const strings = {
     "이메일로 로그인",
     "使用邮箱登录",
   ],
+  emailInUse: [
+    "このメールアドレスは既に登録されています。ログインしてください。",
+    "This email is already registered. Please sign in.",
+    "이미 등록된 이메일이에요. 로그인해 주세요.",
+    "该邮箱已注册，请直接登录。",
+  ],
+  credentials: [
+    "メールアドレスまたはパスワードが正しくありません。",
+    "Incorrect email or password.",
+    "이메일 또는 비밀번호가 올바르지 않아요.",
+    "邮箱或密码不正确。",
+  ],
+  weakPassword: [
+    "パスワードは6文字以上で設定してください。",
+    "Use a password of at least 6 characters.",
+    "비밀번호는 6자 이상으로 설정해 주세요.",
+    "密码至少需要6个字符。",
+  ],
   signoutConfirm: [
     "ログアウトしますか？未同期の記録はこの端末の元のアカウント用キャッシュに残ります。再ログインして同期できます。",
     "Sign out? Unsynced records remain in this account’s cache on this device. Sign back in to sync.",
@@ -240,4 +258,21 @@ export function authError(code, language) {
   const key = authErrorKey(code);
   const detail = code && key !== "cancelled" ? ` (${code})` : "";
   return authText(key, language) + detail;
+}
+// Email sign-up and sign-in: the same codes mean a typo or a taken address here,
+// not a provider problem (auth/invalid-credential is Apple's token error above).
+const emailErrorKeys = {
+  "auth/email-already-in-use": "emailInUse",
+  "auth/invalid-email": "credentials",
+  "auth/invalid-credential": "credentials",
+  "auth/invalid-login-credentials": "credentials",
+  "auth/user-not-found": "credentials",
+  "auth/wrong-password": "credentials",
+  "auth/user-disabled": "credentials",
+  "auth/weak-password": "weakPassword",
+};
+export function emailAuthError(code, language) {
+  const key = emailErrorKeys[code];
+  if (!key) return authError(code, language);
+  return authText(key, language) + ` (${code})`;
 }

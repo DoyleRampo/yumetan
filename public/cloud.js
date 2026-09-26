@@ -16,7 +16,7 @@ cloud.ready = (async () => {
   const stage = (name) => (cloud.state.stage = name);
   try {
     stage("sdk");
-    const [{ initializeApp }, A, fs] = await loadFirebase();
+    const [{ initializeApp, deleteApp }, A, fs] = await loadFirebase();
     stage("auth");
     const app = initializeApp(cfg);
     const native = Boolean(window.Capacitor?.isNativePlatform?.());
@@ -45,7 +45,10 @@ cloud.ready = (async () => {
         tabManager: fs.persistentMultipleTabManager(),
       }),
     });
-    Object.assign(cloud, createCloudClient({ A, fs, auth, db }));
+    Object.assign(
+      cloud,
+      createCloudClient({ A, fs, auth, db, initializeApp, deleteApp }),
+    );
   } catch (e) {
     cloud.state.error = String(
       e?.code || e?.message || "auth/unavailable",

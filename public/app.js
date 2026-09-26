@@ -23,7 +23,7 @@ import {
   partOf,
   classify,
 } from "./core/diagnosis.js";
-import { authText, authError } from "./core/auth-i18n.js";
+import { authText, authError, emailAuthError } from "./core/auth-i18n.js";
 import { importGuest } from "./core/account-sync.js";
 import {
   startNativeAuth,
@@ -110,6 +110,9 @@ let t = translator("ja"),
   syncTask = null,
   voice = null;
 let pendingGuestKey = null;
+// Email panel: null = closed, "choose" | "signin" | "signup" = open, "registered" = done.
+let emailMode = null,
+  signupEmail = "";
 let authChanging = false,
   stopCloudWatch = null,
   syncStatus = "pending",
@@ -1176,7 +1179,7 @@ function accountView(onboard = false) {
     .join("")}</div>
   ${signed && pendingGuestKey ? `<button type="button" class="btn ghost" data-action="import-guest">${at("importLater")}</button>` : ""}
   ${!enabled ? `<button type="button" class="btn ghost" data-action="auth-retry">${at("reconnect")}</button>` : ""}
-  ${!signed && enabled ? `<details><summary>${at("email")}</summary><form id="account-form">${input("email", "email", "", "email", 'required autocomplete="email"')}${input("password", "password", "", "password", 'minlength="6" autocomplete="current-password"')}<div class="row"><button type="submit" class="btn primary">${t("signIn")}</button>${button("signUp", "signup", "ghost")}${button("resetPassword", "reset-password", "small ghost")}</div></form></details>` : ""}
+  ${!signed && enabled ? emailAuthView() : ""}
 </section>`;
 }
 // Distinguish "still connecting" from a real failure (with Firebase's error code).
@@ -1192,6 +1195,22 @@ function syncMarkup(value) {
   return value === "syncing"
     ? loadingMarkup(displayLanguage(), "sync", true)
     : `<span role="status">${at(value)}</span>`;
+}
+function emailAuthView() {
+  let body;
+  if (emailMode === "registered")
+    body = `<p class="help">${t("signUpDone")}</p>${button("backToSignIn", "email-signin", "primary")}`;
+  else if (emailMode === "signin" || emailMode === "signup") {
+    const signup = emailMode === "signup";
+    body = `<form id="account-form">${input("email", "email", signupEmail, "email", 'required autocomplete="email"')}${input("password", "password", "", "password", `required minlength="6" autocomplete="${signup ? "new" : "current"}-password"`)}<div class="row"><button type="submit" class="btn primary">${t(signup ? "signUp" : "signIn")}</button>${signup ? button("backToSignIn", "email-signin", "ghost") : button("back", "email-choose", "ghost")}</div></form>`;
+  } else
+    body = `<p class="help">${t("emailChoice")}</p><div class="row">${button("signUp", "email-signup", "primary")}${button("signIn", "email-signin", "ghost")}</div>`;
+  return `<details id="email-auth" ${emailMode ? "open" : ""}><summary>${at("email")}</summary>${body}</details>`;
+}
+function setEmailMode(mode) {
+  emailMode = mode;
+  render();
+  $("#email")?.focus();
 }
 function showSyncStatus(value) {
   syncStatus = value;
@@ -1546,8 +1565,13 @@ function bindForms() {
   if ($("#account-form"))
     $("#account-form").onsubmit = (e) => {
       e.preventDefault();
-      run(() => account("signin"));
+      run(() => account(emailMode === "signup" ? "signup" : "signin"));
     };
+  // Keep the email panel open across re-renders while the user is in the email
+  // flow; closing it ends the flow.
+  $("#email-auth")?.addEventListener("toggle", (e) => {
+    emailMode = e.target.open ? emailMode || "choose" : null;
+  });
 }
 async function run(fn) {
   if (processing) return;
@@ -2030,6 +2054,22 @@ async function account(mode, provider = null) {
     !confirm(at("signoutConfirm"))
   )
     return;
+  if (mode === "signup") {
+    if (!$("#account-form")?.reportValidity()) return;
+    try {
+      await cloud.signUp(email, password);
+    } catch (error) {
+      console.error("Sign-up failed", { code: error?.code });
+      throw new Error(emailAuthError(error?.code, displayLanguage()));
+    }
+    // Registration never signs in: the user returns to the sign-in screen and
+    // logs in, which starts onboarding and the 16-type quiz like other methods.
+    signupEmail = email;
+    emailMode = "registered";
+    render();
+    toast(t("signUpDone"));
+    return;
+  }
   // Start popup OAuth directly in the click event, before awaiting storage/network.
   const fromIntroduction = page === "welcome-login";
   const sourceKey = storageKey,
@@ -2103,27 +2143,16 @@ async function account(mode, provider = null) {
       toast(at("waiting"));
       return;
     }
-    if (mode === "reset") {
-      await cloud.resetPassword(email);
-      toast(t("resetSent"));
-      return;
-    }
-    if (mode === "signup") {
-      if (
-        !$("#account-form").reportValidity() ||
-        !password ||
-        password.length < 6
-      )
-        return;
-      login = cloud.signUp(email, password);
-    } else if (mode === "signin") {
-      if (!email || !password) return;
+    if (mode === "signin") {
+      if (!$("#account-form")?.reportValidity()) return;
       login = cloud.signIn(email, password);
     } else if (mode === "signout") {
       await cancelNativeAuth();
       login = cloud.signOut();
     }
     await login;
+    emailMode = null;
+    signupEmail = "";
     if (syncTask) await syncTask;
     await switchAccount();
     if (mode === "signout") {
@@ -2162,7 +2191,12 @@ async function account(mode, provider = null) {
       code: error?.code,
       message: error?.message,
     });
-    throw new Error(authError(error.code, displayLanguage()));
+    throw new Error(
+      (mode === "signin" ? emailAuthError : authError)(
+        error.code,
+        displayLanguage(),
+      ),
+    );
   } finally {
     stopLoading();
     authChanging = false;
@@ -2421,10 +2455,11 @@ const actions = {
       await offerGuestImport(pendingGuestKey, await read(pendingGuestKey));
     render();
   },
-  signup: () => account("signup"),
   signout: () => account("signout"),
+  "email-choose": () => setEmailMode("choose"),
+  "email-signin": () => setEmailMode("signin"),
+  "email-signup": () => setEmailMode("signup"),
   "delete-account": deleteAccount,
-  "reset-password": () => account("reset"),
   edit: async () => {
     const r = state.records.find((r) => r.id === selectedId);
     processing = false;

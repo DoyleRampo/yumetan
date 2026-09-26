@@ -769,17 +769,23 @@ export const messages = {
   signIn: ["ログイン", "로그인", "登录", "Sign in"],
   signUp: ["新規登録", "회원가입", "注册", "Create account"],
   signOut: ["ログアウト", "로그아웃", "退出登录", "Sign out"],
-  resetPassword: [
-    "パスワードを再設定",
-    "비밀번호 재설정",
-    "重置密码",
-    "Reset password",
+  emailChoice: [
+    "新規登録かログインを選んでください",
+    "회원가입 또는 로그인을 선택해 주세요",
+    "请选择注册或登录",
+    "Choose to create an account or sign in",
   ],
-  resetSent: [
-    "再設定メールを送信しました",
-    "재설정 이메일을 보냈어요",
-    "已发送重置邮件",
-    "Password reset email sent",
+  backToSignIn: [
+    "ログイン画面に戻る",
+    "로그인 화면으로 돌아가기",
+    "返回登录页面",
+    "Back to sign in",
+  ],
+  signUpDone: [
+    "登録が完了しました。ログイン画面からログインしてください。",
+    "가입이 완료되었어요. 로그인 화면에서 로그인해 주세요.",
+    "注册完成，请返回登录页面登录。",
+    "Your account is ready. Sign in from the sign-in screen.",
   ],
   accountError: [
     "アカウント操作に失敗しました。入力内容や接続を確認してください。",

@@ -470,3 +470,55 @@ test("deleting an account leaves no device cache that could restore a character"
   assert.deepEqual(await read("yumetan.v4.options"), { language: "en" });
   delete globalThis.localStorage;
 });
+test("email sign-up creates the account in a throwaway auth instance and never links or signs in the guest session", async () => {
+  const calls = [];
+  const guest = { uid: "guest-1", isAnonymous: true };
+  const mainAuth = { currentUser: guest, app: { options: { apiKey: "k" } } };
+  const A = {
+    onAuthStateChanged: () => {},
+    inMemoryPersistence: "memory",
+    initializeAuth: (app, opts) => {
+      calls.push(["initializeAuth", app.name, opts.persistence]);
+      return { app };
+    },
+    createUserWithEmailAndPassword: async (auth, email) => {
+      calls.push(["create", auth.app.name, email]);
+      return { user: { uid: "new-user", email } };
+    },
+    signOut: async (auth) => calls.push(["signOut", auth.app.name]),
+    linkWithCredential: async () => {
+      throw new Error("must not link the guest account");
+    },
+    signInWithEmailAndPassword: async (auth, email) => {
+      calls.push(["signIn", auth === mainAuth, email]);
+      return { user: { uid: "new-user", email, isAnonymous: false } };
+    },
+  };
+  const client = createCloudClient({
+    A,
+    fs: {},
+    db: null,
+    auth: mainAuth,
+    initializeApp: (options, name) => {
+      calls.push(["initializeApp", options.apiKey, name]);
+      return { name };
+    },
+    deleteApp: async (app) => calls.push(["deleteApp", app.name]),
+  });
+  const created = await client.signUp("a@test.invalid", "secret1");
+  assert.equal(created.uid, "new-user");
+  assert.equal(client.uid(), "guest-1");
+  assert.equal(client.isAnonymous(), true);
+  const tempName = calls.find((c) => c[0] === "initializeApp")[2];
+  assert.match(tempName, /^yumetan-signup-/);
+  assert.deepEqual(
+    calls.map((c) => c[0]),
+    ["initializeApp", "initializeAuth", "create", "signOut", "deleteApp"],
+  );
+  assert.deepEqual(calls[2], ["create", tempName, "a@test.invalid"]);
+  assert.equal(client.resetPassword, undefined);
+  await client.signIn("a@test.invalid", "secret1");
+  assert.deepEqual(calls.at(-1), ["signIn", true, "a@test.invalid"]);
+  assert.equal(client.uid(), "new-user");
+  assert.equal(client.isAnonymous(), false);
+});
