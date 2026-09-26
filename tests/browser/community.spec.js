@@ -741,3 +741,40 @@ test("the feed lists only dreams shared today and says so", async ({
   });
   expect(requests[0]).toContain(expected);
 });
+test("paid timeline cards open with 30 characters and 'read more' shows the rest in place", async ({
+  page,
+}) => {
+  const s = await fixture(page);
+  const long =
+    "A long walk under a paper moon that never sets, past every house I have lived in.";
+  await s.publish("alice", long);
+  await s.publish("alice", "Short as a sigh.");
+  await boot(page);
+  await page.locator("nav [data-go=community]").click();
+  await expect(page.locator(".feed-card")).toHaveCount(2);
+  const card = page.locator(".feed-card", { hasText: "paper moon" });
+  const text = card.locator(".post-text");
+  expect(
+    (await text.innerText()).replace(/… Read more$/, "").length,
+  ).toBeLessThanOrEqual(30);
+  await expect(text).toContainText("Read more");
+  await expect(text).not.toContainText("lived in");
+  // A dream that fits needs no button.
+  const shortCard = page.locator(".feed-card", { hasText: "Short as a sigh" });
+  await expect(shortCard.locator(".link-button")).toHaveCount(0);
+  // Tapping "read more" shows the whole dream here, on the timeline.
+  await text.locator(".link-button").click();
+  await expect(text).toHaveText(long);
+  await expect(text.locator(".link-button")).toHaveCount(0);
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "community");
+  // The stamps and the post itself still work from the expanded card.
+  await card.locator(".stamp-add").click();
+  await expect(page.locator(".stamp-sheet")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await card.click();
+  await expect(page.locator("#app")).toHaveAttribute(
+    "data-page",
+    "community-post",
+  );
+  await expect(page.locator("main")).toContainText(long);
+});

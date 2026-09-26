@@ -37,6 +37,10 @@ export function createCommunity({
   recheck = null,
   wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }) {
+  // Timeline cards open with this many characters of the dream; "read more"
+  // shows the rest in place. Cleared whenever the timeline is loaded again.
+  const FEED_CHARS = 30,
+    expanded = new Set();
   let account = { plan: "free" },
     current = "",
     version = 0,
@@ -117,8 +121,15 @@ export function createCommunity({
       : `<article class="card feed-card teaser-card" data-post-id="${esc(p.id)}">${author(p)}<div class="post-body"><strong class="post-name">${postName(p)}</strong><p class="post-title">${esc(p.title)}</p><p class="prose post-text teaser-text">${esc(p.excerpt)}<button type="button" class="link-button" data-social="plans">${t("readMore")}</button></p>${stampBar(p)}</div></article>`;
   const teaserView = () =>
     `<div class="teaser"><span class="eyebrow">MEMBERS' DREAMS</span><h2>${t("communityIntro")}</h2><p class="help">${t("teaserHint")}</p><div class="feed-list">${(teaser?.posts || []).map(teaserCard).join("") || (!busy ? `<p class="empty">${t("emptyTeaser")}</p>` : "")}</div><button type="button" class="btn primary full" data-social="plans">${t("seeMore")}</button><p class="help">${t("paidRequired")}</p></div>`;
-  const postCard = (p, open = true, withTitle = false) =>
-    `<article class="card feed-card${open ? " post-open" : ""}${p.mine ? " post-mine" : ""}" data-post-id="${esc(p.id)}" ${open ? `data-social="post" data-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(p.mine ? t("minePost") : p.alias)} · ${t("openPost")}"` : ""}>${author(p)}<div class="post-body"><strong class="post-name">${postName(p)}</strong>${withTitle ? `<p class="post-title">${esc(p.title)}</p>` : ""}<p class="prose post-text">${esc(p.text)}</p>${stampBar(p)}</div></article>`;
+  const postText = (p, excerpt) => {
+    const chars = Array.from(p.text || "");
+    const short = excerpt && !expanded.has(p.id) && chars.length > FEED_CHARS;
+    return short
+      ? `<p class="prose post-text post-excerpt">${esc(chars.slice(0, FEED_CHARS).join(""))}<button type="button" class="link-button" data-social="expand" data-id="${esc(p.id)}">${t("readMore")}</button></p>`
+      : `<p class="prose post-text">${esc(p.text)}</p>`;
+  };
+  const postCard = (p, open = true, withTitle = false, excerpt = false) =>
+    `<article class="card feed-card${open ? " post-open" : ""}${p.mine ? " post-mine" : ""}" data-post-id="${esc(p.id)}" ${open ? `data-social="post" data-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(p.mine ? t("minePost") : p.alias)} · ${t("openPost")}"` : ""}>${author(p)}<div class="post-body"><strong class="post-name">${postName(p)}</strong>${withTitle ? `<p class="post-title">${esc(p.title)}</p>` : ""}${postText(p, excerpt)}${stampBar(p)}</div></article>`;
   // Every stamp, opened by the reaction button or a long press on a post.
   const pickerView = () => {
     const p = picker && findPost(picker);
@@ -262,7 +273,7 @@ export function createCommunity({
     if (page === "share") return shareView();
     if (page === "community-post") return detailView();
     // The timeline: no toolbar, just the dreams. A failed load offers a retry.
-    return `<h1>${t("community")}</h1><p class="help">${t("communityIntro")}</p>${status()}${error ? `<div class="row">${b("refresh", "refresh")}</div>` : ""}${plan() === "free" ? (signedIn() ? teaserView() : paywall()) : `<p class="help">${t("todayOnly")}</p><div class="feed-list timeline">${posts.map((p) => postCard(p)).join("") || (!busy ? `<p class="empty">${t("emptyFeed")}</p>` : "")}</div>${next ? b("nextPage", "next") : ""}`}${pickerView()}`;
+    return `<h1>${t("community")}</h1><p class="help">${t("communityIntro")}</p>${status()}${error ? `<div class="row">${b("refresh", "refresh")}</div>` : ""}${plan() === "free" ? (signedIn() ? teaserView() : paywall()) : `<p class="help">${t("todayOnly")}</p><div class="feed-list timeline">${posts.map((p) => postCard(p, true, false, true)).join("") || (!busy ? `<p class="empty">${t("emptyFeed")}</p>` : "")}</div>${next ? b("nextPage", "next") : ""}`}${pickerView()}`;
   }
   async function refreshAccount() {
     return setAccount(
@@ -278,6 +289,7 @@ export function createCommunity({
     next = null;
     detail = null;
     picker = null;
+    expanded.clear();
     if (page === "share") {
       shareRecord = record;
       sharing = null;
@@ -473,6 +485,18 @@ export function createCommunity({
           if (action === "post") {
             await loadPost(el.dataset.id);
             navigate("community-post");
+            return;
+          }
+          // "Read more" on a timeline card: the rest of the dream appears in
+          // place, without opening the post or moving the page.
+          if (action === "expand") {
+            expanded.add(el.dataset.id);
+            const post = findPost(el.dataset.id),
+              text = el.closest(".post-text");
+            if (post && text) {
+              text.textContent = post.text;
+              text.classList.remove("post-excerpt");
+            }
             return;
           }
           if (action === "stamp") await react(el.dataset.id, el.dataset.stamp);
