@@ -26,6 +26,14 @@ npm start
 
 **APIキーなしで起動し、端末内のルールで利用できます。** 画面・結果・助言はすべて4言語の静的カタログにあります。本人が書いた夢・日記や過去のAI出力の原文を自動翻訳することはありません。言語を切り替えた場合、異なる言語で生成済みのAI出力に代えて、選択言語のローカル振り返りを表示します。
 
+## v4.5.3: App Store 審査対応（アカウント削除の拡張・規約ページ・購入画面の表示）
+
+- `POST /api/account/delete` の削除範囲を拡張: 本人の投稿に加えて、**他人の投稿に付けた本人のスタンプ**（投稿側の集計も補正）、**全期間の使用数**、**RevenueCat の購読者情報**（失敗しても続行）を削除し、監査用に UID のハッシュだけを残します。Auth ユーザーが既にいない場合の再実行も成功します。スタンプ文書に `owner` を保存するため、`firestore.indexes.json` に `reactions.owner` のコレクショングループ設定を追加しました（`npx firebase-tools deploy --only firestore:indexes`）。
+- `public/legal/terms.html`（利用規約）と `public/legal/privacy.html`（プライバシーポリシー）を日本語・英語で配信します（`?lang=ja|en`）。**事業者名・連絡先・管轄裁判所・対象年齢のプレースホルダー（`.placeholder`）を埋めたうえで**、`public/core/help-content.js` の `HELP_LINKS` を自前ページへ切り替えてください（現在は Apple 標準 EULA と外部のプライバシーページ）。
+- プラン詳細の購入ボタン直上に「プラン名 · 期間（自動更新）· 価格」を表示し、ネイティブアプリでは RevenueCat の `getOfferings()` の店頭価格（`priceString`）を優先します（Guideline 3.1.2）。
+- `capacitor.config.json` の `appId` を Xcode と同じ `com.doyle.yumetan` に統一。
+- 審査対応の計画は [docs/appstore/REVIEW_2_1_INFORMATION_NEEDED_PLAN.md](docs/appstore/REVIEW_2_1_INFORMATION_NEEDED_PLAN.md)、本人が行う作業は [docs/appstore/OWNER_TASKS.md](docs/appstore/OWNER_TASKS.md)、Apple への返信文は [docs/appstore/REVIEW_NOTES.md](docs/appstore/REVIEW_NOTES.md)。「みんなの夢」に通報・ブロックがない点（Guideline 1.2）は要判断です。
+
 ## v4.5.2: iOSのLINE・Appleログインをネイティブに
 
 - iOSアプリの「Appleで続ける」はシステムのサインインシートで完結し、IDトークンでFirebaseへ直接ログインします（Services ID・Web不要）。

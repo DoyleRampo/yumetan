@@ -189,3 +189,42 @@ test("a test-store build is reported so a simulated purchase is never taken for 
   assert.equal(rejected.available(), false);
   assert.equal(rejected.testStore(), false);
 });
+
+test("store prices are keyed by the base product ID for display next to the purchase button", async () => {
+  const Purchases = fakePlugin();
+  Purchases.getOfferings = async () => ({
+    current: {
+      availablePackages: [
+        {
+          product: {
+            identifier: "com.doyle.yumetan.starter.monthly",
+            priceString: "¥490",
+          },
+        },
+        {
+          product: {
+            identifier: "com.doyle.yumetan.standard.yearly:standard-yearly",
+            priceString: "¥9,800",
+          },
+        },
+        { product: { identifier: "com.doyle.yumetan.no.price" } },
+      ],
+    },
+    all: {},
+  });
+  const p = createPurchases({
+    cap: cap(),
+    plugins: { Purchases },
+    config: { revenueCat: { ios: "appl_public" } },
+  });
+  assert.deepEqual(await p.prices("uid1"), {
+    "com.doyle.yumetan.starter.monthly": "¥490",
+    "com.doyle.yumetan.standard.yearly": "¥9,800",
+  });
+  await assert.rejects(
+    createPurchases({ cap: cap(), plugins: { Purchases }, config: {} }).prices(
+      "uid1",
+    ),
+    { code: "billingUnavailable" },
+  );
+});

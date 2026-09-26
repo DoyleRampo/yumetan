@@ -164,6 +164,8 @@ AI読み解きは全プランで夢の記録とセットです。回数は夢の
 
 ### 4. 運営・ストア
 
+- RevenueCat の秘密 API キーは、アカウント削除時の購読者削除（`DELETE /v1/subscribers/{uid}`）にも使う。
+- 利用規約 `public/legal/terms.html` とプライバシーポリシー `public/legal/privacy.html` のプレースホルダーを埋め、`public/core/help-content.js` の `HELP_LINKS` と App Store Connect の「プライバシーポリシー URL」を自前ページへ切り替える。
 - `SUPPORT_URL` に問い合わせページを設定。問題のある投稿は `communityPosts/{id}.hidden=true`、作者は `memberships/{uid}.suspended=true` で止めます（どちらも管理者がFirestoreで設定）。
 - iOS/Androidでは外部決済ボタンを表示せず、ストア内購入・復元だけを提供します。自動更新・取消条件・事業者/問い合わせ情報をアプリ内とストア掲載情報に明記してください。配布地域/ストア条件の審査は別途必要です。[Appleのガイドライン](https://developer.apple.com/jp/app-store/review/guidelines/)
 

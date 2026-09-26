@@ -418,6 +418,24 @@ export const communityMessages = {
     "Monthly and annual subscriptions auto-renew. Cancel in your App Store / Google Play subscription settings before renewal. Access continues through the paid period, then reverts to Free while keeping your private journals.",
   ],
   paidUntil: ["有効期限", "이용 기한", "有效期", "Access until"],
+  periodMonthly: [
+    "1か月（自動更新）",
+    "1개월(자동 갱신)",
+    "1个月（自动续费）",
+    "1 month, auto-renewing",
+  ],
+  periodYearly: [
+    "1年（自動更新）",
+    "1년(자동 갱신)",
+    "1年（自动续费）",
+    "1 year, auto-renewing",
+  ],
+  storePrice: [
+    "価格はApp Store / Google Playの表示に従います。",
+    "가격은 App Store / Google Play 표시를 따라요.",
+    "价格以 App Store / Google Play 显示为准。",
+    "Prices follow the App Store / Google Play listing.",
+  ],
   copyLimit: [
     "公開本文は4,000文字まで。公開する本文は安全性の確認のためOpenAIへ送信されます。",
     "공개 본문은 4,000자까지예요. 공개할 내용은 안전성 확인을 위해 OpenAI로 전송돼요.",

@@ -396,3 +396,15 @@ test("logging back in after signing out reopens the app with the account's journ
   await page.locator("[data-open-days=dream]").click();
   await expect(page.locator(".day-records")).toContainText("会員の夢");
 });
+
+test("terms and privacy pages are served in Japanese and English and describe account deletion", async ({
+  page,
+}) => {
+  await page.goto("/legal/privacy.html?lang=en");
+  await expect(page.locator("h1:visible")).toHaveText("Privacy Policy");
+  await expect(page.locator("main")).toContainText("Delete my account");
+  await page.goto("/legal/terms.html?lang=ja");
+  await expect(page.locator("h1:visible")).toHaveText("利用規約");
+  await expect(page.locator("main")).toContainText("自動更新");
+  await expect(page.locator("main")).toContainText("¥490");
+});

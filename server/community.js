@@ -358,7 +358,7 @@ export function registerCommunity(
         counts[old.stamp] = Math.max(0, (counts[old.stamp] || 0) - 1);
       if (stamp) counts[stamp] = (counts[stamp] || 0) + 1;
       tx.set(path, { ...fresh, reactions: counts });
-      if (stamp) tx.set(reactionPath, { stamp });
+      if (stamp) tx.set(reactionPath, { stamp, owner: user.uid });
       else tx.delete(reactionPath);
       return counts;
     });

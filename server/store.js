@@ -5,7 +5,7 @@ import {
   cert,
   applicationDefault,
 } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldPath } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 export function firebaseServices(env = process.env) {
   if (!env.FIREBASE_PROJECT_ID) return null;
@@ -52,6 +52,28 @@ export class FirestoreStore {
       ...d.data(),
       id: d.id,
     }));
+  }
+  // Documents of one collection group (every post's "reactions") matching a field.
+  // Rows carry their full document path so callers can delete them.
+  async listGroup(collectionId, opts = {}) {
+    let q = this.db.collectionGroup(collectionId);
+    for (const [key, op, value] of opts.where || [])
+      q = q.where(key, op, value);
+    return (await q.limit(opts.limit || 100).get()).docs.map((d) => ({
+      ...d.data(),
+      id: d.id,
+      path: d.ref.path,
+    }));
+  }
+  // IDs of top-level documents whose ID starts with a prefix (usage/{uid}_…).
+  async listIds(collection, prefix, limit = 100) {
+    const snap = await this.db
+      .collection(collection)
+      .where(FieldPath.documentId(), ">=", prefix)
+      .where(FieldPath.documentId(), "<", prefix + "\uf8ff")
+      .limit(limit)
+      .get();
+    return snap.docs.map((d) => d.id);
   }
   async transaction(fn) {
     return this.db.runTransaction(async (tx) =>
