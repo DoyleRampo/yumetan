@@ -571,8 +571,8 @@ test("the plans page states the renewal terms and links to the terms of use and 
   for (const label of ["Terms of Use", "Privacy policy"])
     await page.locator(`.legal-links button:has-text("${label}")`).click();
   expect(opened).toEqual([
-    "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/",
-    "https://yumetan-support.ni23al.chatgpt.site/privacy/",
+    new URL("/legal/terms.html?lang=en", page.url()).href,
+    new URL("/legal/privacy.html?lang=en", page.url()).href,
   ]);
 });
 // The store app: Capacitor reports a native iOS platform and a RevenueCat

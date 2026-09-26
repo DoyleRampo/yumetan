@@ -50,7 +50,7 @@ import {
 } from "./core/characters.js";
 import { TYPES, GROUPS, LANGUAGES, localized, typeById } from "./core/types.js";
 import { translator, locales, languageNames } from "./core/i18n.js";
-import { HELP_SECTIONS, HELP_LINKS } from "./core/help-content.js";
+import { HELP_SECTIONS, HELP_LINKS, legalUrl } from "./core/help-content.js";
 import {
   localDate,
   validDate,
@@ -185,6 +185,7 @@ const purchases = createPurchases({
 });
 const social = createCommunity({
   api,
+  legalUrl: (kind) => legalLink(kind),
   purchases,
   uid: () => cloud?.uid() || null,
   language,
@@ -1107,8 +1108,8 @@ function helpView() {
  ).join("")}
  <section class="card help-section" id="help-links"><h2>${t("helpLinks")}</h2><p class="help">${t("helpLinksHint")}</p><div class="row">${[
    ["supportSite", HELP_LINKS.support],
-   ["privacyPolicy", HELP_LINKS.privacy],
-   ["termsOfUse", HELP_LINKS.terms],
+   ["privacyPolicy", legalLink("privacy")],
+   ["termsOfUse", legalLink("terms")],
  ]
    .map(
      ([label, url]) =>
@@ -1118,8 +1119,16 @@ function helpView() {
  <p class="help">${t("version")} ${APP_VERSION}</p></div>`;
 }
 // External pages (support, privacy) open outside the app, never in its WebView.
+const legalLink = (kind) =>
+  legalUrl(
+    kind,
+    options.apiBase || window.YUMETAN_CONFIG?.apiBase || "",
+    language(),
+  );
 function openExternal(url) {
-  if (/^https:\/\//.test(url)) window.open(url, "_blank", "noopener");
+  // Only https pages, or this app's own pages (the legal documents), ever open.
+  if (/^https:\/\//.test(url) || url.startsWith(location.origin + "/"))
+    window.open(url, "_blank", "noopener");
 }
 // Settings follow the usual mobile order: who you are, what you pay for, how
 // the app looks, reminders, account, and finally the small print.

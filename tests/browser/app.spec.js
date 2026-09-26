@@ -933,7 +933,7 @@ test("the guide explains the app, plans and cancelling, and links out to support
     await page.locator(`#help-links button:has-text("${label}")`).click();
   expect(opened).toEqual([
     "https://yumetan-support.ni23al.chatgpt.site/support/",
-    "https://yumetan-support.ni23al.chatgpt.site/privacy/",
+    new URL("/legal/privacy.html?lang=en", page.url()).href,
   ]);
   // The plans page leads to the cancellation steps.
   await page.locator(".back-link").click();

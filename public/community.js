@@ -2,7 +2,6 @@ import { loadingMarkup, beginLoading } from "./core/loading.js";
 import { PLANS, STAMPS, stampCounts } from "./core/plans.js";
 import { planFromCustomerInfo, productId } from "./core/purchases.js";
 import { communityMessages } from "./core/community-i18n.js";
-import { HELP_LINKS } from "./core/help-content.js";
 import { localized } from "./core/types.js";
 export const communityText = (key, lang) =>
   localized(communityMessages[key] || communityMessages.error, lang);
@@ -28,6 +27,7 @@ export function createCommunity({
   isNative,
   purchases,
   uid = () => null,
+  legalUrl = () => "",
   onAccount = () => {},
   onPurchased = () => {},
   // The plan the rest of the app shows (the server's, or a better one the
@@ -209,7 +209,7 @@ export function createCommunity({
   // Required wherever a subscription is offered: what renews, and working links
   // to the terms and the privacy policy.
   const legal = () =>
-    `<p class="help legal-note">${t("autoRenewNote")}</p><div class="row legal-links"><button type="button" class="btn small ghost" data-link="${HELP_LINKS.terms}">${t("termsOfUse")} ↗</button><button type="button" class="btn small ghost" data-link="${HELP_LINKS.privacy}">${t("privacyPolicy")} ↗</button></div>`;
+    `<p class="help legal-note">${t("autoRenewNote")}</p><div class="row legal-links"><button type="button" class="btn small ghost" data-link="${esc(legalUrl("terms"))}">${t("termsOfUse")} ↗</button><button type="button" class="btn small ghost" data-link="${esc(legalUrl("privacy"))}">${t("privacyPolicy")} ↗</button></div>`;
   const ctaNote = () =>
     `<p class="help cta-note">${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : planShown() !== "free" ? t("switchNote") : t("billingReturn")}</p>`;
   // A build wired to RevenueCat's Test Store buys without the store sheet and

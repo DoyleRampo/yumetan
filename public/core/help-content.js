@@ -3,11 +3,13 @@
 // the rest of the app: ja, ko, zh, en.
 export const HELP_LINKS = {
   support: "https://yumetan-support.ni23al.chatgpt.site/support/",
-  privacy: "https://yumetan-support.ni23al.chatgpt.site/privacy/",
-  // Apple's standard licence agreement, which applies while no separate terms
-  // of use are published. Replace it with your own once they exist.
-  terms: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/",
 };
+// The Terms of Use and Privacy Policy are pages the API server serves from
+// public/legal/, in the app's language (Korean and Chinese readers get English).
+export function legalUrl(kind, base = "", language = "ja") {
+  const origin = (base || globalThis.location?.origin || "").replace(/\/$/, "");
+  return `${origin}/legal/${kind === "terms" ? "terms" : "privacy"}.html?lang=${language === "ja" ? "ja" : "en"}`;
+}
 export const HELP_SECTIONS = [
   {
     id: "start",
