@@ -1644,6 +1644,11 @@ async function diagnose() {
     draft.analysis = result.analysis;
     draft.aiError = signedIn() ? null : "loginRequired";
     if (signedIn()) {
+      // The AI reading takes a while: say so on screen, with the moon, until
+      // the reading page opens or the failure is shown.
+      const stopLoading = beginLoading(displayLanguage(), "reading", null, {
+        overlay: true,
+      });
       try {
         const { analysis } = await api("/api/reflect", {
           text: draft.text,
@@ -1667,6 +1672,8 @@ async function diagnose() {
         // The reason stays on the reading page (with a retry) instead of only in a toast.
         draft.aiError = error.code || "networkError";
         toast(error.userMessage || error.message);
+      } finally {
+        stopLoading();
       }
     }
   }

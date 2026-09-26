@@ -11,6 +11,8 @@ const labels = {
     plan: "プランを反映しています",
     planHint: "反映まで少し時間がかかることがあります",
     account: "アカウントを整理しています",
+    reading: "診断中です",
+    readingHint: "夢を読み解いています。少しだけ、お待ちください",
     hint: "少しだけ、お待ちください",
   },
   en: {
@@ -24,6 +26,8 @@ const labels = {
     plan: "Activating your plan",
     planHint: "This can take a little while",
     account: "Updating your account",
+    reading: "Reading your dream",
+    readingHint: "This can take a few moments",
     hint: "Just a moment",
   },
   ko: {
@@ -37,6 +41,8 @@ const labels = {
     plan: "요금제를 반영하고 있어요",
     planHint: "반영까지 조금 시간이 걸릴 수 있어요",
     account: "계정을 정리하고 있어요",
+    reading: "진단 중이에요",
+    readingHint: "꿈을 읽고 있어요. 잠시만 기다려 주세요",
     hint: "잠시만 기다려 주세요",
   },
   zh: {
@@ -50,6 +56,8 @@ const labels = {
     plan: "正在开通套餐",
     planHint: "可能需要稍等片刻",
     account: "正在整理账号",
+    reading: "正在诊断",
+    readingHint: "正在解读梦境，请稍等片刻",
     hint: "请稍等片刻",
   },
 };
@@ -60,7 +68,9 @@ const hintFor = (copy, kind) =>
     ? copy.welcomeHint
     : kind === "plan"
       ? copy.planHint
-      : copy.hint;
+      : kind === "reading"
+        ? copy.readingHint
+        : copy.hint;
 export function loadingMarkup(language = "ja", kind = "load", compact = false) {
   const copy = labels[language] || labels.ja;
   return `<span class="dream-loading${compact ? " dream-loading--compact" : ""}" role="status"><span class="dream-loading__scene" aria-hidden="true"><span class="dream-loading__orbit"></span><span class="dream-loading__moon"></span><span class="dream-loading__star dream-loading__star--one">✦</span><span class="dream-loading__star dream-loading__star--two">✧</span><span class="dream-loading__star dream-loading__star--three">✦</span></span><span class="dream-loading__copy">${copy[kind] || copy.load}</span>${compact ? "" : `<span class="dream-loading__hint">${hintFor(copy, kind)}</span>`}</span>`;

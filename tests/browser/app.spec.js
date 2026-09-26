@@ -942,3 +942,45 @@ test("the guide explains the app, plans and cancelling, and links out to support
   await expect(page.locator("#app")).toHaveAttribute("data-page", "help");
   await expect(page.locator("#help-cancel")).toBeVisible();
 });
+test("the AI reading shows a 'reading' animation until the result opens, and clears on failure", async ({
+  page,
+}) => {
+  await paidMember(page);
+  await start(page, "ja");
+  let release;
+  await page.route("**/api/reflect", async (route) => {
+    await new Promise((r) => (release = r));
+    await route.fulfill({
+      json: {
+        analysis: {
+          title: "挑戦",
+          summary: "要約",
+          reply: "やさしいふりかえり。",
+          mental_state_hint: "",
+          mood_weather: "sunny",
+          mood_label: "晴れやか",
+        },
+      },
+    });
+  });
+  await page.locator("nav [data-go=record]").click();
+  await page.locator("#dream-text").fill("空を飛ぶ夢");
+  await page.locator("[data-action=diagnose]").click();
+  const overlay = page.locator(".dream-loading-overlay");
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toContainText("診断中です");
+  await expect(overlay.locator(".dream-loading__moon")).toHaveCount(1);
+  release();
+  await expect(page.locator("main")).toContainText("やさしいふりかえり。");
+  await expect(overlay).toHaveCount(0);
+  // A failed reading also takes the animation down.
+  await page.unroute("**/api/reflect");
+  await page.route("**/api/reflect", (route) =>
+    route.fulfill({ status: 503, json: { code: "aiUnavailable" } }),
+  );
+  await page.locator("[data-action=back]").click();
+  await page.locator("#dream-text").fill("海の夢");
+  await page.locator("[data-action=diagnose]").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "reading");
+  await expect(overlay).toHaveCount(0);
+});
