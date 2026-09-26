@@ -10,13 +10,13 @@ Thank you for reviewing Yumetan. Answers to each item:
 Attached: a single recording captured on an iPhone [model] running iOS [version], starting from the Home screen. It shows onboarding and the 24-question quiz, recording a dream with the AI reading, signing in, the subscription screen (plan name, length, price, and the Terms of Use and Privacy Policy links, followed by a sandbox purchase), the members' feed with stamps, publishing/unpublishing a dream, and in-app account deletion (Settings → Account → Delete account).
 
 **2. Purpose and audience**
-Yumetan is a dream and sleep journal. Users answer a 24-question quiz to get one of 16 playful "dream type" characters, then record dreams (typed, dictated, or photographed from a handwritten note) and daily sleep check-ins. A "dream level" rises with the number of entries. Paid members can have GPT read a dream together with recent diary notes (a reflection on their current mood plus a light-hearted "fortune of the day", clearly labelled as entertainment), read other members' published dreams in full and react with stamps. Target audience: people aged [13]+ who want to remember their dreams and reflect on them. It is entertainment and self-reflection, not a medical or psychological diagnosis, and the app says so.
+Yumetan is a dream and sleep journal. Users answer a 24-question quiz to get one of 16 playful "dream type" characters, then record dreams (typed, dictated, or photographed from a handwritten note) and daily sleep check-ins. A "dream level" rises with the number of entries. Paid members can have GPT read a dream together with recent diary notes (a reflection on their current mood plus a light-hearted "fortune of the day", clearly labelled as entertainment), read other members' published dreams in full and react with stamps. Target audience: people aged 13+ who want to remember their dreams and reflect on them. It is entertainment and self-reflection, not a medical or psychological diagnosis, and the app says so.
 
 **3. Setup and access**
 No setup is required beyond creating an account (or continuing as a guest). Demo accounts (email/password; "Sign in with email" on the first screen or in Settings → Account):
 - Standard plan (full feed, stamps and AI readings already unlocked): `review-standard@[domain]` / `[password]`
 - Free plan (to test the subscription purchase flow in the App Store sandbox): `review-free@[domain]` / `[password]`
-Navigation: Settings → Plans → choose Monthly/Annual → Details → the purchase button. "Restore purchases" and "Manage / cancel" are on the same screen. The members' feed is the fourth tab; open a post to react with a stamp. User-generated content is limited to short dream texts published by members: every post passes an automated safety check (OpenAI moderation) before it becomes visible, our team can hide posts and suspend accounts, and users can report a post from the support site linked in Help. Account deletion: Settings → Account → Delete account. No sample files are needed; the handwriting feature accepts any photo of text.
+Navigation: Settings → Plans → choose Monthly/Annual → Details → the purchase button. "Restore purchases" and "Manage / cancel" are on the same screen. The members' feed is the fourth tab; open a post to react with a stamp. User-generated content is limited to short dream texts published by members: every post passes an automated safety check (OpenAI moderation) before it becomes visible, our team can hide posts and suspend accounts, and users can report a post from the support site linked in Help. Account deletion: Settings → Account → Delete account. Contact for this review: Yumetan Team, +81 80-8978-7788. No sample files are needed; the handwriting feature accepts any photo of text.
 
 **4. External services**
 - Firebase Authentication (Google, Sign in with Apple, LINE Login, email/password, anonymous guests) and Cloud Firestore for storage and sync.
@@ -24,7 +24,7 @@ Navigation: Settings → Plans → choose Monthly/Annual → Details → the pur
 - OpenAI API for AI dream readings, handwriting transcription and safety checks of text before it is published. Data is sent only when the user explicitly taps Read with AI / Recognize / Publish.
 - iOS speech recognition for voice input.
 - Our own Node.js API server hosted on [Fly.io / Render] at `https://[server]`.
-Terms of Use: `[HELP_LINKS.terms]` · Privacy Policy: `[HELP_LINKS.privacy]`
+Terms of Use: `https://[server]/legal/terms.html?lang=en` · Privacy Policy: `https://[server]/legal/privacy.html?lang=en`
 
 **5. Regional differences**
 None. The app works identically in every region. The interface is available in Japanese, English, Korean and Simplified Chinese (user-selectable). Subscription prices follow the App Store price tiers per storefront.
