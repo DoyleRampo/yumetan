@@ -657,7 +657,7 @@ async function navigate(next, force = false, back = false) {
   if (navStack.length > 20) navStack = navStack.slice(-20);
   const from = page;
   page = next;
-  // Forward moves add a history entry so the browser/Android back button works.
+  // Forward moves add a history entry so the browser back button works.
   if (back || ROOTS.includes(page)) history.replaceState(null, "", `#${page}`);
   else history.pushState(null, "", `#${page}`);
   render();

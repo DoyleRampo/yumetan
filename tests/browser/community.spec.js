@@ -337,9 +337,7 @@ test("a paid member can switch to another paid plan; Free only offers details", 
   );
   // In the browser the store is not available, so the button explains that.
   await expect(page.locator(".plan-card .plan-cta")).toBeDisabled();
-  await expect(page.locator(".plan-card .cta-note")).toContainText(
-    "iOS / Android",
-  );
+  await expect(page.locator(".plan-card .cta-note")).toContainText("iOS app");
 });
 test("sharing needs explicit consent; only the public copy is sent and an expired member still withdraws it", async ({
   page,

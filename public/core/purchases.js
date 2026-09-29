@@ -1,7 +1,7 @@
-// Store purchases through the RevenueCat Capacitor plugin (iOS / Android only).
+// Store purchases through the RevenueCat Capacitor plugin (native app only).
 // The plugin only talks to the store and RevenueCat; the plan itself is granted by
 // the server after it verifies the subscriber, so nothing here is trusted for access.
-// Store product IDs as registered in App Store Connect / Google Play.
+// Store product IDs as registered in App Store Connect.
 export const productId = (plan, cycle) => `com.doyle.yumetan.${plan}.${cycle}`;
 const PLAN_ORDER = ["standard", "starter"];
 const cancelled = (e) =>
@@ -108,7 +108,7 @@ export function createPurchases({ cap, plugins = {}, config } = {}) {
           (o) => o.availablePackages || [],
         ),
       ];
-      // Google Play subscriptions are reported as "product:basePlan". Prefer the
+      // Some stores report subscriptions as "product:basePlan". Prefer the
       // exact com.doyle.yumetan.<plan>.<cycle> ID, then any ID naming the same plan and cycle.
       const base = (x) =>
         String(x.product?.identifier || "")

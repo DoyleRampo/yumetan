@@ -123,10 +123,10 @@ export const HELP_SECTIONS = [
         "Free, Starter (¥490 / month, ¥4,900 / year) and Standard (¥980 / month, ¥9,800 / year). Settings → Plans compares them.",
       ],
       [
-        "購入はiOS / Androidアプリ内のストア決済だけです。請求はApple IDまたはGoogleアカウントに行われ、期間終了の24時間前までに解約しないと自動更新されます。",
-        "구매는 iOS / Android 앱 내 스토어 결제로만 가능해요. 요금은 Apple ID 또는 Google 계정으로 청구되고, 기간 종료 24시간 전까지 해지하지 않으면 자동 갱신돼요.",
-        "仅支持 iOS / Android 应用内商店付款。费用由 Apple ID 或 Google 账号扣取，若未在到期前24小时取消将自动续订。",
-        "Purchases run through the iOS / Android stores only. Your Apple ID or Google account is charged, and the subscription renews unless it is cancelled at least 24 hours before the period ends.",
+        "購入はiOSアプリ内のApp Store決済だけです。請求はApple Accountに行われ、期間終了の24時間前までに解約しないと自動更新されます。",
+        "구매는 iOS 앱 내 App Store 결제로만 가능해요. 요금은 Apple Account로 청구되고, 기간 종료 24시간 전까지 해지하지 않으면 자동 갱신돼요.",
+        "仅支持 iOS 应用内 App Store 付款。费用由 Apple Account 扣取，若未在到期前24小时取消将自动续订。",
+        "Purchases run through the App Store in the iOS app only. Your Apple Account is charged, and the subscription renews unless it is cancelled at least 24 hours before the period ends.",
       ],
       [
         "Webでは購入できません。アプリで購入したプランは、同じアカウントでログインすればどの端末でも使えます。",
@@ -150,12 +150,6 @@ export const HELP_SECTIONS = [
         "iPhone / iPad: 설정 앱 →(내 이름)→ 구독 → 유메탄 → 「구독 취소」.",
         "iPhone / iPad：设置 →（你的姓名）→ 订阅 → Yumetan →「取消订阅」。",
         "iPhone / iPad: Settings → your name → Subscriptions → Yumetan → Cancel Subscription.",
-      ],
-      [
-        "Android: Google Play → プロフィールアイコン → お支払いと定期購入 → 定期購入 → ユメタン → 「定期購入を解約」。",
-        "Android: Google Play → 프로필 아이콘 → 결제 및 정기 결제 → 정기 결제 → 유메탄 → 「정기 결제 해지」.",
-        "Android：Google Play → 头像 → 付款和订阅 → 订阅 → Yumetan →「取消订阅」。",
-        "Android: Google Play → profile icon → Payments and subscriptions → Subscriptions → Yumetan → Cancel subscription.",
       ],
       [
         "解約しても、支払い済みの期間が終わるまでは有料プランのまま使えます。期間が終わると自動的にフリープランに戻り、記録はそのまま残ります。",

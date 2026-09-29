@@ -43,6 +43,18 @@ Contact: Yumetan Team, +81 80-8978-7788, yumetan-review@gmail.com
 
 ---
 
+## Reply for the second rejection (2.3.10 Google Play references / 2.3.2 promotional images)
+
+Paste this into the App Review thread after selecting the new build:
+
+> Thank you for the review. We have addressed both items.
+>
+> Guideline 2.3.10: Yumetan is distributed on iOS only. Build [new build number] removes every reference to Google Play and Android from the app: the subscription notes on the Plans and plan-detail screens, the "Cancelling a plan" section of the in-app Help, and the Terms of Use and Privacy Policy pages the app opens. Subscription instructions now refer to the App Store only.
+>
+> Guideline 2.3.2: We have no plans to promote the in-app purchases on the App Store, so the promotional images for all four subscriptions have been deleted in App Store Connect.
+>
+> Screenshots have been reviewed for every supported size (iPhone and iPad) and show the app in use.
+
 ## Screen recording (order to follow)
 
 1. Tap the app icon on the Home screen.

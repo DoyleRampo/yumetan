@@ -137,6 +137,19 @@ App Store Connect は Mac（または iPad）のブラウザで開く。
 5. バージョンページ上部の「ビルド」で **最新の TestFlight ビルド**（規約ページ・削除拡張入り）を選び直す。古いビルドのままだと Notes と実際の画面が食い違う。
 6. 右上 **「保存」** → **「審査へ提出」**。ステータスが「審査待ち」になれば完了。
 
+## 8. 2 回目の却下（2.3.10 / 2.3.2）への対応
+
+コード側: `develop` からアプリ内の「Google Play」「Android」への言及をすべて削除済み（プラン画面・購入画面の注記、ヘルプの解約手順、規約・プライバシーポリシー、4 言語）。`develop` への push で新しい TestFlight ビルドが作られる。
+
+本人の作業:
+
+1. **サーバーを再デプロイ**する（規約ページの文言が変わったため。Render の自動デプロイなら push で完了）。`https://yumetan.onrender.com/legal/terms.html?lang=ja` に「Google Play」が無いことを確認。
+2. **プロモーション画像を削除**: App Store Connect → ユメタン → 左メニュー「サブスクリプション」→ 各サブスクリプション（4 つ）→ 下の「App Store でのプロモーション」→ 画像の「削除」→ 保存。4 つすべて行う。「審査用スクリーンショット」（審査情報の欄）は消さない。
+3. **スクリーンショットの確認**: 「配信」タブ → バージョン 1.0 → 「プレビューとスクリーンショット」→ 「メディアマネージャですべてのサイズを表示」。iPhone 6.9 / 6.5 インチに加え、**iPad 13 インチ（と 12.9 インチ第 2 世代）** が空なら iPad の実機または iPad シミュレータで撮って登録する。どのサイズも起動画面だけの画像は不可。
+4. **App 説明文・キーワード・プロモーションテキスト**に「Google Play」「Android」が無いか確認し、あれば削除。
+5. 「ビルド」欄で **新しいビルド**（Google Play 言及を削除したもの）を選び直す。
+6. App Review スレッドに `REVIEW_NOTES.md` の「Reply for the second rejection」の文面を貼り（`[new build number]` を実際のビルド番号に）、「審査へ提出」。
+
 ## 7. 審査後も続けること
 
 - サポートサイト（`https://yumetan-support.ni23al.chatgpt.site/support/`）に届いた投稿の通報は、Firestore で `communityPosts/{id}` の `hidden` を `true` に、悪質なユーザーは `memberships/{uid}` の `suspended` を `true` にして対応する。

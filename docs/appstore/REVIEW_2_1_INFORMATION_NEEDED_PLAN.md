@@ -36,7 +36,7 @@
 - クライアント: 設定 → アカウント → 「アカウントを削除」→ 確認ダイアログ → サーバー削除 → 端末内の全アカウントキャッシュ消去 → 初回画面へ。
 - サーバー `POST /api/account/delete`（`server/account.js`）: 本人の投稿（スタンプの副コレクション含む）、**他人の投稿に付けた本人のスタンプ（投稿側の集計も補正）**、`users/{uid}` 配下、会員情報、`communityStats`、**全期間の使用数**、**RevenueCat 購読者（`DELETE /v1/subscribers/{uid}`、失敗しても続行）**、監査用の UID ハッシュのみ記録、最後に Firebase Auth ユーザー。Auth ユーザーが既にいない場合の再実行も成功する。
 - スタンプ文書に `owner` を保存し、`firestore.indexes.json` に `reactions.owner` のコレクショングループ設定を追加（要デプロイ）。
-- 削除ではストアのサブスクリプションは解約されない。確認文と規約で App Store / Google Play からの解約を案内する（`deleteAccountConfirm` の文言に解約案内を足すとより親切）。
+- 削除ではストアのサブスクリプションは解約されない。確認文と規約で App Store からの解約を案内する（`deleteAccountConfirm` の文言に解約案内を足すとより親切）。
 
 ### B. 課金画面と法的ページ — 実装済み
 
