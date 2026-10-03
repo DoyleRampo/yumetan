@@ -553,6 +553,11 @@ body[data-screen="home"] #nav {
 .home-dashboard .character-row > .character-link {
   min-width: 0;
 }
+/* The name sits in a block button: stretch it so text-align (centred in the
+   wide and tall layouts) applies to the name as well as its neighbours. */
+.home-dashboard .character-row div > .character-link {
+  width: 100%;
+}
 @media (min-height: 720px) and (max-width: 699px) {
   .home-dashboard .character-row {
     grid-template-columns: minmax(0, 1fr);

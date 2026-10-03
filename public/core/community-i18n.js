@@ -13,7 +13,7 @@ export const communityMessages = {
   starterSummary: ["毎日の夢に", "매일 돌아보기", "每日回顾", "Reflect daily"],
   standardSummary: ["たっぷり記録", "더 많이 기록", "记录更多", "Explore more"],
   dreamShort: ["夢 / 日", "꿈 / 일", "梦 / 天", "Dreams / day"],
-  aiShort: ["AI / 月", "AI / 월", "AI / 月", "AI / month"],
+  aiShort: ["AI / 日", "AI / 일", "AI / 天", "AI / day"],
   ocrShort: ["手書き / 月", "손글씨 / 월", "手写 / 月", "Handwriting / mo"],
   readShort: ["投稿閲覧 / 日", "게시물 / 일", "阅读 / 天", "Post views / day"],
   billingShort: [

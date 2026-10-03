@@ -55,6 +55,18 @@ Paste this into the App Review thread after selecting the new build:
 >
 > Screenshots have been reviewed for every supported size (iPhone and iPad) and show the app in use.
 
+## Reply for the third rejection (2.3.10 screenshots)
+
+Paste this into the App Review thread after replacing the screenshots:
+
+> Thank you for the review. We have replaced all screenshots.
+>
+> The review screenshots for all four auto-renewable subscriptions were captured from an older build and still showed "Google Play" in the cancellation note. They have been replaced with captures from the current build, which refers to the App Store only. The subscription descriptions were also corrected to match the quotas shown in the app.
+>
+> The App Store screenshots for iPhone (6.5" and 6.9") and iPad (13") have been recreated from the current build at native resolution, with no composited frames or status bars.
+>
+> Yumetan is distributed on iOS only and does not reference any other platform.
+
 ## Screen recording (order to follow)
 
 1. Tap the app icon on the Home screen.

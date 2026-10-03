@@ -14,3 +14,7 @@ build/
 
 test-results/
 playwright-report/
+
+# App Store screenshot archives / local capture output
+docs/appstore/screenshots.zip
+appstore-screenshots/

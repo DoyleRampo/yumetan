@@ -150,6 +150,20 @@ App Store Connect は Mac（または iPad）のブラウザで開く。
 5. 「ビルド」欄で **新しいビルド**（Google Play 言及を削除したもの）を選び直す。
 6. App Review スレッドに `REVIEW_NOTES.md` の「Reply for the second rejection」の文面を貼り（`[new build number]` を実際のビルド番号に）、「審査へ提出」。
 
+## 9. 3 回目の却下（2.3.10 スクリーンショット）への対応
+
+却下理由: サブスクリプション 4 件の「審査用スクリーンショット」が古いビルドで「Google Play」の文字が写っていた。ストア用スクリーンショット 8 枚も合成画像で、iPad 用のステータスバーが iPad のものではなかった。
+
+コード側: `scripts/appstore-screenshots.mjs` がアプリ本体を iPhone / iPad の実ピクセルで描画して撮影する。出力は `docs/appstore/screenshots/`（iphone-6.9 / iphone-6.5 / ipad-13 / subscriptions）。ステータスバーは描かず、セーフエリア上部はアプリの背景のまま（実機で OS が時計を重ねる領域）。撮り直すときは `PORT=3187 npm start` を起動した状態で `CHROMIUM_PATH=<Chrome の実行ファイル> node scripts/appstore-screenshots.mjs docs/appstore/screenshots`。
+
+本人の作業（すべて App Store Connect）:
+
+1. **サブスクの審査用スクリーンショットを差し替える**: 左メニュー「サブスクリプション」→ 各プラン → 「審査情報」→ 既存画像を削除 → `screenshots/subscriptions/<plan>-<cycle>.png` をアップロード。同じページの「App Store のローカライズ」の表示名・説明を `SUBSCRIPTION_TEXT.md` の文面に置き換える（今の「AI 振り返り月 90 回 / 月 30 回」はアプリと食い違っている）。4 件すべて保存。
+2. **ストア用スクリーンショットを差し替える**: 「配信」タブ → バージョン 1.0 → 「プレビューとスクリーンショット」→ 「メディアマネージャですべてのサイズを表示」。iPhone 6.9 インチに `iphone-6.9/` の 5 枚、iPhone 6.5 インチは既存 4 枚を削除して `iphone-6.5/` の 5 枚、iPad 13 インチは既存 4 枚を削除して `ipad-13/` の 5 枚。並び順は 01 → 05。他のサイズは「○○インチを使用」のままでよい。保存。
+3. **テキストの確認**: 概要・キーワード・プロモーションテキストに「Google Play」「Android」が無いこと。「ビルド」欄が Google Play 言及を削除した最新ビルドであること。サポート URL は連絡先の載ったページにしておく。
+4. **返信して再提出**: App Review スレッドに `REVIEW_NOTES.md` の「Reply for the third rejection」を貼り、「保存」→「審査へ提出」。
+5. 提出後、デモアカウント（`yumetan-review@gmail.com`）で当日中に夢を 1 件公開しておく。
+
 ## 7. 審査後も続けること
 
 - サポートサイト（`https://yumetan-support.ni23al.chatgpt.site/support/`）に届いた投稿の通報は、Firestore で `communityPosts/{id}` の `hidden` を `true` に、悪質なユーザーは `memberships/{uid}` の `suspended` を `true` にして対応する。
