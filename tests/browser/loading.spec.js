@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { seedGuestAtLogin } from "./helpers/introduction.js";
 
 async function localConfig(page) {
   await page.route("**/firebase-config.js*", (r) =>
@@ -56,8 +57,8 @@ test("a delayed login animates, clears on cancellation, and allows retry", async
   `,
     }),
   );
+  await seedGuestAtLogin(page);
   await page.goto("/");
-  await page.locator("[data-action=intro-skip]").click();
   await page.locator("[data-auth-provider=google]").click();
   await expect(page.locator(".dream-loading-operation")).toBeVisible();
   await expect(page.locator("[data-auth-provider=google]")).toBeDisabled();
@@ -89,8 +90,8 @@ test("a failed late cloud connection stops animating and offers reconnect", asyn
   `,
     }),
   );
+  await seedGuestAtLogin(page);
   await page.goto("/");
-  await page.locator("[data-action=intro-skip]").click();
   await expect(
     page.locator("#account-sync-status .dream-loading"),
   ).toBeVisible();

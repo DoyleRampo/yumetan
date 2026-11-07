@@ -863,3 +863,98 @@ test("nothing screens what a member publishes, and a whole 20,000-character drea
     [dark.id, long.id].sort(),
   );
 });
+// The paid-plan offer after a new account's first quiz: the overview names
+// both paid plans and their prices and carries the legal notes; "subscribe"
+// opens Starter and Standard with their purchase buttons; "start for free"
+// hands back to the app, and a finished purchase does too.
+test("the plan offer reads completely in every language and ends by a choice or a purchase", async () => {
+  const seen = { free: 0, done: 0 };
+  let language = "ja";
+  const community = createCommunity({
+    api: async (path) =>
+      path === "/api/account"
+        ? { plan: "free", billingConfigured: true }
+        : path === "/api/billing/sync"
+          ? { plan: "starter", paidUntil: Date.now() + 86400000 }
+          : {},
+    language: () => language,
+    esc: (s) => String(s),
+    navigate: () => {},
+    render: () => {},
+    toast: () => {},
+    run: async (fn) => fn(),
+    markSaved: () => {},
+    signedIn: () => true,
+    nickname: () => "Dreamer",
+    character: () => ({ image: "", setId: "human" }),
+    currentType: () => "challenge",
+    isNative: () => true,
+    uid: () => "alice",
+    purchases: {
+      available: () => true,
+      buy: async () => ({ entitlements: { active: {} } }),
+      prices: async () => ({}),
+    },
+    wait: async () => {},
+    finishOffer: async () => seen.free++,
+    onCheckoutDone: () => seen.done++,
+  });
+  await community.enter("plan-offer");
+  for (language of ["ja", "ko", "zh", "en"]) {
+    const overview = community.view("plan-offer");
+    assert.match(overview, /data-offer-step="intro"/);
+    assert.doesNotMatch(overview, /undefined|\{\w+\}/);
+    for (const key of [
+      "offerTitle",
+      "offerSubscribe",
+      "offerFree",
+      "autoRenewNote",
+      "termsOfUse",
+    ])
+      assert.ok(overview.includes(communityText(key, language)), key);
+    for (const p of [PLANS.starter, PLANS.standard])
+      for (const cycle of ["monthly", "yearly"])
+        assert.ok(
+          overview.includes(`¥${p[cycle].toLocaleString(language)}`),
+          `${p.id} ${cycle} ${language}`,
+        );
+    // The limits quoted in the text come from the plan catalog itself.
+    assert.ok(overview.includes(String(PLANS.standard.reads)));
+    assert.ok(overview.includes(String(PLANS.starter.handwriting)));
+  }
+  language = "ja";
+  // A DOM stand-in: bind() looks the buttons up and runs their actions.
+  const previous = globalThis.document;
+  const button = { dataset: {}, tagName: "BUTTON" };
+  globalThis.document = {
+    querySelector: () => null,
+    querySelectorAll: () => [button],
+    createElement: () => ({ remove() {} }),
+    body: { append() {} },
+  };
+  const press = async (action, plan) => {
+    button.dataset = plan ? { social: action, plan } : { social: action };
+    community.bind();
+    await button.onclick({ stopPropagation() {} });
+  };
+  try {
+    await press("offer-choose");
+    const chosen = community.view("plan-offer");
+    assert.match(chosen, /data-offer-step="choose"/);
+    assert.match(chosen, /data-offer-plan="starter"/);
+    assert.match(chosen, /data-offer-plan="standard"/);
+    assert.match(chosen, /data-social="checkout" data-plan="starter"/);
+    assert.match(chosen, /data-social="checkout" data-plan="standard"/);
+    assert.match(chosen, /data-social="offer-back"/);
+    assert.match(chosen, /data-social="offer-free"/);
+    await press("offer-back");
+    assert.match(community.view("plan-offer"), /data-offer-step="intro"/);
+    await press("offer-free");
+    assert.equal(seen.free, 1);
+    await press("checkout", "starter");
+    assert.equal(seen.done, 1);
+    assert.equal(community.plan(), "starter");
+  } finally {
+    globalThis.document = previous;
+  }
+});

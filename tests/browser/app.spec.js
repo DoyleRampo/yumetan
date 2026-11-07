@@ -1,4 +1,4 @@
-import { finishIntroduction } from "./helpers/introduction.js";
+import { finishIntroduction, startFree } from "./helpers/introduction.js";
 import {
   chooseDate,
   savedDreamDetails,
@@ -90,7 +90,9 @@ async function start(page, lang = "ja") {
     /moonkeepers-v1\/challenge\.webp$/,
   );
   await page.locator("[data-action=begin]").click();
-  await expect(page.locator("[data-action=record]")).toBeVisible();
+  // A signed-in free member sees the plan offer once; local-only builds and
+  // paid members land on home directly.
+  await startFree(page);
 }
 for (const [lang, label] of [
   ["ja", "挑戦系"],
@@ -567,6 +569,8 @@ test("account switching isolates journals and reload restores the active scope",
     await page.locator("[data-action=quiz-next]").click();
   }
   await page.locator("[data-action=begin]").click();
+  // A signed-in free member sees the plan offer once after the first quiz.
+  await startFree(page);
   await page.locator("nav [data-go=record]").click();
   await page.locator("#dream-text").fill("Private dream of first account");
   await submitDream(page);

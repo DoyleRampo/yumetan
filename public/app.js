@@ -119,8 +119,9 @@ let authChanging = false,
   stopCloudWatch = null,
   syncStatus = "pending",
   syncAgain = false;
-const displayLanguage = () =>
-  ["intro", "welcome-login"].includes(page) ? "ja" : language();
+// The tour comes before the language is chosen at registration, so it is
+// always Japanese; every later screen, the login wall included, follows the choice.
+const displayLanguage = () => (page === "intro" ? "ja" : language());
 const at = (key) => authText(key, displayLanguage());
 const language = () => options.language;
 const ct = (key) => communityText(key, language());
@@ -252,6 +253,11 @@ const social = createCommunity({
     if (verified) rememberPlan(account?.plan, account?.paidUntil);
   },
   onPurchased: ({ plan, paidUntil }) => rememberPlan(plan, paidUntil, true),
+  // A purchase from the plan offer ends the first run; "start for free" too.
+  onCheckoutDone: () => {
+    if (page === "plan-offer" && displayPlan() !== "free") finishPlanOffer();
+  },
+  finishOffer: finishPlanOffer,
   // The plans pages mark the same plan as the rest of the app, and their
   // "check again" reads the store and the server together.
   shownPlan: () => displayPlan(),
@@ -349,7 +355,9 @@ const navLabel = (p) => (p === "community" ? ct("community") : t(p));
 function header() {
   document.documentElement.lang = displayLanguage();
   document.title = `${t("brand")} / Yumetan`;
-  const ready = Boolean(state.profile?.typeAnswers);
+  // Settings and the tab bar appear once the first run is over: a guest who
+  // has answered the quiz but not signed in yet has neither.
+  const ready = firstRunPage() === "home";
   $("#header").innerHTML =
     `<button class="brand" data-go="home">☾ ${esc(t("brand"))}</button>` +
     (ready
@@ -358,7 +366,14 @@ function header() {
   const nav = $("#nav");
   nav.hidden =
     !ready ||
-    ["quiz", "result", "onboard", "intro", "welcome-login"].includes(page);
+    [
+      "quiz",
+      "result",
+      "onboard",
+      "intro",
+      "welcome-login",
+      "plan-offer",
+    ].includes(page);
   nav.setAttribute("aria-label", t("brand"));
   const activePage =
     { "dream-days": "record", "diary-days": "diary" }[page] || page;
@@ -545,6 +560,7 @@ function render() {
     community: () => social.view("community"),
     plans: () => social.view("plans"),
     "plan-details": () => social.view("plan-details"),
+    "plan-offer": () => social.view("plan-offer"),
     share: () => social.view("share"),
     "community-post": () => social.view("community-post"),
   };
@@ -621,6 +637,7 @@ function pageTitle(p) {
     reading: t("readingTitle"),
     plans: ct("plans"),
     "plan-details": ct("plans"),
+    "plan-offer": ct("plans"),
     help: t("help"),
     share: ct("share"),
     "community-post": ct("community"),
@@ -629,7 +646,7 @@ function pageTitle(p) {
 }
 const hasBack = () =>
   !ROOTS.includes(page) &&
-  !["quiz", "result", "intro", "welcome-login"].includes(page) &&
+  !["quiz", "result", "intro", "welcome-login", "plan-offer"].includes(page) &&
   !(page === "onboard" && !state.profile?.typeAnswers);
 function backTarget() {
   const prev = navStack.at(-1);
@@ -681,8 +698,14 @@ async function navigate(next, force = false, back = false) {
   }
   const first = firstRunPage();
   if (first !== "home") {
-    // Introduction, login and registration steps cannot be skipped.
-    const allowed = first === "quiz" ? ["quiz", "result", "onboard"] : [first];
+    // Introduction, login and registration steps cannot be skipped; the plan
+    // offer follows the first quiz result until it is answered.
+    const allowed =
+      first === "quiz"
+        ? ["quiz", "result", "onboard"]
+        : ["welcome-login", "plan-offer"].includes(first)
+          ? ["result", first]
+          : [first];
     if (!allowed.includes(next)) next = first;
   }
   if (ROOTS.includes(next)) navStack = [];
@@ -703,6 +726,8 @@ async function navigate(next, force = false, back = false) {
     track("view_plans", { source: plansSource || from });
     plansSource = null;
   }
+  if (page === "plan-offer" && from !== "plan-offer")
+    track("view_plans", { source: "onboarding" });
   window.scrollTo(0, 0);
   $("#app").focus({ preventScroll: true });
   if (page === "help" && helpSection) {
@@ -711,8 +736,11 @@ async function navigate(next, force = false, back = false) {
     section?.scrollIntoView({ block: "start" });
   }
   // The plans pages check store and server again on every visit.
-  if (["plans", "plan-details"].includes(page)) refreshPlanInBackground();
-  if (["community", "plans", "plan-details", "share"].includes(page))
+  if (["plans", "plan-details", "plan-offer"].includes(page))
+    refreshPlanInBackground();
+  if (
+    ["community", "plans", "plan-details", "plan-offer", "share"].includes(page)
+  )
     social.enter(
       page,
       state.records.find((r) => r.id === selectedId),
@@ -737,19 +765,44 @@ function animatePage(from) {
   clearTimeout(animatePage.timer);
   animatePage.timer = setTimeout(() => app.classList.remove("page-enter"), 320);
 }
-// Records never live only on the device: whenever Firebase is configured, an
-// account is required before registration. Order for a new user:
-// introduction → login → registration → 16-type quiz → home.
+// Order for a new user: introduction → registration (nickname, age, language)
+// → 16-type quiz → login (or sign-up) → paid-plan offer → home. Registration
+// and the quiz run as a guest; a new account takes them over at login. Records
+// never live only on the device: whenever Firebase is configured, an account
+// is required before the home page. An existing account that signs in on a
+// new device has its quiz answers already and goes straight home, without the
+// plan offer. `introduction.phase` remembers the device's progress: "tour",
+// "login" (tour finished, registration or login under way), "plan" (a new
+// account has yet to answer the plan offer) and "done".
 const cloudConfigured = () =>
   Boolean(window.FIREBASE_CONFIG?.apiKey) || Boolean(cloud);
 function firstRunPage() {
-  const phase = options.introduction?.phase;
-  // An account that finished setup goes straight in (also while offline).
-  if (state.profile?.typeAnswers && (signedIn() || !cloud)) return "home";
+  const phase = options.introduction?.phase,
+    ready = Boolean(state.profile?.typeAnswers),
+    // Signed in, or (without a connection: offline, or the SDK still loading)
+    // on the scope of the account this device last signed in to.
+    member =
+      signedIn() ||
+      (!cloud && (!cloudConfigured() || options.memberScope === storageKey));
+  if (ready && member)
+    return phase === "plan" && signedIn() && displayPlan() === "free"
+      ? "plan-offer"
+      : "home";
+  // Signed out, or the account deleted: back to the sign-in screen, not the tour.
+  if (phase === "done" && cloudConfigured() && !signedIn())
+    return "welcome-login";
   if (!state.profile && phase !== "login" && phase !== "done") return "intro";
-  if (cloudConfigured() && !signedIn()) return "welcome-login";
   if (!state.profile) return "onboard";
-  return "quiz";
+  if (!ready) return "quiz";
+  return "welcome-login";
+}
+// The scope of the account this device is signed in to (none for a guest), so
+// that it opens as usual when the app starts without a connection.
+async function rememberMemberScope() {
+  const memberScope = signedIn() ? storageKey : null;
+  if ((options.memberScope || null) === memberScope) return;
+  options = { ...options, memberScope };
+  await write("yumetan.v4.options", options);
 }
 async function saveIntroduction(introduction) {
   const next = { ...options, introduction };
@@ -764,7 +817,7 @@ function introductionView() {
     `<img class="intro-character" src="${getCharacter("challenge", "animal").image}" width="768" height="768" alt=""><span class="intro-badge">16 TYPES</span>`,
     `<div class="intro-growth"><span>Lv.1</span><b>✦</b><span>Lv.2</span><div class="intro-meter"><i></i></div></div>`,
   ];
-  return `<section class="introduction narrow" lang="ja" data-intro-step="${step}"><div class="intro-toolbar"><button type="button" class="intro-back" data-action="intro-back" aria-label="戻る" ${step === 0 ? 'disabled aria-hidden="true"' : ""}><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="m14 6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="intro-progress" role="group" aria-label="${esc(t("introProgress"))}">${Array.from({ length: 4 }, (_, i) => `<span class="intro-dot ${i === step ? "current" : ""}" aria-label="${i + 1} / 4" ${i === step ? 'aria-current="step"' : ""}></span>`).join("")}</div><button type="button" class="intro-skip" data-action="intro-skip">${t("introSkip")}</button></div><div class="intro-slide"><div class="intro-art intro-art-${step}" aria-hidden="true">${arts[step]}</div><div class="intro-copy" aria-live="polite"><p class="eyebrow">${step + 1} / 4</p><h1 tabindex="-1">${t(`intro${step + 1}Title`)}</h1><p>${t(`intro${step + 1}Text`)}</p></div></div><div class="intro-actions"><button type="button" class="btn primary" data-action="intro-next">${t(step === 3 ? (cloudConfigured() ? "introLogin" : "introStart") : "next")}<span aria-hidden="true"> →</span></button></div></section>`;
+  return `<section class="introduction narrow" lang="ja" data-intro-step="${step}"><div class="intro-toolbar"><button type="button" class="intro-back" data-action="intro-back" aria-label="戻る" ${step === 0 ? 'disabled aria-hidden="true"' : ""}><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="m14 6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="intro-progress" role="group" aria-label="${esc(t("introProgress"))}">${Array.from({ length: 4 }, (_, i) => `<span class="intro-dot ${i === step ? "current" : ""}" aria-label="${i + 1} / 4" ${i === step ? 'aria-current="step"' : ""}></span>`).join("")}</div><button type="button" class="intro-skip" data-action="intro-skip">${t("introSkip")}</button></div><div class="intro-slide"><div class="intro-art intro-art-${step}" aria-hidden="true">${arts[step]}</div><div class="intro-copy" aria-live="polite"><p class="eyebrow">${step + 1} / 4</p><h1 tabindex="-1">${t(`intro${step + 1}Title`)}</h1><p>${t(`intro${step + 1}Text`)}</p></div></div><div class="intro-actions"><button type="button" class="btn primary" data-action="intro-next">${t(step === 3 ? "introStart" : "next")}<span aria-hidden="true"> →</span></button></div></section>`;
 }
 function introductionLoginView() {
   return `<section class="narrow intro-login"><h1>${t("signIn")}</h1><p class="muted">${t("introLoginHint")}</p>${signedIn() ? `<div class="card"><p>${t("introSignedIn")}</p><button class="btn primary full" data-action="intro-continue">${t(state.profile ? "startQuiz" : "introRegister")}</button></div>` : accountView(true)}</section>`;
@@ -796,18 +849,33 @@ async function continueIntroduction() {
   await saveIntroduction({ phase: "done", step: 3 });
   await navigate(firstRunPage(), true);
 }
-// Carry the just-entered registration profile to a new account. Existing guest
-// journals still use the established explicit import consent.
+// The plan offer is answered: by "start for free", or by a purchase. Either
+// way the first run is over and the home page opens.
+async function finishPlanOffer() {
+  if (options.introduction?.phase === "plan")
+    await saveIntroduction({ phase: "done", step: 3 });
+  dirty = false;
+  processing = false;
+  await navigate("home", true);
+}
+// The first login of this device: a new account takes over the profile and the
+// quiz answers entered as a guest, and sees the paid plans next. An existing
+// account keeps its own profile (the guest's is dropped) and only guest
+// journals, if any, go through the usual import consent.
 async function completeIntroductionLogin(sourceKey, guest) {
   if (options.introduction?.phase !== "login") {
     await offerGuestImport(sourceKey, guest);
     return;
   }
-  if (!state.profile && guest?.profile && !guest.records.length) {
+  const carried = !state.profile && guest?.profile && !guest.records.length;
+  if (carried) {
     await commit({ ...state, profile: guest.profile });
     await syncCloud();
-  } else await offerGuestImport(sourceKey, guest);
-  await saveIntroduction({ phase: "done", step: 3 });
+  } else if (guest?.records.length) await offerGuestImport(sourceKey, guest);
+  await saveIntroduction({
+    phase: carried && state.profile?.typeAnswers ? "plan" : "done",
+    step: 3,
+  });
 }
 
 function profileView() {
@@ -932,7 +1000,7 @@ function rationaleCard(result, type) {
 function resultView() {
   const result = pendingResult || currentType(),
     type = typeById(result.id);
-  return `<div class="narrow center"><p class="eyebrow">YOUR DREAM, YOUR CHARACTER</p><h1>${t("yourType")}</h1><div class="card accent" style="--accent:${group(type).color}">${avatar(type)}<span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)} · ${typeSignature(type)}</p>${characterStory(type)}${result.tied ? `<p class="help">${t("tie")}</p>` : ""}${result.provisional ? `<p class="help">${t("provisional")}</p>` : ""}</div>${rationaleCard(result, type)}${loreCard(type)}<p>${t("characterHint")}</p>${button("begin", "begin", "primary full")}<details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
+  return `<div class="narrow center"><p class="eyebrow">YOUR DREAM, YOUR CHARACTER</p><h1>${t("yourType")}</h1><div class="card accent" style="--accent:${group(type).color}">${avatar(type)}<span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)} · ${typeSignature(type)}</p>${characterStory(type)}${result.tied ? `<p class="help">${t("tie")}</p>` : ""}${result.provisional ? `<p class="help">${t("provisional")}</p>` : ""}</div>${rationaleCard(result, type)}${loreCard(type)}<p>${t("characterHint")}</p>${button(firstRunPage() === "welcome-login" ? "beginLogin" : "begin", "begin", "primary full")}<details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
 }
 function homeView() {
   const result = currentType(),
@@ -1956,6 +2024,7 @@ async function saveQuizDraft() {
 }
 async function finishQuiz() {
   if (quizAnswers.some((v) => v === null)) return;
+  const firstQuiz = !state.profile?.typeAnswers;
   await commit({
     ...state,
     profile: {
@@ -1970,6 +2039,10 @@ async function finishQuiz() {
   processing = false;
   track("quiz_complete", { dream_type: pendingResult?.id || "none" });
   trackUser();
+  // A new member sees the paid plans once, after this result. A retake, a
+  // local-only build or a member who already pays goes straight home.
+  if (firstQuiz && signedIn() && displayPlan() === "free")
+    await saveIntroduction({ phase: "plan", step: 3 });
   navigate("result", true);
   await syncCloud();
 }
@@ -2456,6 +2529,7 @@ async function switchAccount() {
   draft = null;
   dirty = false;
   await write("yumetan.v4.active", storageKey);
+  await rememberMemberScope();
   state = (await read(storageKey)) || state;
   pendingGuestKey = await read(`${storageKey}.guest-import`);
   applyAccountPreferences();
@@ -2593,7 +2667,8 @@ const actions = {
   },
   "delete-entry": deleteOpenEntry,
   profile: () => navigate("onboard"),
-  begin: () => navigate("home", true),
+  begin: () =>
+    navigate(firstRunPage() === "plan-offer" ? "plan-offer" : "home", true),
   back: goBack,
   retake: async () => {
     quizAnswers = Array(QUESTIONS.length).fill(null);
@@ -2756,6 +2831,7 @@ async function adoptCloud() {
   await write("yumetan.v4.active", key);
   if (!adopted && oldProgress) await write(`${key}.quiz`, oldProgress);
   await write("yumetan.v4.cloud-adopted", true);
+  await rememberMemberScope();
 }
 async function loadScope() {
   if (state.profile?.characterSet)
@@ -2804,6 +2880,7 @@ async function attachLateCloud(pending) {
   if (["home", "quiz", "onboard", "intro", "welcome-login"].includes(page))
     page = firstRunPage();
   render();
+  if (page === "plan-offer") social.enter(page);
   syncCloud();
 }
 async function boot() {
@@ -2870,7 +2947,7 @@ async function boot() {
       signed_in: signedIn(),
       screen: page,
     });
-    if (page === "plans") social.enter("plans");
+    if (["plans", "plan-offer"].includes(page)) social.enter(page);
     if (cloud)
       syncCloud().then(() => {
         if (
@@ -2880,6 +2957,7 @@ async function boot() {
         ) {
           page = firstRunPage();
           render();
+          if (page === "plan-offer") social.enter(page);
         }
       });
   } catch {

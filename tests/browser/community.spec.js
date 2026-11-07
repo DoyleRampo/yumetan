@@ -1,4 +1,4 @@
-import { finishIntroduction } from "./helpers/introduction.js";
+import { finishIntroduction, startFree } from "./helpers/introduction.js";
 import {
   chooseDate,
   savedDreamDetails,
@@ -31,6 +31,8 @@ async function boot(page) {
     await page.locator("[data-action=quiz-next]").click();
   }
   await page.locator("[data-action=begin]").click();
+  // A signed-in free member is offered the plans once after the first quiz.
+  await startFree(page);
 }
 // The share box sits on the reading page and is on by default for paid members.
 async function saveDream(page, text, share = false) {

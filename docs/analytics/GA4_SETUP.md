@@ -134,8 +134,9 @@ npm run landing:deploy
 | `record_delete` | 夢・日記の削除 | `kind` |
 | `dream_share` / `dream_unshare` / `dream_share_failed` | みんなの夢への公開・取り下げ | `source`（record / share-page / community）`error_code` |
 | `community_post_open` / `community_react` | 投稿を開く・スタンプ | `stamp` `removed` `plan` |
-| `view_plans` | プラン画面を開いた | `source`（settings / freeQuota / diaryQuota / 遷移元画面） |
+| `view_plans` | プラン画面を開いた（初回登録直後の案内は `source: onboarding`） | `source`（settings / freeQuota / diaryQuota / onboarding / 遷移元画面） |
 | `select_plan` | プラン詳細を開いた | `plan` `cycle` |
+| `plan_offer_choose` / `plan_offer_skip` | 初回のプラン案内で「プランに登録する」を押した / 「無料ではじめる」を押した | `cycle` / `step`（intro / choose） |
 | `begin_checkout` / `purchase_confirmed` / `purchase_cancelled` / `purchase_failed` | ストア購入の開始・ストア確認・キャンセル・失敗 | `plan` `cycle` `store_confirmed` `server_verified` `plan_after` `error_code` |
 | `restore_purchases` / `restore_confirmed` | 購入の復元 | `plan` `cycle` |
 | `manage_subscription` | ストアの契約管理を開いた | `plan` |

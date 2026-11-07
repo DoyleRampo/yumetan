@@ -1368,6 +1368,102 @@ summary {
   margin-block: 12px;
 }
 
+/* The paid-plan offer: once, after a new account's first quiz result. The
+   overview lists what the paid plans add; "subscribe" opens Starter and
+   Standard side by side; "start for free" stays quiet under the main button. */
+.plan-offer {
+  padding-bottom: 24px;
+}
+.plan-offer > h1 {
+  margin-top: 8px;
+}
+.offer-prices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0 8px;
+}
+.offer-price {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+  padding: 16px 12px;
+}
+.offer-price .plan-name {
+  font-size: 15px;
+}
+.offer-price .plan-price {
+  font-size: 24px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.offer-price > small {
+  color: var(--muted);
+}
+.offer-price[data-offer-plan="starter"] {
+  border-color: var(--gold);
+}
+.offer-features {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.offer-features li {
+  border-left: 3px solid var(--gold);
+  padding: 2px 0 2px 14px;
+}
+.offer-features strong {
+  display: block;
+  margin-bottom: 4px;
+}
+.offer-features p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.offer-actions {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  margin-top: 24px;
+}
+.offer-actions .plan-cta {
+  margin-top: 0;
+}
+.offer-free {
+  min-height: 44px;
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.offer-free:hover {
+  color: var(--gold);
+}
+.offer-plans {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+.offer-plan.recommended {
+  border-color: var(--gold);
+}
+.offer-plan h2 {
+  margin: 4px 0 6px;
+}
+.offer-plan .plan-price {
+  margin: 0 0 8px;
+}
+.plan-offer .legal-note {
+  margin-top: 24px;
+}
+@media (min-width: 760px) {
+  .offer-plans {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* Compact forms keep optional input close without occupying the initial screen. */
 .onboard-account {
   margin: 0 0 12px;

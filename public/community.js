@@ -30,6 +30,11 @@ export function createCommunity({
   legalUrl = () => "",
   onAccount = () => {},
   onPurchased = () => {},
+  // The whole purchase finished (store, then server): the plan offer uses it
+  // to move a new member on to the home page.
+  onCheckoutDone = () => {},
+  // "Start for free" on the plan offer: the app ends its first run.
+  finishOffer = async () => {},
   // GA4 events (core/analytics.js); a no-op without a measurement ID.
   track = () => {},
   // The plan the rest of the app shows (the server's, or a better one the
@@ -57,6 +62,8 @@ export function createCommunity({
     teaser = null,
     cycle = "monthly",
     selectedPlan = "starter",
+    // The plan offer's step: the overview, or the Starter / Standard choice.
+    offerStep = "intro",
     // The post whose stamp picker is open, and whether a long press just
     // opened it (so the tap that ends the press does not also open the post).
     picker = null,
@@ -270,9 +277,82 @@ export function createCommunity({
     if (!detail) return `<h1>${t("community")}</h1>${status()}`;
     return `<div class="narrow">${status()}${postCard(detail.post, false, true)}</div>${pickerView()}`;
   }
+  // Shown once, right after a new account's first quiz result: what the paid
+  // plans add, then (on "subscribe") Starter and Standard side by side with
+  // their purchase buttons. "Start for free" sits under the main button on
+  // both steps, and the choice step can go back to the overview.
+  const fill = (key, values) =>
+    t(key).replace(/\{(\w+)\}/g, (m, k) =>
+      k in values ? esc(String(values[k])) : m,
+    );
+  const priceOf = (p, c) =>
+    storePrices[productId(p.id, c)] || `¥${p[c].toLocaleString(language())}`;
+  function planOfferView() {
+    const { free, starter, standard } = PLANS,
+      paid = [starter, standard];
+    const freeLink = `<button type="button" class="link-button offer-free" data-social="offer-free">${t("offerFree")}</button>`;
+    if (offerStep === "choose")
+      return `<section class="narrow plan-offer" data-offer-step="choose"><button type="button" class="back-link" data-social="offer-back">← ${t("offerBack")}</button><div class="row between page-heading"><h1>${t("offerChooseTitle")}</h1>${cyclePicker()}</div><p class="muted">${t("offerChooseHint")}</p>${testStoreNote()}${planState()}<div class="offer-plans">${paid
+        .map(
+          (p) =>
+            `<section class="card plan-card offer-plan${p.id === "starter" ? " recommended" : ""}" data-offer-plan="${p.id}">${p.id === "starter" ? `<span class="eyebrow">${t("recommended")}</span>` : ""}<h2>${planName(p)}</h2><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p><dl>${planFields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl>${purchaseSummary(p)}${cta(p)}</section>`,
+        )
+        .join(
+          "",
+        )}</div>${ctaNote()}<p class="help">${t("freeFeatures")}</p><div class="offer-actions">${freeLink}</div>${legal()}</section>`;
+    const features = [
+      [
+        "offerDreamsTitle",
+        "offerDreamsText",
+        {
+          free: free.dreams,
+          starter: starter.dreams,
+          standard: standard.dreams,
+        },
+      ],
+      [
+        "offerDiaryTitle",
+        "offerDiaryText",
+        { free: free.diary, starter: starter.diary, standard: standard.diary },
+      ],
+      [
+        "offerOcrTitle",
+        "offerOcrText",
+        { starter: starter.handwriting, standard: standard.handwriting },
+      ],
+      [
+        "offerCommunityTitle",
+        "offerCommunityText",
+        {
+          starter: starter.reads,
+          standard: standard.reads,
+          starterReactions: starter.reactions,
+          standardReactions: standard.reactions,
+        },
+      ],
+      ["offerCharactersTitle", "offerCharactersText", {}],
+    ];
+    return `<section class="narrow plan-offer" data-offer-step="intro"><p class="eyebrow">YOUR DREAM, YOUR PLAN</p><h1>${t("offerTitle")}</h1><p class="muted">${t("offerIntro")}</p>${testStoreNote()}<div class="offer-prices">${paid
+      .map(
+        (p) =>
+          `<div class="card offer-price" data-offer-plan="${p.id}"><span class="plan-name">${planName(p)}</span><span class="plan-price">${priceOf(p, "monthly")}<small> / ${t("monthly")}</small></span><small>${priceOf(p, "yearly")} / ${t("yearly")}</small></div>`,
+      )
+      .join("")}</div><ul class="offer-features">${features
+      .map(
+        ([title, text, values]) =>
+          `<li><strong>${t(title)}</strong><p>${fill(text, values)}</p></li>`,
+      )
+      .join("")}</ul><p class="help">${fill("offerPricing", {
+      starterMonthly: priceOf(starter, "monthly"),
+      starterYearly: priceOf(starter, "yearly"),
+      standardMonthly: priceOf(standard, "monthly"),
+      standardYearly: priceOf(standard, "yearly"),
+    })}</p><p class="help">${t("offerFreeNote")}</p><div class="offer-actions"><button type="button" class="btn primary plan-cta" data-social="offer-choose">${t("offerSubscribe")}</button>${freeLink}</div>${legal()}</section>`;
+  }
   function view(page) {
     if (page === "plans") return plansView();
     if (page === "plan-details") return planDetailsView();
+    if (page === "plan-offer") return planOfferView();
     if (page === "share") return shareView();
     if (page === "community-post") return detailView();
     // The timeline: no toolbar, just the dreams. A failed load offers a retry.
@@ -298,6 +378,7 @@ export function createCommunity({
       sharing = null;
       shareDraft = null;
     }
+    if (page === "plan-offer") offerStep = "intro";
     render();
     let verified = false;
     try {
@@ -322,7 +403,11 @@ export function createCommunity({
         };
       }
       if (token !== version) return;
-      if (["plans", "plan-details"].includes(page) && canBuy() && signedIn()) {
+      if (
+        ["plans", "plan-details", "plan-offer"].includes(page) &&
+        canBuy() &&
+        signedIn()
+      ) {
         // Display only: a missing price list never blocks the page or the purchase.
         try {
           const prices = await purchases.prices(uid());
@@ -434,6 +519,7 @@ export function createCommunity({
         t(reached(account, target) ? "purchaseActivated" : "purchasePending"),
       );
       render();
+      onCheckoutDone(account);
     } finally {
       stop();
     }
@@ -469,6 +555,19 @@ export function createCommunity({
           if (action === "monthly" || action === "yearly") {
             cycle = action;
             render();
+            return;
+          }
+          if (action === "offer-choose" || action === "offer-back") {
+            offerStep = action === "offer-choose" ? "choose" : "intro";
+            if (action === "offer-choose")
+              track("plan_offer_choose", { cycle });
+            render();
+            globalThis.scrollTo?.(0, 0);
+            return;
+          }
+          if (action === "offer-free") {
+            track("plan_offer_skip", { step: offerStep });
+            await finishOffer();
             return;
           }
           if (action === "refresh") {

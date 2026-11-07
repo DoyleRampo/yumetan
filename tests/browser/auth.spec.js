@@ -1,5 +1,11 @@
 import { savedDreamDetails } from "./helpers/journal.js";
-import { passTour } from "./helpers/introduction.js";
+import {
+  passTour,
+  reachLogin,
+  registerAndQuiz,
+  seedGuestAtLogin,
+  startFree,
+} from "./helpers/introduction.js";
 import { test, expect } from "@playwright/test";
 import { mergeAccount } from "../../public/core/account-sync.js";
 const profile = (nickname) => ({
@@ -60,26 +66,33 @@ signIn:async (email,password)=>{if(!(window.__signUps||[]).includes(email)||pass
   );
   return db;
 }
-test("the Japanese login wall offers three social logins and keeps language choice at registration", async ({
+test("the login wall follows registration and the quiz, offers three social logins and keeps the chosen language", async ({
   page,
 }) => {
   await setup(page);
   await page.goto("/");
   await page.locator("[data-action=intro-skip]").click();
+  // Registration comes first, with the language choice; the tour was Japanese.
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "onboard");
+  await expect(page.locator("#language")).toBeVisible();
+  await expect(page.locator("[data-auth-provider]")).toHaveCount(0);
+  await registerAndQuiz(page, { nickname: "ゆめ", language: "en" });
+  await page.locator("[data-action=begin]").click();
   await expect(page.locator("#app")).toHaveAttribute(
     "data-page",
     "welcome-login",
   );
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
   for (const width of [320, 390, 768]) {
     await page.setViewportSize({ width, height: 844 });
     await expect(page.locator("#language")).toHaveCount(0);
-    await expect(page.locator("html")).toHaveAttribute("lang", "ja");
     for (const provider of ["google", "apple", "line"])
       await expect(
         page.locator(`[data-auth-provider=${provider}]`),
       ).toBeEnabled();
     await expect(page.locator("[data-action=guest]")).toHaveCount(0);
     await expect(page.locator("#nickname")).toHaveCount(0);
+    await expect(page.locator("#nav")).toBeHidden();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -87,17 +100,19 @@ test("the Japanese login wall offers three social logins and keeps language choi
     ).toBeTruthy();
     await expect(page.locator("main")).not.toContainText("undefined");
   }
-  // Registration follows the login; the account is new so the form is empty.
-  await page.locator("[data-auth-provider=google]").click();
-  await expect(page.locator("#nickname")).toBeVisible();
-  await expect(page.locator("main")).not.toContainText(
-    "ログイン（あとでもOK）",
-  );
-  await expect(page.locator("main")).not.toContainText("タイプについて");
   await page.screenshot({
     path: "test-results/login-mobile.png",
     fullPage: true,
   });
+  // A new account takes the guest's registration over: the plans, then home.
+  await page.locator("[data-auth-provider=google]").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "plan-offer");
+  await expect(page.locator("main")).toContainText(
+    "Go deeper into your dreams",
+  );
+  await startFree(page);
+  await expect(page.locator("main")).toContainText("ゆめ");
+  await expect(page.locator("#nickname")).toHaveCount(0);
 });
 test("login restores account on a new device; logout isolates data and LINE chooses another account", async ({
   browser,
@@ -119,14 +134,19 @@ test("login restores account on a new device; logout isolates data and LINE choo
     second = await c2.newPage();
   await setup(first, db);
   await setup(second, db);
+  // Another device, so another anonymous guest.
+  await second.addInitScript(() =>
+    localStorage.setItem("auth.test.uid", "guest-2"),
+  );
   for (const [page, provider] of [
     [first, "google"],
     [second, "apple"],
   ]) {
     await page.goto("/");
-    await passTour(page);
+    // The guest's registration and quiz on this device are dropped: the
+    // account already has its own, and goes straight home without the plans.
+    await reachLogin(page);
     await page.locator(`[data-auth-provider=${provider}]`).click();
-    // An account that already registered skips the form and lands on home.
     await expect(page.locator("#app")).toHaveAttribute("data-page", "home");
     await expect(page.locator("main")).toContainText("アカウントA");
     await page.locator("nav [data-go=record]").click();
@@ -221,9 +241,14 @@ test("a slow cloud connection enables the social logins later without a reload",
   page,
 }) => {
   await setup(page, new Map(), 4500);
+  // Registered and answered the quiz earlier: the app opens at the login wall.
+  await seedGuestAtLogin(page);
   await page.goto("/");
   await page.evaluate(() => (window.__sameDocument = true));
-  await page.locator("[data-action=intro-skip]").click();
+  await expect(page.locator("#app")).toHaveAttribute(
+    "data-page",
+    "welcome-login",
+  );
   await expect(page.locator("[data-auth-provider=google]")).toBeDisabled();
   await expect(page.locator("#account-sync-status")).toContainText(
     "夢の世界につないでいます",
@@ -385,7 +410,7 @@ test("logging back in after signing out reopens the app with the account's journ
   await setup(page, db);
   page.on("dialog", (d) => d.accept());
   await page.goto("/");
-  await page.locator("[data-action=intro-skip]").click();
+  await reachLogin(page);
   await page.locator("[data-auth-provider=google]").click();
   await expect(page.locator("#app")).toHaveAttribute("data-page", "home");
   await page.locator("#header [data-go=settings]").click();
@@ -413,17 +438,13 @@ test("terms and privacy pages are served in Japanese and English and describe ac
   await expect(page.locator("main")).toContainText("自動更新");
   await expect(page.locator("main")).toContainText("¥490");
 });
-test("email: choose sign up or sign in; registration returns to sign-in and a new account starts onboarding and the quiz", async ({
+test("email: choose sign up or sign in; registration returns to sign-in and a new account takes the guest's registration into the plan offer", async ({
   page,
 }) => {
   const db = new Map();
   await setup(page, db);
   await page.goto("/");
-  await page.locator("[data-action=intro-skip]").click();
-  await expect(page.locator("#app")).toHaveAttribute(
-    "data-page",
-    "welcome-login",
-  );
+  await reachLogin(page, { nickname: "メール会員" });
   const panel = page.locator("#email-auth");
   await panel.locator("summary").click();
   await expect(panel.locator("[data-action=email-signup]")).toBeVisible();
@@ -458,20 +479,20 @@ test("email: choose sign up or sign in; registration returns to sign-in and a ne
   );
   await panel.locator("#password").fill("secret1");
   await panel.locator("#account-form button[type=submit]").click();
-  // Signed in as a brand-new account: registration, then the 16-type quiz.
-  await expect(page.locator("#nickname")).toBeVisible();
+  // Signed in as a brand-new account: the registration and quiz answered as a
+  // guest belong to it now, and the paid plans are offered once.
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "plan-offer");
   await expect(page.locator("#email-auth")).toHaveCount(0);
-  await page.locator("#nickname").fill("メール会員");
-  await page.locator("#profile-form button[type=submit]").click();
-  await expect(page.locator("[data-action=quiz-next]")).toBeVisible();
   expect(db.get("email-new@test.invalid").profile.nickname).toBe("メール会員");
+  await startFree(page);
+  await expect(page.locator("main")).toContainText("メール会員");
 });
 test("typed email and password survive returning to the app (cloud watch resubscription, focus, visibility)", async ({
   page,
 }) => {
   await setup(page);
+  await seedGuestAtLogin(page);
   await page.goto("/");
-  await page.locator("[data-action=intro-skip]").click();
   const panel = page.locator("#email-auth");
   await panel.locator("summary").click();
   await panel.locator("[data-action=email-signin]").click();
@@ -504,8 +525,8 @@ test("account deletion: a server refusal is shown as it is; the device stands in
   let answer = { status: 401, json: { code: "loginRequired" } };
   await page.route("**/api/account/delete", (r) => r.fulfill(answer));
   page.on("dialog", (d) => d.accept());
+  await seedGuestAtLogin(page);
   await page.goto("/");
-  await page.locator("[data-action=intro-skip]").click();
   await page.locator("[data-auth-provider=google]").click();
   await expect(page.locator("#app")).toHaveAttribute("data-page", "home");
   await page.locator("#header [data-go=settings]").click();
@@ -555,8 +576,8 @@ test("account deletion: an email account confirms its password instead of signin
     }
     return d.accept();
   });
+  await seedGuestAtLogin(page);
   await page.goto("/");
-  await page.locator("[data-action=intro-skip]").click();
   await page.evaluate(() => (window.__signUps = ["me@test.invalid"]));
   await page.locator("#email-auth summary").click();
   await page.locator("[data-action=email-signin]").click();

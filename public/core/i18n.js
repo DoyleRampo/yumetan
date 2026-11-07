@@ -59,10 +59,10 @@ export const messages = {
   ],
   introLogin: ["ログインへ", "로그인으로", "前往登录", "Continue to login"],
   introLoginHint: [
-    "ログインすると、記録をアカウントに保存できます。",
-    "로그인하면 기록을 계정에 저장할 수 있어요.",
-    "登录后，可将记录保存在账号中。",
-    "Log in to save your entries to your account.",
+    "診断結果とプロフィールをアカウントに保存します。ログインまたは新規登録して続けましょう。",
+    "진단 결과와 프로필을 계정에 저장해요. 로그인 또는 가입하고 계속하세요.",
+    "将诊断结果和个人资料保存到账号。请登录或注册后继续。",
+    "Your result and profile are saved to your account. Sign in or sign up to continue.",
   ],
   introSkip: ["スキップ", "건너뛰기", "跳过", "Skip"],
   introRegister: [
@@ -307,6 +307,12 @@ export const messages = {
     "Each dream adds a little more of you to your character.",
   ],
   begin: ["はじめる", "시작하기", "开始", "Let’s begin"],
+  beginLogin: [
+    "登録・ログインしてはじめる",
+    "가입·로그인하고 시작",
+    "注册或登录后开始",
+    "Sign up or log in to begin",
+  ],
   catalog: ["16タイプ図鑑", "16유형 도감", "16类型图鉴", "Explore all 16"],
   retake: [
     "もう一度診断",
