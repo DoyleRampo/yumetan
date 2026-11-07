@@ -3,19 +3,42 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
-  "hosting": {
-    "public": "public",
-    "ignore": ["**/.*"],
-    "headers": [
-      {
-        "source": "**/*.@(js|css|html)",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache"
-          }
-        ]
-      }
-    ]
-  }
+  "hosting": [
+    {
+      "target": "landing",
+      "public": "dist-landing",
+      "ignore": ["**/.*"],
+      "cleanUrls": true,
+      "trailingSlash": true,
+      "predeploy": ["node scripts/build-landing.mjs"],
+      "redirects": [
+        { "source": "/terms", "destination": "/legal/terms.html?lang=ja", "type": 301 },
+        { "source": "/terms/", "destination": "/legal/terms.html?lang=ja", "type": 301 },
+        { "source": "/support", "destination": "/support/", "type": 301 },
+        { "source": "/privacy", "destination": "/privacy/", "type": 301 }
+      ],
+      "headers": [
+        {
+          "source": "**/*.@(html|json|xml|txt)",
+          "headers": [{ "key": "Cache-Control", "value": "public, max-age=600" }]
+        },
+        {
+          "source": "**/*.@(js|mjs|css)",
+          "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
+        },
+        {
+          "source": "**/*.@(png|jpg|webp|svg|ico)",
+          "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }]
+        },
+        {
+          "source": "**",
+          "headers": [
+            { "key": "X-Content-Type-Options", "value": "nosniff" },
+            { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+            { "key": "X-Frame-Options", "value": "SAMEORIGIN" }
+          ]
+        }
+      ]
+    }
+  ]
 }

@@ -30,6 +30,8 @@ export function createCommunity({
   legalUrl = () => "",
   onAccount = () => {},
   onPurchased = () => {},
+  // GA4 events (core/analytics.js); a no-op without a measurement ID.
+  track = () => {},
   // The plan the rest of the app shows (the server's, or a better one the
   // store confirmed that the server has yet to hear of), and a fresh check of
   // store and server together.
@@ -151,6 +153,7 @@ export function createCommunity({
       "/api/community/posts/" + encodeURIComponent(id) + "/reaction",
       { stamp },
     );
+    track("community_react", { stamp: stamp || "none", removed: !stamp });
     for (const copy of copies(id)) {
       copy.reactions = r.reactions;
       copy.stamp = r.stamp;
@@ -385,6 +388,11 @@ export function createCommunity({
     // The whole screen shows what is happening from the first tap until the
     // plan is active: first the store, then the server verification.
     const stop = beginLoading(language(), "store", null, { overlay: true });
+    const purchase = { plan: planId || plan(), cycle };
+    track(
+      action === "checkout" ? "begin_checkout" : "restore_purchases",
+      purchase,
+    );
     try {
       let done;
       try {
@@ -393,9 +401,14 @@ export function createCommunity({
             ? await purchases.buy(uid(), planId, cycle)
             : await purchases.restore(uid());
       } catch (e) {
+        track("purchase_failed", {
+          ...purchase,
+          error_code: e?.code || "purchaseFailed",
+        });
         throw new Error(t(e?.code || "purchaseFailed"));
       }
       if (!done) {
+        track("purchase_cancelled", purchase);
         toast(t("purchaseCancelled"));
         return;
       }
@@ -406,6 +419,17 @@ export function createCommunity({
       if (confirmed) onPurchased(confirmed);
       const target = action === "checkout" ? planId : null;
       setAccount(await syncUntilActive(target));
+      // The store's own confirmation; the server-verified `purchase` with
+      // the amount paid comes from the RevenueCat webhook (server/analytics.js).
+      track(
+        action === "checkout" ? "purchase_confirmed" : "restore_confirmed",
+        {
+          ...purchase,
+          store_confirmed: Boolean(confirmed),
+          server_verified: reached(account, target),
+          plan_after: planOf(account),
+        },
+      );
       toast(
         t(reached(account, target) ? "purchaseActivated" : "purchasePending"),
       );
@@ -438,6 +462,7 @@ export function createCommunity({
           }
           if (action === "plan-detail") {
             selectedPlan = PLANS[el.dataset.plan] ? el.dataset.plan : "starter";
+            track("select_plan", { plan: selectedPlan, cycle });
             navigate("plan-details");
             return;
           }
@@ -461,6 +486,7 @@ export function createCommunity({
             return;
           }
           if (action === "manage") {
+            track("manage_subscription", { plan: plan() });
             if (/^https:\/\//.test(account.managementUrl || ""))
               window.open(account.managementUrl, "_blank", "noopener");
             return;
@@ -484,6 +510,7 @@ export function createCommunity({
           }
           if (action === "post") {
             await loadPost(el.dataset.id);
+            track("community_post_open", { plan: plan() });
             navigate("community-post");
             return;
           }
@@ -502,6 +529,7 @@ export function createCommunity({
           if (action === "stamp") await react(el.dataset.id, el.dataset.stamp);
           if (action === "unpublish") {
             await api("/api/community/posts/" + el.dataset.id + "/private", {});
+            track("dream_unshare", { source: current || "community" });
             toast(t("unpublished"));
             if (current === "share") sharing = null;
           }
@@ -540,6 +568,7 @@ export function createCommunity({
             characterSet: character(null).setId,
             consent: true,
           });
+          track("dream_share", { source: "share-page" });
           toast(t("published"));
           markSaved();
           await enter("share", shareRecord);

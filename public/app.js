@@ -70,6 +70,7 @@ import {
   mergeRecords,
 } from "./core/storage.js";
 import { reflect } from "./core/reflection.js";
+import { createAnalytics, lengthBucket } from "./core/analytics.js";
 const $ = (s) => document.querySelector(s);
 const esc = (value) =>
   String(value ?? "").replace(
@@ -178,6 +179,7 @@ function rememberPlan(plan, paidUntil, storeConfirmed = false) {
   if (JSON.stringify(next) === JSON.stringify(cached)) return;
   options = { ...options, planCache: next };
   write("yumetan.v4.options", options).catch(() => {});
+  trackUser();
 }
 const effectiveSet = () =>
   allowedCharacterSet(options.characterSet, displayPlan());
@@ -187,8 +189,38 @@ const purchases = createPurchases({
   plugins,
   config: window.YUMETAN_CONFIG,
 });
+// GA4 (docs/analytics/GA4_SETUP.md): the measurement ID comes from config.js
+// on the web and from the mobile build (GA4_MEASUREMENT_ID). Without one,
+// every call below is a no-op.
+const analytics = createAnalytics({
+  measurementId: window.YUMETAN_CONFIG?.ga4MeasurementId || "",
+  platform: native ? cap.getPlatform() : "web",
+  appVersion: APP_VERSION,
+  read,
+  write,
+  debug:
+    Boolean(window.YUMETAN_CONFIG?.ga4Debug) ||
+    /[?&]ga_debug=1/.test(location.search),
+});
+const track = (name, params) => analytics.event(name, params);
+// What GA4 knows about the person: the Firebase UID as user_id while signed
+// in, and coarse properties. Never the nickname, the e-mail or any text.
+function trackUser() {
+  const type = state.profile?.typeAnswers ? currentType() : null;
+  analytics.setUser(signedIn() ? cloud.uid() : null, {
+    plan: displayPlan(),
+    dream_type: type?.id || "none",
+    dream_level: dreamLevel(state.records).level,
+    language: language(),
+    character_set: effectiveSet(),
+    login_provider: signedIn()
+      ? (cloud.providers?.()[0] || "unknown").replace(/\.com$/, "")
+      : "guest",
+  });
+}
 const social = createCommunity({
   api,
+  track,
   legalUrl: (kind) => legalLink(kind),
   purchases,
   uid: () => cloud?.uid() || null,
@@ -572,6 +604,8 @@ const PARENTS = {
   onboard: "settings",
 };
 let navStack = [];
+// Why the plans page opened (a quota message, or the page it came from).
+let plansSource = null;
 function pageTitle(p) {
   return {
     "dream-days": t("dreamDays"),
@@ -662,6 +696,13 @@ async function navigate(next, force = false, back = false) {
   else history.pushState(null, "", `#${page}`);
   render();
   animatePage(from);
+  analytics.page(page);
+  if (page === "quiz" && from !== "quiz")
+    track("quiz_start", { retake: Boolean(state.profile?.typeAnswers) });
+  if (page === "plans") {
+    track("view_plans", { source: plansSource || from });
+    plansSource = null;
+  }
   window.scrollTo(0, 0);
   $("#app").focus({ preventScroll: true });
   if (page === "help" && helpSection) {
@@ -731,7 +772,9 @@ function introductionLoginView() {
 async function moveIntroduction(offset) {
   if (page !== "intro") return;
   const step = Math.max(0, Math.min(3, options.introduction?.step || 0));
+  if (step === 0 && offset > 0) track("tutorial_begin");
   if (step === 3 && offset > 0) {
+    track("tutorial_complete");
     await saveIntroduction({ phase: "login", step: 3 });
     await navigate(firstRunPage(), true);
   } else {
@@ -745,6 +788,7 @@ async function moveIntroduction(offset) {
 }
 async function skipIntroduction() {
   if (page !== "intro") return;
+  track("tutorial_skip", { step: options.introduction?.step || 0 });
   await saveIntroduction({ phase: "login", step: 3 });
   await navigate(firstRunPage(), true);
 }
@@ -1139,8 +1183,19 @@ const legalLink = (kind) =>
   );
 function openExternal(url) {
   // Only https pages, or this app's own pages (the legal documents), ever open.
-  if (/^https:\/\//.test(url) || url.startsWith(location.origin + "/"))
+  if (/^https:\/\//.test(url) || url.startsWith(location.origin + "/")) {
+    track("external_link", {
+      link_kind: /\/legal\/terms/.test(url)
+        ? "terms"
+        : /\/legal\/privacy/.test(url)
+          ? "privacy"
+          : url === HELP_LINKS.support
+            ? "support"
+            : "other",
+      screen: page,
+    });
     window.open(url, "_blank", "noopener");
+  }
 }
 // Settings follow the usual mobile order: who you are, what you pay for, how
 // the app looks, reminders, account, and finally the small print.
@@ -1323,6 +1378,8 @@ function bindLanguage() {
           profile: { ...state.profile, language: language() },
         });
       render();
+      track("language_change", { language: language() });
+      trackUser();
       await syncCloud();
     } catch {
       toast(t("storageError"));
@@ -1573,6 +1630,8 @@ function bindForms() {
         await syncCloud();
         settingsFormSaved("#character-form");
         toast(t("saved"));
+        track("character_set_change", { character_set: next.characterSet });
+        trackUser();
       });
     };
   if ($("#account-form")) {
@@ -1596,6 +1655,9 @@ async function run(fn) {
     await fn();
   } catch (error) {
     toast(error.userMessage || error.message || t("storageError"));
+    // Only coded failures (API answers, auth codes); never the message text.
+    if (error?.code)
+      track("app_error", { error_code: String(error.code), screen: page });
   } finally {
     processing = false;
     document.querySelectorAll("[data-working]").forEach((el) => {
@@ -1676,6 +1738,12 @@ async function diagnose() {
         stopLoading();
       }
     }
+    track("dream_read", {
+      engine: draft.analysis?.engine || "local",
+      error_code: draft.aiError || "",
+      text_length: lengthBucket(draft.text),
+      themes: draft.typeTags?.length || 0,
+    });
   }
   // Going back returns the same text to the journal page.
   quotaDraft = { page: "record", draft, dirty: wasDirty };
@@ -1717,6 +1785,7 @@ function recentDiaries(date) {
 // text comes back when the user returns to the journal.
 let quotaDraft = null;
 async function sendToPlans(messageKey) {
+  plansSource = messageKey;
   quotaDraft = { page, draft };
   dirty = false;
   await navigate("plans", true);
@@ -1741,7 +1810,8 @@ async function saveDream() {
   }
   const beforeType = currentType()?.id,
     before = dreamLevel(state.records).level,
-    wasShared = Boolean(state.records.find((r) => r.id === draft.id)?.shared);
+    existing = state.records.find((r) => r.id === draft.id),
+    wasShared = Boolean(existing?.shared);
   const saved = normalizeRecord({
     ...draft,
     updatedAt: new Date().toISOString(),
@@ -1765,6 +1835,21 @@ async function saveDream() {
           : "saved",
     ),
   );
+  track("dream_save", {
+    engine: saved.analysis?.engine || "local",
+    text_length: lengthBucket(saved.text),
+    has_sleep: Boolean(saved.sleep),
+    has_photo: Boolean(saved.photo),
+    themes: saved.typeTags?.length || 0,
+    shared: Boolean(saved.shared),
+    is_new: !existing,
+    level_up: after > before,
+    type_changed: beforeType !== currentType()?.id,
+    dreams_total: state.records.filter((r) => r.kind === "dream").length,
+  });
+  if (after > before)
+    track("level_up", { level: after, character: currentType()?.id });
+  trackUser();
   await syncCloud();
   await shareSaved(saved, wasShared);
 }
@@ -1777,7 +1862,12 @@ async function shareSaved(record, wasShared) {
   try {
     if (record.shared) await social.publishRecord(record);
     else if (wasShared) await social.makeRecordPrivate(record.id);
+    if (record.shared || wasShared)
+      track(record.shared ? "dream_share" : "dream_unshare", {
+        source: "record",
+      });
   } catch (error) {
+    track("dream_share_failed", { error_code: error?.code || "unknown" });
     if (record.shared) {
       await commit({
         ...state,
@@ -1834,6 +1924,7 @@ async function saveDiary() {
   draft = diaryDraft(saved.date);
   render();
   toast(t("saved"));
+  track("diary_save", { text_length: lengthBucket(saved.text), is_new: !old });
   await syncCloud();
 }
 // Delete the saved dream or diary currently open on its page, then stay on that date.
@@ -1853,6 +1944,7 @@ async function removeRecord(record) {
   if (record.kind === "dream") {
     await social.makeRecordPrivate(record.id);
   }
+  track("record_delete", { kind: record.kind });
   await commit({
     ...state,
     records: state.records.filter((r) => r.id !== record.id),
@@ -1876,6 +1968,8 @@ async function finishQuiz() {
   pendingResult = currentType();
   dirty = false;
   processing = false;
+  track("quiz_complete", { dream_type: pendingResult?.id || "none" });
+  trackUser();
   navigate("result", true);
   await syncCloud();
 }
@@ -1897,6 +1991,9 @@ async function api(path, body) {
       cloud?.state.enabled && !cloud.isAnonymous()
         ? await cloud.idToken?.()
         : null;
+    // The GA4 client id lets the server's own analytics events (renewals,
+    // cancellations) count as the same person as the app's.
+    const client = analytics.header();
     const response = await fetch(base + path, {
       method: body ? "POST" : "GET",
       headers: {
@@ -1904,6 +2001,12 @@ async function api(path, body) {
         "X-Yumetan-User": await userId(),
         "X-Yumetan-Code": options.code,
         ...(token ? { Authorization: "Bearer " + token } : {}),
+        ...(client
+          ? {
+              "X-Yumetan-Analytics": client,
+              "X-Yumetan-Platform": native ? cap.getPlatform() : "web",
+            }
+          : {}),
       },
       body: body
         ? JSON.stringify({ ...body, language: language() })
@@ -1976,6 +2079,7 @@ async function recognize() {
   dirty = true;
   render();
   toast(t("ocrReview"));
+  track("photo_ocr", { text_length: lengthBucket(data.text) });
 }
 function syncCloud() {
   if (syncTask) {
@@ -2091,6 +2195,7 @@ async function account(mode, provider = null) {
     emailMode = "registered";
     render();
     toast(t("signUpDone"));
+    track("sign_up", { method: "password" });
     return;
   }
   // Start popup OAuth directly in the click event, before awaiting storage/network.
@@ -2177,7 +2282,13 @@ async function account(mode, provider = null) {
     emailMode = null;
     emailDraft = { email: "", password: "" };
     if (syncTask) await syncTask;
+    if (mode === "signout") {
+      track("logout");
+      analytics.setUser(null);
+    }
     await switchAccount();
+    if (mode !== "signout")
+      trackLogin(mode === "signin" ? "password" : provider);
     if (mode === "signout") {
       // Back to the first sign-in screen; the tour is not shown again.
       await saveIntroduction({ phase: "done", step: 3 });
@@ -2225,6 +2336,12 @@ async function account(mode, provider = null) {
     authChanging = false;
     watchAccount();
   }
+}
+// A completed sign-in. Landing on registration (no profile in the account
+// yet) is what the app can tell apart as a sign-up.
+function trackLogin(method) {
+  track(state.profile ? "login" : "sign_up", { method: method || "unknown" });
+  trackUser();
 }
 async function offerGuestImport(sourceKey, guest) {
   if (
@@ -2290,6 +2407,8 @@ async function deleteAccount() {
     processing = false;
     navigate(firstRunPage(), true);
     toast(t("deleteAccountDone"));
+    track("account_delete", { deleted_by: serverError ? "device" : "server" });
+    analytics.setUser(null);
   } catch (error) {
     console.error("Account deletion failed", {
       code: error?.code,
@@ -2365,6 +2484,7 @@ async function resumeNativeLogin() {
     const guest = pending.guest ? await read(pending.sourceKey) : null;
     switched = true;
     await switchAccount();
+    trackLogin(pending.provider || cloud.providers?.()[0]);
     await completeIntroductionLogin(pending.sourceKey, guest);
     navigate(
       state.profile?.typeAnswers ? "home" : state.profile ? "quiz" : "onboard",
@@ -2394,6 +2514,7 @@ async function startVoice() {
     stopVoice();
     return;
   }
+  track("voice_input", { screen: page });
   const append = (text) => {
     const el = $("#dream-text");
     if (el) {
@@ -2740,6 +2861,15 @@ async function boot() {
       setTimeout(resolve, Math.max(0, WELCOME_MS - performance.now())),
     );
     render();
+    // Analytics starts once the first screen is on; events queue until then.
+    analytics.init();
+    analytics.page(page);
+    trackUser();
+    track("app_open", {
+      first_run: !state.profile,
+      signed_in: signedIn(),
+      screen: page,
+    });
     if (page === "plans") social.enter("plans");
     if (cloud)
       syncCloud().then(() => {
@@ -2773,6 +2903,7 @@ await boot();
 if (native) {
   plugins.App?.addListener("appStateChange", ({ isActive }) => {
     if (!isActive) return;
+    track("app_foreground", { screen: page });
     resumeNativeLogin();
     refreshPlanOnReturn();
   });

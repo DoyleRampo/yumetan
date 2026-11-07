@@ -14,6 +14,7 @@ import { createBilling } from "./server/billing.js";
 import { createAI } from "./server/openai.js";
 import { registerCommunity } from "./server/community.js";
 import { createAccountService } from "./server/account.js";
+import { createServerAnalytics } from "./server/analytics.js";
 try {
   process.loadEnvFile();
 } catch {}
@@ -24,7 +25,8 @@ const knowledge = await fs.readFile(
 );
 const services = firebaseServices() || {};
 const access = createAccess(services),
-  billing = createBilling({ access }),
+  analytics = createServerAnalytics({ store: services.store }),
+  billing = createBilling({ access, analytics }),
   ai = createAI({ access }),
   accounts = createAccountService(services);
 const app = express();
@@ -34,7 +36,7 @@ app.use("/api", (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Yumetan-User, X-Yumetan-Code, X-Yumetan-Key",
+    "Content-Type, Authorization, X-Yumetan-User, X-Yumetan-Code, X-Yumetan-Key, X-Yumetan-Analytics, X-Yumetan-Platform",
   );
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   if (req.method === "OPTIONS") return res.sendStatus(204);
@@ -70,6 +72,12 @@ app.use(
     // Not a plan allowance: its own code, so no feature reports it as one.
     if (count > 90) throw fault(429, "tooManyRequests");
     req.verifiedUser = user;
+    // The app's GA4 client id, so server-side analytics events join its user.
+    const client = req.get("X-Yumetan-Analytics");
+    if (client)
+      analytics
+        .rememberClient(user.uid, client, req.get("X-Yumetan-Platform") || "")
+        .catch(() => {});
     next();
   }),
 );
@@ -101,6 +109,7 @@ app.get("/api/health", async (req, res) => {
     acceptsUserKey: false,
     billingConfigured: billing.configured,
     communityConfigured: Boolean(services.store && process.env.OPENAI_API_KEY),
+    analyticsConfigured: analytics.configured,
     lineNativeConfigured: lineAuth.configured,
     langs: ["ja", "ko", "zh", "en"],
   });

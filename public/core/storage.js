@@ -38,7 +38,7 @@ export async function remove(key) {
 // leftover journal, profile or quiz progress from this or an earlier account
 // would be offered to the next login and bring back its character. Only device
 // settings (language, connection, introduction progress) survive.
-const DEVICE_KEYS = ["yumetan.v4.options"];
+const DEVICE_KEYS = ["yumetan.v4.options", "yumetan.analytics.client"];
 export async function purgeAccounts() {
   const stored = preferences
     ? (await preferences.keys()).keys

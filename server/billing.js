@@ -121,6 +121,8 @@ export function createBilling({
   access,
   env = process.env,
   fetch = globalThis.fetch,
+  // Server-side GA4 (server/analytics.js); the default sends nothing.
+  analytics = { revenueCat: async () => 0 },
 }) {
   const { store, now } = access;
   const configured = Boolean(
@@ -264,6 +266,9 @@ export function createBilling({
         ),
       ].slice(0, 10);
       for (const uid of ids) await refresh(uid);
+      // Subscription lifecycle to GA4, after the memberships are right; a
+      // failed send is logged there and never fails the webhook.
+      analytics.revenueCat(event, ids).catch(() => {});
       return { synced: ids.length };
     },
   };

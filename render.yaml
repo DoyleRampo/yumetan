@@ -20,3 +20,7 @@ services:
         sync: false
       - key: SUPPORT_URL
         sync: false
+      - key: GA4_MEASUREMENT_ID
+        sync: false
+      - key: GA4_API_SECRET
+        sync: false

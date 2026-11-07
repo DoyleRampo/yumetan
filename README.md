@@ -26,6 +26,14 @@ npm start
 
 **APIキーなしで起動し、端末内のルールで利用できます。** 画面・結果・助言はすべて4言語の静的カタログにあります。本人が書いた夢・日記や過去のAI出力の原文を自動翻訳することはありません。言語を切り替えた場合、異なる言語で生成済みのAI出力に代えて、選択言語のローカル振り返りを表示します。
 
+## v4.6: アクセス分析（GA4）と公開サイトの移行
+
+- **GA4 でユーザーの行動を計測**: LP のクリック・コンバージョン、アプリの画面遷移・保存・診断・プラン閲覧・購入開始・アクティブ状態を Google アナリティクス 4 に送ります。Web / iOS / Android とも同じ gtag.js（`public/core/analytics.js`）で、クライアント ID をアプリが保持し、ログイン中は Firebase UID を `user_id` にします。本文・写真・呼び名・メールアドレスは送りません。測定 ID は `public/config.js` の `ga4MeasurementId`（モバイルは `GA4_MEASUREMENT_ID`）。空なら何も送信しません。
+- **サーバーから契約のライフサイクル**（更新・解約・失効・返金、`purchase` の金額）を RevenueCat Webhook から Measurement Protocol で送信（`server/analytics.js`、環境変数 `GA4_MEASUREMENT_ID` と `GA4_API_SECRET`）。アプリの `X-Yumetan-Analytics` ヘッダーで届いたクライアント ID を `memberships/{uid}.analytics` に保存して同じユーザーにつなげます。
+- **GA4 プロパティの設定は `npm run ga4:setup -- --write`**（GA Admin API。ストリーム・カスタムディメンション・キーイベント・データ保持・MP シークレット・オーディエンスを作成し、測定 ID を設定ファイルに書き込み）。手順・イベント辞書・手動設定の項目は [docs/analytics/GA4_SETUP.md](docs/analytics/GA4_SETUP.md)。
+- **公開サイト（LP・サポート・プライバシー）を `landing/` に取り込み、Firebase Hosting で配信**: `npm run landing:deploy` → `https://yumetan-a31f0.web.app/`（`/support/`・`/privacy/`・`/terms/`）。ChatGPT サイトの URL は廃止し、アプリのサポートリンクも新 URL です。canonical・OGP・JSON-LD・sitemap・robots・404 を備え、独自ドメインは `landing/assets/release-config.mjs` の `SITE_URL` を変えるだけで追従します。
+- プライバシーポリシー（アプリ内・LP）に Google アナリティクスの項目を追加しました。
+
 ## v4.5.3: App Store 審査対応（アカウント削除の拡張・規約ページ・購入画面の表示）
 
 - `POST /api/account/delete` の削除範囲を拡張: 本人の投稿に加えて、**他人の投稿に付けた本人のスタンプ**（投稿側の集計も補正）、**全期間の使用数**、**RevenueCat の購読者情報**（失敗しても続行）を削除し、監査用に UID のハッシュだけを残します。Auth ユーザーが既にいない場合の再実行も成功します。スタンプ文書に `owner` を保存するため、`firestore.indexes.json` に `reactions.owner` のコレクショングループ設定を追加しました（`npx firebase-tools deploy --only firestore:indexes`）。
@@ -177,7 +185,7 @@ Mac 上で同じ手順を手動で行う場合は `IOS_TEAM_ID=<Team ID> npm run
 ## テスト
 
 ```sh
-npm test                   # 分類・睡眠・日付・移行・AI契約の自動テスト
+npm test                   # 分類・睡眠・日付・移行・AI契約・GA4計測の自動テスト
 npm run check              # JavaScript構文
 PORT=3187 npm start         # 別ターミナルで起動
 npm run test:browser        # Chromeがインストールされた環境

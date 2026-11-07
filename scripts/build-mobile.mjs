@@ -64,8 +64,21 @@ if (!googleIosClientId)
   console.warn(
     "GOOGLE_IOS_CLIENT_ID 未設定: iOS の Google ログインはブラウザ経由になります。",
   );
+// GA4 measurement ID (public, G-…): the GA4_MEASUREMENT_ID variable, or the one
+// written into public/config.js (`npm run ga4:setup -- --write`). Without it the
+// app sends nothing to Google Analytics.
+const ga4MeasurementId =
+  String(process.env.GA4_MEASUREMENT_ID || "").trim() ||
+  /ga4MeasurementId:\s*"(G-[A-Z0-9]+)"/.exec(
+    fs.readFileSync(path.join("public", "config.js"), "utf8"),
+  )?.[1] ||
+  "";
+if (!ga4MeasurementId)
+  console.warn(
+    "GA4_MEASUREMENT_ID 未設定: アプリは Google Analytics に何も送信しません（docs/analytics/GA4_SETUP.md）。",
+  );
 fs.writeFileSync(
   path.join("dist", "config.js"),
-  `window.YUMETAN_CONFIG = ${JSON.stringify({ apiBase: apiUrl, revenueCat, lineChannelId, googleIosClientId })};\n`,
+  `window.YUMETAN_CONFIG = ${JSON.stringify({ apiBase: apiUrl, revenueCat, lineChannelId, googleIosClientId, ga4MeasurementId })};\n`,
 );
 console.log(`dist/ を作成しました（接続先: ${apiUrl}）`);

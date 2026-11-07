@@ -166,5 +166,5 @@ App Store Connect は Mac（または iPad）のブラウザで開く。
 
 ## 7. 審査後も続けること
 
-- サポートサイト（`https://yumetan-support.ni23al.chatgpt.site/support/`）に届いた投稿の通報は、Firestore で `communityPosts/{id}` の `hidden` を `true` に、悪質なユーザーは `memberships/{uid}` の `suspended` を `true` にして対応する。
+- サポートサイト（`https://yumetan-a31f0.web.app/support/`。`landing/` を Firebase Hosting で配信。移行前の `yumetan-support.ni23al.chatgpt.site` は廃止）に届いた投稿の通報は、Firestore で `communityPosts/{id}` の `hidden` を `true` に、悪質なユーザーは `memberships/{uid}` の `suspended` を `true` にして対応する。
 - Guideline 1.2（通報・ブロック）で再度指摘された場合は、`main` ブランチにある通報・ブロックの実装を移植する（「通報・ブロックを復活させて」と依頼）。

@@ -1,1 +1,10 @@
-{ "projects": { "default": "yumetan-a31f0" } }
+{
+  "projects": { "default": "yumetan-a31f0" },
+  "targets": {
+    "yumetan-a31f0": {
+      "hosting": {
+        "landing": ["yumetan-a31f0"]
+      }
+    }
+  }
+}

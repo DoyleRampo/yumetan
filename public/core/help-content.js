@@ -1,8 +1,11 @@
 // The in-app guide: how the app is used, what a plan costs, how to cancel it,
 // what happens to the writing, and where to ask for help. Locale order matches
 // the rest of the app: ja, ko, zh, en.
+// The public site (landing/, served by Firebase Hosting; see
+// landing/assets/release-config.mjs for the canonical origin).
+export const SITE_URL = "https://yumetan-a31f0.web.app";
 export const HELP_LINKS = {
-  support: "https://yumetan-support.ni23al.chatgpt.site/support/",
+  support: `${SITE_URL}/support/`,
 };
 // The Terms of Use and Privacy Policy are pages the API server serves from
 // public/legal/, in the app's language (Korean and Chinese readers get English).

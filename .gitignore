@@ -18,3 +18,6 @@ playwright-report/
 # App Store screenshot archives / local capture output
 docs/appstore/screenshots.zip
 appstore-screenshots/
+
+# Landing site build (scripts/build-landing.mjs)
+dist-landing/

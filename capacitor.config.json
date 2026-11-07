@@ -11,6 +11,9 @@
     "allowMixedContent": false
   },
   "plugins": {
+    "CapacitorCookies": {
+      "enabled": true
+    },
     "SplashScreen": {
       "launchShowDuration": 800,
       "backgroundColor": "#0f1222",

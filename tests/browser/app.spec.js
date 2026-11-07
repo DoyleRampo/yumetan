@@ -932,7 +932,7 @@ test("the guide explains the app, plans and cancelling, and links out to support
   for (const label of ["Support page", "Privacy policy"])
     await page.locator(`#help-links button:has-text("${label}")`).click();
   expect(opened).toEqual([
-    "https://yumetan-support.ni23al.chatgpt.site/support/",
+    "https://yumetan-a31f0.web.app/support/",
     new URL("/legal/privacy.html?lang=en", page.url()).href,
   ]);
   // The plans page leads to the cancellation steps.
