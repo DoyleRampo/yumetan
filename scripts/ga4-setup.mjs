@@ -16,6 +16,7 @@
 //   5. event data retention of 14 months;
 //   6. a Measurement Protocol secret on the app stream for the server
 //      (GA4_API_SECRET), printed once;
+//   6b. the link to the Firebase project yumetan-a31f0 (--no-firebase-link skips);
 //   7. audiences for paid members, journalers and people who saw the plans
 //      without buying (--no-audiences skips them);
 //   8. with --write, the two measurement IDs are written into
@@ -187,6 +188,7 @@ export function parseArgs(argv) {
     keepLocale: false,
     audiences: true,
     token: "",
+    firebaseProject: "yumetan-a31f0",
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -196,6 +198,9 @@ export function parseArgs(argv) {
     else if (a === "--dry-run") args.dryRun = true;
     else if (a === "--keep-locale") args.keepLocale = true;
     else if (a === "--no-audiences") args.audiences = false;
+    else if (a === "--no-firebase-link") args.firebaseProject = "";
+    else if (a.startsWith("--firebase-project="))
+      args.firebaseProject = a.slice(19);
     else if (a === "--token") args.token = String(argv[++i] || "");
     else if (a.startsWith("--token=")) args.token = a.slice(8);
     else if (a === "--help" || a === "-h") args.help = true;
@@ -487,6 +492,31 @@ export async function runSetup({
       }
     } catch (e) {
       warning(`Measurement Protocol シークレット: ${e.message}`);
+    }
+  }
+  // 6b. The Firebase project link (the console's "Firebase のリンク").
+  if (args.firebaseProject) {
+    try {
+      const links = await listAll(`${p}/firebaseLinks`, "firebaseLinks");
+      const wanted = `projects/${args.firebaseProject}`;
+      if (
+        links.some(
+          (l) =>
+            l.project === wanted ||
+            l.project?.endsWith(`/${args.firebaseProject}`),
+        )
+      )
+        kept(`Firebase 連携 ${args.firebaseProject}`);
+      else if (links.length)
+        warning(
+          `Firebase 連携: 既に ${links.map((l) => l.project).join(", ")} と連携済み（1 プロパティ 1 プロジェクト）`,
+        );
+      else {
+        await call("POST", `${p}/firebaseLinks`, { project: wanted });
+        created(`Firebase 連携 ${args.firebaseProject}`);
+      }
+    } catch (e) {
+      warning(`Firebase 連携: ${e.message}`);
     }
   }
   // 7. Audiences (v1alpha).

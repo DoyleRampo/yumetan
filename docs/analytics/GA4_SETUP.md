@@ -49,8 +49,9 @@ npm run ga4:setup -- --write
 4. キーイベント（コンバージョン）: `sign_up` `quiz_complete` `dream_save` `dream_read` `diary_save` `dream_share` `begin_checkout` `purchase_confirmed` `app_store_click` `support_contact_click` `demo_submit`（`purchase` は既定でキーイベント）
 5. データ保持 14 か月
 6. サーバー用の Measurement Protocol シークレット `yumetan-server`（値は作成時に一度だけ表示。`GA4_API_SECRET` に設定）
-7. オーディエンス「有料会員」「夢を記録した人」「プラン画面を見て未購入」（`--no-audiences` で省略）
-8. `--write` で測定 ID を `public/config.js` と `landing/assets/release-config.mjs` に書き込み
+7. Firebase プロジェクト `yumetan-a31f0` とのリンク（`--no-firebase-link` で省略。プロパティは 1 プロジェクトとしかリンクできません）
+8. オーディエンス「有料会員」「夢を記録した人」「プラン画面を見て未購入」（`--no-audiences` で省略）
+9. `--write` で測定 ID を `public/config.js` と `landing/assets/release-config.mjs` に書き込み
 
 Google アカウントにはプロパティの **編集者** 権限が必要です。`gcloud` が使えない場合は `--token <アクセストークン>` か環境変数 `GA4_ACCESS_TOKEN` で渡せます（[OAuth Playground](https://developers.google.com/oauthplayground/) で `https://www.googleapis.com/auth/analytics.edit` を選んで取得）。
 
@@ -58,7 +59,7 @@ Google アカウントにはプロパティの **編集者** 権限が必要で�
 
 GA4 管理画面（左下の歯車）で:
 
-1. **Firebase との連携**: 管理 → プロダクトのリンク → Firebase のリンク → `yumetan-a31f0` を選択。Firebase コンソール側でも「プロジェクトの設定 → 統合 → Google アナリティクス」で同じプロパティを選びます。これで Firebase コンソールから同じレポートが見られ、将来ネイティブ SDK を足すときも同じプロパティに入ります。
+1. **Firebase との連携の確認**: スクリプトが API でリンクを作ります。Firebase コンソールの「プロジェクトの設定 → 統合 → Google アナリティクス」に同じプロパティが表示されていれば完了です（表示されない場合はそこから `yumetan` プロパティを選択）。
 2. **BigQuery エクスポート**（任意・推奨）: 管理 → プロダクトのリンク → BigQuery → プロジェクト `yumetan-a31f0`、データロケーション `asia-northeast1`、毎日。生データで自由に分析できます。
 3. **内部トラフィックの除外**: 管理 → データストリーム → 各ストリーム → タグ設定を行う → 内部トラフィックの定義 → 自分の IP を登録 → データフィルタ「内部トラフィック」を「有効」に。
 4. **参照元の除外**: 同じ「タグ設定を行う」→ 除外する参照のリスト → `apps.apple.com`、`accounts.google.com`、`appleid.apple.com`、`access.line.me`、`yumetan-a31f0.firebaseapp.com`（ログインから戻ったときに新しいセッションにしないため）。
@@ -98,7 +99,7 @@ GA4 管理画面（左下の歯車）で:
 npm run landing:deploy
 ```
 
-（`firebase.json` の `hosting.landing` が `scripts/build-landing.mjs` を実行して `dist-landing/` を作り、`public/legal/` と `robots.txt`・`sitemap.xml` を含めて配信します。初回は `npx firebase-tools login` が必要です。）
+（`firebase.json` の `hosting.landing` が `scripts/build-landing.mjs` を実行して `dist-landing/` を作り、`public/legal/` と `robots.txt`・`sitemap.xml` を含めて配信します。初回は `npx firebase-tools login` が必要です。CLI にログインできない環境では、`FIREBASE_ACCESS_TOKEN=<cloud-platform スコープのアクセストークン> npm run landing:deploy:api` が Hosting REST API で同じ内容を公開します。）
 
 他サービスの LP にならった構成: 1 つのブランドドメイン直下にトップ、`/support/`、`/privacy/`、`/terms/`。`canonical`・OGP・Twitter カード・JSON-LD（`MobileApplication`）・`sitemap.xml`・`robots.txt`・404 ページ・favicon / apple-touch-icon を付けています。
 

@@ -19,6 +19,7 @@
     "characters:build": "node scripts/build-characters.mjs",
     "landing:build": "node scripts/build-landing.mjs",
     "landing:deploy": "npm run landing:build && npx firebase-tools deploy --only hosting:landing",
+    "landing:deploy:api": "node scripts/build-landing.mjs && node scripts/deploy-landing.mjs",
     "ga4:setup": "node scripts/ga4-setup.mjs"
   },
   "engines": {

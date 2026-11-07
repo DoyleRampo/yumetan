@@ -32,6 +32,7 @@ function fakeApi(initial = {}) {
     },
     secrets: {},
     audiences: [],
+    firebaseLinks: [],
     ...initial,
   };
   const calls = [];
@@ -80,6 +81,11 @@ function fakeApi(initial = {}) {
       };
       state.secrets[key].push(secret);
       return json(secret);
+    }
+    if (rest === "firebaseLinks") {
+      if (method === "GET") return json({ firebaseLinks: state.firebaseLinks });
+      state.firebaseLinks.push({ ...body, name: `${path}/${++n}` });
+      return json(state.firebaseLinks.at(-1));
     }
     for (const [key, list] of [
       ["customDimensions", state.customDimensions],
@@ -206,6 +212,10 @@ test("a fresh property gets streams, dimensions, metrics, key events, retention,
   assert.equal(api.state.secrets[appStream][0].displayName, "yumetan-server");
   assert.equal(result.apiSecret, api.state.secrets[appStream][0].secretValue);
   assert.equal(api.state.audiences.length, AUDIENCES.length);
+  assert.deepEqual(
+    api.state.firebaseLinks.map((l) => l.project),
+    ["projects/yumetan-a31f0"],
+  );
   assert.ok(
     api.calls
       .filter((c) => c.path.endsWith("/audiences"))
