@@ -10,6 +10,7 @@ import {
 import { wrapJapaneseLabels } from "./core/ui-text.js";
 import { TYPE_FEATURES } from "./core/type-features.js";
 import { TYPE_LORE } from "./core/type-lore.js";
+import { RARITY_RANKING, rarityOf, rarityTier } from "./core/rarity.js";
 import {
   QUESTIONS,
   FREQUENCY_ICONS,
@@ -328,6 +329,7 @@ function pageTip(p = page) {
     reading: ["readingNote"],
     catalog: ["catalogHint"],
     "type-detail": ["typeNote"],
+    rarity: ["rarityNote"],
     result: [
       pendingResult?.tied || currentType()?.tied
         ? "tie"
@@ -819,6 +821,7 @@ function render() {
     result: resultView,
     catalog: catalogView,
     "type-detail": typeDetailView,
+    rarity: rarityView,
     record: recordView,
     diary: diaryView,
     "dream-days": () => journalView("dream"),
@@ -887,6 +890,7 @@ const PARENTS = {
   "diary-days": "diary",
   catalog: "home",
   "type-detail": "catalog",
+  rarity: "catalog",
   detail: "record",
   reading: "record",
   plans: "settings",
@@ -909,6 +913,7 @@ function pageTitle(p) {
     community: ct("community"),
     settings: t("settings"),
     catalog: t("catalog"),
+    rarity: t("rarity"),
     "type-detail": t("catalog"),
     detail: t("detail"),
     reading: t("readingTitle"),
@@ -1147,11 +1152,11 @@ async function finishPlanOffer() {
 }
 // The first login of this device: a new account takes over the profile and the
 // quiz answers entered as a guest, and sees the paid plans next. An existing
-// account takes the registration and the quiz just completed here too: the
-// person has just seen that result, and keeping the account's older answers
-// made every new quiz land on the same old character. The account keeps what
-// registration does not ask (such as the character collection). Guest
-// journals, if any, go through the usual import consent.
+// account keeps its own profile (nickname, age group, language, collection)
+// but takes the quiz just completed here: the person has just seen that
+// result, and keeping the account's older answers made every new quiz land on
+// the same old character. Guest journals, if any, go through the usual import
+// consent.
 async function completeIntroductionLogin(sourceKey, guest) {
   if (options.introduction?.phase !== "login") {
     await offerGuestImport(sourceKey, guest);
@@ -1162,9 +1167,6 @@ async function completeIntroductionLogin(sourceKey, guest) {
     !carried && state.profile && guest?.profile?.typeAnswers
       ? {
           ...state.profile,
-          nickname: guest.profile.nickname || state.profile.nickname,
-          ageGroup: guest.profile.ageGroup || state.profile.ageGroup,
-          language: guest.profile.language || state.profile.language,
           typeAnswers: guest.profile.typeAnswers,
           typeVersion: guest.profile.typeVersion,
         }
@@ -1392,7 +1394,7 @@ function catalogView() {
       return `<li class="${type.id === active ? "active" : ""}" style="--accent:${g.color}"><button type="button" class="catalog-character" data-type-detail="${type.id}"><span class="catalog-art">${avatar(type, null, { inline: true })}</span><span class="catalog-names"><strong class="character-name">${name(characterById(type.id))}</strong><small>${name(type)}</small>${catalogGroup === "all" ? "" : `<em>${localized(TYPE_FEATURES[type.id], language())}</em>`}</span>${type.id === active ? `<span class="catalog-you" aria-hidden="true">★</span>` : ""}</button></li>`;
     })
     .join("")}</ul>
-  <div class="page-actions"><span class="catalog-set">${localized(characterSetById(effectiveSet()).names, language())}</span><button type="button" class="btn ghost small" data-action="retake">${ICONS.retake}<span>${esc(t("retake"))}</span></button></div></section>`;
+  <div class="page-actions"><button type="button" class="btn ghost small" data-go="rarity">${ICONS.star}<span>${esc(t("rarity"))}</span></button><button type="button" class="btn ghost small" data-action="retake">${ICONS.retake}<span>${esc(t("retake"))}</span></button></div></section>`;
 }
 // Tabs switch in place (no re-render), so long text never pushes the page.
 function tabs(id, items) {
@@ -1409,11 +1411,34 @@ function tabs(id, items) {
     )
     .join("")}</div>`;
 }
+// How rare each type is: an estimate (see core/rarity.js), shown as a ranking
+// from the most common to the rarest, with the member's own type marked.
+const rarityStars = (tier) =>
+  `<span class="rarity-stars" aria-hidden="true">${"★".repeat(tier)}${"☆".repeat(5 - tier)}</span>`;
+function rarityChip(id) {
+  const r = rarityOf(id),
+    tier = rarityTier(r.percent);
+  return `<span class="rarity-chip tier-${tier}">${t("rarityShare").replace("{p}", r.percent.toFixed(1))} · ${esc(t(`rarityTier${tier}`))}</span>`;
+}
+function rarityView() {
+  const mine = currentType()?.id,
+    top = RARITY_RANKING[0].percent;
+  const you = mine ? rarityOf(mine) : null;
+  return `<section class="rarity-page"><h1 class="sr-only">${t("rarity")}</h1>${
+    you
+      ? `<div class="rarity-you tier-${rarityTier(you.percent)}" style="--accent:${group(typeById(mine)).color}">${avatar(typeById(mine), null, { inline: true, mini: true })}<p><span>${esc(t("rarityYou").replace("{name}", name(characterById(mine))))}</span><strong>${you.percent.toFixed(1)}<small>%</small></strong><em>${t("rarityRank").replace("{r}", you.rank)} · ${esc(t(`rarityTier${rarityTier(you.percent)}`))}</em></p></div>`
+      : ""
+  }<ol class="rarity-list">${RARITY_RANKING.map((r) => {
+    const type = typeById(r.id),
+      tier = rarityTier(r.percent);
+    return `<li class="${r.id === mine ? "mine" : ""}" style="--accent:${group(type).color}"><button type="button" data-type-detail="${r.id}" aria-label="${r.rank}. ${esc(name(characterById(r.id)))} ${r.percent.toFixed(1)}%"><span class="rarity-rank">${r.rank}</span>${avatar(type, null, { inline: true, mini: true })}<span class="rarity-name"><strong>${name(characterById(r.id))}</strong><small>${name(type)}</small></span><span class="rarity-bar" aria-hidden="true"><i style="width:${((r.percent / top) * 100).toFixed(1)}%"></i></span><span class="rarity-value"><b>${r.percent.toFixed(1)}%</b>${rarityStars(tier)}</span></button></li>`;
+  }).join("")}</ol><p class="rarity-foot">${t("rarityEstimate")}</p></section>`;
+}
 function typeDetailView() {
   const type =
     typeById(selectedType) || typeById(currentType()?.id) || TYPES[0];
   const character = characterById(type.id);
-  return `<section class="type-detail" style="--accent:${group(type).color}"><div class="type-hero">${avatar(type)}<div class="type-heading"><span class="tag-label">${name(group(type))}</span><h1 class="character-name">${name(character)}</h1><p class="type-name">${name(type)}</p><p class="type-signature">${typeSignature(type)}</p></div></div>
+  return `<section class="type-detail" style="--accent:${group(type).color}"><div class="type-hero">${avatar(type)}<div class="type-heading"><span class="type-tags"><span class="tag-label">${name(group(type))}</span>${rarityChip(type.id)}</span><h1 class="character-name">${name(character)}</h1><p class="type-name">${name(type)}</p><p class="type-signature">${typeSignature(type)}</p></div></div>
   ${tabs("type", [
     [
       "story",

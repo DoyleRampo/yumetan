@@ -400,11 +400,12 @@ test("signing in to an existing account keeps the quiz just taken", async ({
   await expect(page.locator(".character-row .character-name")).toHaveText(
     result,
   );
-  await expect(page.locator(".home-greeting")).toHaveText("ゆめ");
+  // The account keeps its own name; only the quiz answers are new.
+  await expect(page.locator(".home-greeting")).toHaveText("まえの名前");
   const saved = await page.evaluate(
     () => JSON.parse(localStorage.getItem("yumetan.v4.member")).profile,
   );
   expect(saved.typeAnswers).not.toEqual(bound);
-  // The account's own preferences that the quiz does not ask about stay.
+  expect(saved.nickname).toBe("まえの名前");
   expect(saved.characterSet).toBe("animal");
 });

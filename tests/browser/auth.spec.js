@@ -143,8 +143,8 @@ test("login restores account on a new device; logout isolates data and LINE choo
     [second, "apple"],
   ]) {
     await page.goto("/");
-    // The guest's registration and quiz on this device are dropped: the
-    // account already has its own, and goes straight home without the plans.
+    // The account keeps its own registration (only the quiz just taken on
+    // this device replaces its answers) and goes straight home without the plans.
     await reachLogin(page);
     await page.locator(`[data-auth-provider=${provider}]`).click();
     await expect(page.locator("#app")).toHaveAttribute("data-page", "home");

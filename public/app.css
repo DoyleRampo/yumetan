@@ -2208,6 +2208,232 @@ body.keyboard .profile-page {
   font-weight: 700;
 }
 
+/* ───────────── Rarity ranking ───────────── */
+.rarity-page {
+  gap: 10px !important;
+}
+.rarity-you {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background:
+    radial-gradient(120% 120% at 0% 0%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 60%),
+    var(--surface);
+}
+.rarity-you .avatar {
+  flex: none;
+  width: 56px;
+}
+.rarity-you p {
+  display: grid;
+  line-height: 1.3;
+}
+.rarity-you span {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.rarity-you strong {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--gold);
+}
+.rarity-you small {
+  font-size: 16px;
+  margin-left: 2px;
+}
+.rarity-you em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.rarity-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: repeat(16, minmax(30px, 1fr));
+  gap: 3px;
+  overflow-y: auto;
+  counter-reset: none;
+}
+.rarity-list button {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 22px 30px minmax(0, 1fr) minmax(40px, 0.9fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 10px 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: left;
+}
+.rarity-list .mine button {
+  border-color: var(--gold);
+  background: #f3c96918;
+}
+.rarity-rank {
+  font-weight: 800;
+  font-size: 13px;
+  text-align: center;
+  color: var(--muted);
+}
+.rarity-list li:nth-child(-n + 3) .rarity-rank {
+  color: var(--ink);
+}
+.rarity-list .avatar {
+  width: 30px;
+}
+.rarity-list .character-art {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.rarity-name {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.rarity-name strong {
+  font-size: 14px;
+}
+.rarity-name small {
+  font-size: 10.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rarity-bar {
+  height: 6px;
+  border-radius: 9px;
+  background: rgb(255 255 255 / 0.08);
+  overflow: hidden;
+}
+.rarity-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.rarity-value {
+  display: grid;
+  justify-items: end;
+  line-height: 1.15;
+}
+.rarity-value b {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.rarity-stars {
+  font-size: 8.5px;
+  letter-spacing: 0.5px;
+  color: var(--gold);
+}
+.rarity-foot {
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+.type-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rarity-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #f3c96920;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 700;
+}
+.rarity-chip.tier-1,
+.rarity-chip.tier-2 {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--ink-2);
+}
+@media (max-height: 700px) {
+  .rarity-name small,
+  .rarity-stars {
+    display: none;
+  }
+  .rarity-list {
+    grid-template-rows: repeat(16, minmax(22px, 1fr));
+    gap: 2px;
+  }
+  .rarity-list button {
+    grid-template-columns: 20px 22px minmax(0, 1fr) minmax(36px, 0.9fr) auto;
+    gap: 6px;
+    padding-block: 1px;
+  }
+  .rarity-list .avatar {
+    width: 22px;
+  }
+  .rarity-you {
+    padding: 6px 12px;
+  }
+  .rarity-you .avatar {
+    width: 40px;
+  }
+  .rarity-you strong {
+    font-size: 22px;
+  }
+}
+/* Very short screens: two columns of eight, without the bars. */
+@media (max-height: 600px) {
+  .rarity-list {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(8, minmax(26px, 1fr));
+    grid-auto-flow: column;
+    column-gap: 6px;
+  }
+  .rarity-list button {
+    grid-template-columns: 16px 22px minmax(0, 1fr) auto;
+    padding: 2px 6px 2px 2px;
+  }
+  .rarity-list .avatar {
+    width: 22px;
+  }
+  .rarity-bar {
+    display: none;
+  }
+  .rarity-name strong {
+    font-size: 12.5px;
+  }
+  .rarity-value b {
+    font-size: 12px;
+  }
+}
+@media (max-height: 500px) and (min-width: 560px) {
+  .rarity-list {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(8, minmax(24px, 1fr));
+    grid-auto-flow: column;
+    column-gap: 10px;
+  }
+  .rarity-you {
+    display: none;
+  }
+}
+@media (min-width: 720px) and (min-height: 600px) {
+  .rarity-list {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(8, minmax(44px, 1fr));
+    grid-auto-flow: column;
+    column-gap: 12px;
+  }
+}
+
 /* ───────────── Type detail ───────────── */
 .type-hero {
   flex: 0 1 auto;

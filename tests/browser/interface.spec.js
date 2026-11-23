@@ -376,3 +376,34 @@ test("tips open once per screen, close with × and on their own", async ({
   await page.waitForTimeout(1000);
   await expect(tip).not.toHaveClass(/visible/);
 });
+test("the rarity ranking lists all 16 with one-decimal percentages, marks your type and fits the screen", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await ready(page);
+  await page.locator("[data-action=catalog]").click();
+  await page.locator("[data-go=rarity]").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "rarity");
+  const rows = page.locator(".rarity-list li");
+  await expect(rows).toHaveCount(16);
+  const values = await page.locator(".rarity-value b").allTextContents();
+  for (const v of values) expect(v).toMatch(/^\d{1,2}\.\d%$/);
+  const numbers = values.map((v) => parseFloat(v));
+  expect(numbers).toEqual([...numbers].sort((a, b) => b - a));
+  expect(Math.round(numbers.reduce((a, b) => a + b, 0) * 10)).toBe(1000);
+  // This profile is Kiro (the challenger): marked in the list and summed up on top.
+  await expect(page.locator(".rarity-list .mine")).toContainText("キロ");
+  await expect(page.locator(".rarity-you")).toContainText("3.4");
+  await expect(page.locator(".rarity-you")).toContainText("16タイプ中15位");
+  expect(
+    await page.evaluate(() => {
+      const list = document.querySelector(".rarity-list");
+      return list.scrollHeight <= list.clientHeight + 1;
+    }),
+  ).toBe(true);
+  await expect(rows.last()).toBeInViewport({ ratio: 1 });
+  // Each row opens the type, which shows its share of the world too.
+  await page.locator(".rarity-list [data-type-detail=lucid]").click();
+  await expect(page.locator(".rarity-chip")).toContainText("2.6%");
+  await expect(page.locator(".rarity-chip")).toContainText("超レア");
+});

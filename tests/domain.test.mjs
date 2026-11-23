@@ -649,3 +649,18 @@ test("every one of the 16 characters has answers that choose it, by a clear marg
   for (const [id, n] of Object.entries(counts))
     assert.ok(n / 4000 < 0.12, `${id} ${n}`);
 });
+test("the rarity estimates cover the 16 types once, add up to 100.0 and rank from common to rare", async () => {
+  const { RARITY, RARITY_RANKING, rarityTier } =
+    await import("../public/core/rarity.js");
+  assert.deepEqual(Object.keys(RARITY).sort(), TYPES.map((t) => t.id).sort());
+  const total = Object.values(RARITY).reduce((sum, p) => sum + p * 10, 0);
+  assert.equal(Math.round(total), 1000);
+  for (const p of Object.values(RARITY))
+    assert.equal(Math.round(p * 10) / 10, p);
+  RARITY_RANKING.forEach((r, i) => {
+    assert.equal(r.rank, i + 1);
+    if (i) assert.ok(RARITY_RANKING[i - 1].percent >= r.percent);
+  });
+  assert.equal(rarityTier(RARITY_RANKING[0].percent), 1);
+  assert.equal(rarityTier(RARITY_RANKING.at(-1).percent), 5);
+});
