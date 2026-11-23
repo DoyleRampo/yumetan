@@ -304,25 +304,25 @@ export function createCommunity({
     const { free, starter, standard } = PLANS,
       paid = [starter, standard];
     const freeLink = `<div class="offer-free-row"><button type="button" class="link-button offer-free" data-social="offer-free">${t("offerFree")}</button>${info(t("offerFreeNote"), t("offerFree"))}</div>`;
+    // Choosing: both plans side by side, each short enough that its purchase
+    // button is on screen without scrolling. The full allowances are on the
+    // plan details page; here only the three that matter most.
     if (offerStep === "choose")
-      return `<section class="plan-offer" data-offer-step="choose"><button type="button" class="back-link inline-back" data-social="offer-back">‹ ${t("offerBack")}</button><div class="plans-top"><h1>${t("offerChooseTitle")}</h1>${cyclePicker()}</div>${testStoreNote()}${planState()}<div class="offer-plans">${paid
+      return `<section class="plan-offer" data-offer-step="choose"><div class="offer-top"><button type="button" class="back-link inline-back" data-social="offer-back">‹ ${t("offerBack")}</button>${cyclePicker()}</div><h1>${t("offerChooseTitle")}</h1>${testStoreNote()}${planState()}<div class="offer-plans">${paid
         .map(
           (p) =>
-            `<section class="plan-card offer-plan${p.id === "starter" ? " recommended" : ""}" data-offer-plan="${p.id}">${p.id === "starter" ? `<span class="ribbon">${t("recommended")}</span>` : ""}<h2>${planName(p)}</h2><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><dl>${planFields
-              .filter(([, key]) =>
-                [
-                  "dreams",
-                  "diary",
-                  "reflections",
-                  "handwriting",
-                  "reads",
-                ].includes(key),
-              )
+            `<section class="plan-card offer-plan${p.id === "starter" ? " recommended" : ""}" data-offer-plan="${p.id}"><div class="offer-plan-head"><h2>${planName(p)}</h2>${p.id === "starter" ? `<span class="ribbon">${t("recommended")}</span>` : ""}</div><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><ul class="offer-limits">${[
+              ["dreamShort", "dreams"],
+              ["aiShort", "reflections"],
+              ["readShort", "reads"],
+            ]
               .map(
                 ([label, key]) =>
-                  `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`,
+                  `<li><span>${t(label)}</span><b>${p[key]}</b></li>`,
               )
-              .join("")}</dl>${purchaseSummary(p)}${cta(p)}</section>`,
+              .join(
+                "",
+              )}</ul><div class="offer-buy"><div class="purchase-summary"><strong>${planName(p)} · ${t(cycle)}</strong><span>${t(cycle === "yearly" ? "periodYearly" : "periodMonthly")} · ${planPrice(p)}</span></div>${cta(p)}</div></section>`,
         )
         .join("")}</div>${ctaNote()}${freeLink}${legal()}</section>`;
     const features = [

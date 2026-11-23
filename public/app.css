@@ -3602,28 +3602,96 @@ button.stamp-chip {
 }
 .inline-back {
   align-self: flex-start;
+  min-height: 40px;
+  padding-left: 0;
+}
+/* Choosing a plan: the purchase buttons come first. Nothing in this step
+   scrolls; the cards are as tall as their content. */
+.plan-offer[data-offer-step="choose"] {
+  gap: 10px !important;
+}
+.plan-offer[data-offer-step="choose"] h1 {
+  font-size: clamp(20px, 6vw, 26px);
+}
+.offer-top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 .offer-plans {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: none;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
 .offer-plan {
-  position: relative;
+  flex: none;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 12px;
 }
 .offer-plan.recommended {
   border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold) inset;
+}
+.offer-plan-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
 }
 .offer-plan h2 {
   font-size: 16px;
 }
 .offer-plan .plan-price {
-  font-size: 20px;
+  font-size: 22px;
+  line-height: 1.2;
 }
-.offer-plan dl {
-  grid-template-columns: 1fr;
+.offer-plan .plan-price small {
+  font-size: 11px;
+}
+.offer-limits {
+  display: grid;
+  gap: 4px;
+}
+.offer-limits li {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.18);
+  font-size: 12px;
+}
+.offer-limits span {
+  color: var(--muted);
+}
+.offer-buy {
+  margin-top: auto;
+  display: grid;
+  gap: 8px;
+}
+.offer-buy .purchase-summary {
+  font-size: 11px;
+  line-height: 1.45;
+}
+.offer-buy .plan-cta {
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 10px;
+  font-size: clamp(12.5px, 3.5vw, 14px);
+  line-height: 1.3;
+  text-wrap: balance;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.plan-offer[data-offer-step="choose"] .cta-note {
+  flex: none;
 }
 .ribbon {
   justify-self: start;
@@ -4115,6 +4183,68 @@ body.fit-dense .companion-prompt {
   }
 }
 
+/* Small phones: the three allowances step aside before the buttons do. */
+@media (max-height: 600px) {
+  .plan-offer[data-offer-step="choose"] .offer-limits {
+    display: none;
+  }
+  .plan-offer h1,
+  .plan-offer[data-offer-step="choose"] h1 {
+    font-size: 19px;
+  }
+  .plan-offer .eyebrow {
+    display: none;
+  }
+}
+/* Landscape phones: the plans on the left, the rest beside them. */
+@media (max-height: 500px) and (min-width: 560px) {
+  .plan-offer[data-offer-step="intro"] {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    column-gap: 16px;
+    row-gap: 8px !important;
+  }
+  .plan-offer[data-offer-step="intro"] > * {
+    grid-column: 1;
+  }
+  .plan-offer[data-offer-step="intro"] .offer-features {
+    grid-auto-rows: auto;
+    align-content: start;
+  }
+  .plan-offer[data-offer-step="intro"] .offer-feature {
+    min-height: 40px;
+    padding: 6px 10px;
+  }
+  .plan-offer[data-offer-step="intro"] .offer-actions,
+  .plan-offer[data-offer-step="intro"] .legal {
+    grid-column: 2;
+  }
+  .plan-offer[data-offer-step="intro"] .offer-actions {
+    grid-row: 1 / span 2;
+    align-self: end;
+  }
+  .plan-offer[data-offer-step="intro"] .legal {
+    grid-row: 3;
+  }
+  .plan-offer[data-offer-step="choose"] {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    grid-auto-rows: min-content;
+    align-content: start;
+    column-gap: 16px;
+  }
+  .plan-offer[data-offer-step="choose"] .offer-plans {
+    grid-column: 1;
+    grid-row: 1 / span 8;
+  }
+  .plan-offer[data-offer-step="choose"] > :not(.offer-plans) {
+    grid-column: 2;
+  }
+  .offer-limits {
+    display: none;
+  }
+}
 /* Tablets and desktops: the same screens, roomier. */
 @media (min-width: 720px) and (min-height: 600px) {
   :root {
