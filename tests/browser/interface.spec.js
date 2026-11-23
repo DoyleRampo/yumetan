@@ -252,9 +252,12 @@ test("very short screens and enlarged text retain reachable home controls", asyn
       document.documentElement.style.zoom = zoom;
       window.dispatchEvent(new Event("resize"));
     }, zoom);
-    // At twice the text size the screen no longer fits and its content scrolls.
-    if (zoom === "2")
-      await expect(page.locator("body")).toHaveClass(/fit-reflow/);
+    if (zoom === "2") {
+      const pager = page.locator(".stage-pager");
+      await expect(pager).toBeVisible();
+      await pager.locator("button").last().click();
+      await expect(pager.locator("output")).toHaveText(/^2 \/ /);
+    }
     const box = await page.locator("nav").boundingBox();
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(321);

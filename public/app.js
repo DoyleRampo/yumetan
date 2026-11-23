@@ -1,3 +1,4 @@
+import { createStagePager, fitVisualViewport, mountContentPagers } from "./core/viewport.js";
 import { createHaptics } from "./core/haptics.js";
 import { loadingMarkup, beginLoading } from "./core/loading.js";
 import {
@@ -347,7 +348,7 @@ function pageTip(p = page) {
 }
 function openPageTip(force = false) {
   const text = pageTip();
-  if (!text) return;
+  if (!text || openSheetId) return;
   const seen = options.tipsSeen || [];
   if (!force && seen.includes(page)) return;
   // A screen's own tip waits for a message that is still showing.
@@ -370,23 +371,43 @@ function sheet(id, title, content, { cls = "" } = {}) {
   const open = openSheetId === id;
   return `<div class="sheet ${cls}" data-sheet="${id}" ${open ? "" : "hidden"}><div class="sheet-backdrop" data-sheet-close></div><section class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-${id}-title"><header class="sheet-head"><h2 id="sheet-${id}-title">${title}</h2><button type="button" class="popup-close" data-sheet-close aria-label="${esc(t("close"))}">${CLOSE_ICON}</button></header><div class="sheet-body">${content}</div></section></div>`;
 }
+let inertBackground = [];
+function restoreSheetBackground() {
+  inertBackground.forEach((element) => element.removeAttribute("inert"));
+  inertBackground = [];
+}
+function updateSheetBackground() {
+  document.body.classList.toggle("sheet-open", Boolean(openSheetId));
+  if (!openSheetId) return;
+  let branch = document.querySelector(`[data-sheet="${openSheetId}"]`);
+  while (branch && branch !== document.body) {
+    for (const sibling of branch.parentElement.children) {
+      if (sibling === branch || sibling.hasAttribute("inert") ||
+          sibling.matches("#toast, #tip, script, .sky")) continue;
+      sibling.setAttribute("inert", "");
+      inertBackground.push(sibling);
+    }
+    branch = branch.parentElement;
+  }
+}
 function setSheet(id) {
+  const previous = openSheetId;
+  restoreSheetBackground();
   openSheetId = id;
   document.querySelectorAll("[data-sheet]").forEach((el) => {
     el.hidden = el.dataset.sheet !== id;
   });
-  document
-    .querySelectorAll("[data-sheet-open]")
-    .forEach((el) =>
-      el.setAttribute("aria-expanded", String(el.dataset.sheetOpen === id)),
-    );
+  document.querySelectorAll("[data-sheet-open]").forEach((el) =>
+    el.setAttribute("aria-expanded", String(el.dataset.sheetOpen === id)),
+  );
+  updateSheetBackground();
   if (id) {
     hideTip();
-    const panel = document.querySelector(`[data-sheet="${id}"] .sheet-panel`);
-    (
-      panel?.querySelector("input:not([type=hidden]),select,textarea,button:not([data-sheet-close])") ||
-      panel?.querySelector("[data-sheet-close]")
-    )?.focus({ preventScroll: true });
+    document.querySelector(`[data-sheet="${id}"] .sheet-head button`)
+      ?.focus({ preventScroll: true });
+  } else if (previous) {
+    document.querySelector(`[data-sheet-open="${previous}"]`)
+      ?.focus({ preventScroll: true });
   }
 }
 // The small ⓘ beside a control explains it in a tip.
@@ -640,15 +661,25 @@ function bindEdgeSwipe() {
   });
 }
 bindEdgeSwipe();
-// Every screen is laid out to fit between the top bar and the tab bar. When a
-// very small window (or enlarged text) cannot hold it, the screen first
-// tightens its spacing, then lets its content scroll as a last resort.
+// Compact the stage when needed, then page through very short or zoomed screens.
+const panelLabels = {
+  get panels() { return t("panels"); },
+  get back() { return t("previousPanel"); },
+  get next() { return t("nextPanel"); },
+};
+fitVisualViewport();
+const stagePager = createStagePager($("#app"), panelLabels);
+let contentPagers;
 let fitFrame;
+let stageChanged = false;
 function updateFit() {
   cancelAnimationFrame(fitFrame);
   fitFrame = requestAnimationFrame(() => {
     const body = document.body,
       app = $("#app");
+    const stageBar = $(".stage-pager");
+    stageBar.hidden = true;
+    app.scrollTop = 0;
     body.classList.remove("fit-dense", "fit-reflow");
     const fits = () => {
       const box = app.getBoundingClientRect();
@@ -664,6 +695,8 @@ function updateFit() {
     };
     if (!fits()) body.classList.add("fit-dense");
     if (!fits()) body.classList.add("fit-reflow");
+    stagePager.measure(body.classList.contains("fit-reflow"), stageChanged);
+    stageChanged = false;
   });
 }
 window.addEventListener("resize", updateFit);
@@ -711,12 +744,19 @@ function render() {
   const keepFocus = ["email", "password"].includes(document.activeElement?.id)
     ? document.activeElement.id
     : null;
-  $("#app").dataset.page = page;
-  $("#app").innerHTML = (views[page] || homeView)();
+  const app = $("#app");
+  const sameScreen = app.dataset.page === page;
+  const previousPanels = sameScreen ? contentPagers?.positions() : undefined;
+  stageChanged ||= !sameScreen;
+  restoreSheetBackground();
+  contentPagers?.destroy();
+  app.dataset.page = page;
+  app.innerHTML = (views[page] || homeView)();
   if (openSheetId && !document.querySelector(`[data-sheet="${openSheetId}"]`))
     openSheetId = null;
-  document.body.classList.toggle("sheet-open", Boolean(openSheetId));
-  wrapJapaneseLabels($("#app"), displayLanguage());
+  updateSheetBackground();
+  wrapJapaneseLabels(app, displayLanguage());
+  contentPagers = mountContentPagers(app, panelLabels, previousPanels);
   updateFit();
   bindForms();
   if (keepFocus) {
@@ -886,7 +926,6 @@ async function navigate(next, force = false, back = false) {
   $("#app").focus({ preventScroll: true });
   if (page === "help" && helpSection) {
     setSheet(`help-${helpSection}`);
-    document.body.classList.add("sheet-open");
     helpSection = null;
   }
   // The plans pages check store and server again on every visit.
@@ -1307,7 +1346,7 @@ function journalView(kind) {
   const records = state.records
     .filter((r) => r.kind === kind && r.date === journalDate)
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-  return `<section class="day-journal"><h1 class="sr-only">${t(kind === "dream" ? "dreamDays" : "diaryDays")}</h1><div class="day-navigation date-row"><button type="button" class="icon-btn small" data-day-step="-1" aria-label="${t("previousDay")}">${ICONS.back}</button><button type="button" class="date-trigger" data-journal-calendar aria-haspopup="dialog"><span>${esc(dateText(journalDate))}</span><span class="date-icon" aria-hidden="true">▦</span></button><button type="button" class="icon-btn small flip" data-day-step="1" aria-label="${t("nextDay")}" ${journalDate >= localDate() ? "disabled" : ""}>${ICONS.back}</button></div><div class="day-records" aria-live="polite">${records.length ? records.map((r) => `<button type="button" class="day-record" data-entry="${esc(r.id)}"><span class="prose">${esc(r.text || r.analysis?.title || t("sleep"))}</span><span class="day-record-meta">${r.photo ? `<span>${ICONS.camera}</span>` : ""}${r.sleep ? `<span>${ICONS.sleep} ${esc(r.sleep.hours)}h</span>` : ""}<span class="day-record-more">${t("more")} ›</span></span></button>`).join("") : `<div class="empty"><span class="empty-moon" aria-hidden="true">☾</span><p>${t("emptyDay")}</p></div>`}</div></section>`;
+  return `<section class="day-journal"><h1 class="sr-only">${t(kind === "dream" ? "dreamDays" : "diaryDays")}</h1><div class="day-navigation date-row"><button type="button" class="icon-btn small" data-day-step="-1" aria-label="${t("previousDay")}">${ICONS.back}</button><button type="button" class="date-trigger" data-journal-calendar aria-haspopup="dialog"><span>${esc(dateText(journalDate))}</span><span class="date-icon" aria-hidden="true">▦</span></button><button type="button" class="icon-btn small flip" data-day-step="1" aria-label="${t("nextDay")}" ${journalDate >= localDate() ? "disabled" : ""}>${ICONS.back}</button></div><div class="day-records" aria-live="polite">${records.length ? records.map((r) => `<button type="button" class="day-record" data-entry="${esc(r.id)}"><span class="prose">${esc((r.text || r.analysis?.title || t("sleep")).slice(0, 120))}${r.text?.length > 120 ? "…" : ""}</span><span class="day-record-meta">${r.photo ? `<span>${ICONS.camera}</span>` : ""}${r.sleep ? `<span>${ICONS.sleep} ${esc(r.sleep.hours)}h</span>` : ""}<span class="day-record-more">${t("more")} ›</span></span></button>`).join("") : `<div class="empty"><span class="empty-moon" aria-hidden="true">☾</span><p>${t("emptyDay")}</p></div>`}</div></section>`;
 }
 async function openJournal(kind) {
   if (dirty && !(await confirmDiscard(t))) return;
@@ -1361,7 +1400,7 @@ function recordView() {
   const photoSheet = `<label class="file-drop"><input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp"><span>${ICONS.camera}</span><strong>${t("photo")}</strong></label>${d.photo ? `<img class="photo" src="${esc(d.photo)}" alt="${t("photoAlt")}"><div class="sheet-actions">${button("recognize", "recognize", "primary")}${button("removePhoto", "remove-photo", "ghost")}</div>` : ""}`;
   const sleepSheet = `<label class="switch-row"><input type="checkbox" id="include-sleep" ${d.sleep ? "checked" : ""}><span class="switch" aria-hidden="true"></span><span>${t("sleepOptional")}</span></label><div id="sleep-fields" ${d.sleep ? "" : "hidden"}><div class="grid">${input("hours", "hours", d.sleep?.hours ?? "", "number", 'min="0" max="24" step="0.25" inputmode="decimal"')}${input("awakenings", "awakenings", d.sleep?.awakenings ?? "", "number", 'min="0" max="30" step="1" inputmode="numeric"')}</div><label class="field"><span>${t("rested")}</span><select class="input" id="rested"><option value="">—</option>${[1, 2, 3, 4, 5].map((v) => `<option value="${v}" ${d.sleep?.rested === v ? "selected" : ""}>${v}</option>`).join("")}</select></label><label class="check"><input type="checkbox" id="nightmare" ${d.sleep?.nightmare ? "checked" : ""}><span>${t("nightmare")}</span></label></div><div class="sheet-actions"><button type="button" class="btn primary full" data-sheet-close>${t("close")}</button></div>`;
   const previousSheet = previous
-    ? `<p class="eyebrow">${esc(dateText(previous.date))}</p><p class="prose">${esc(previous.text.slice(0, 500))}</p>`
+    ? `<p class="eyebrow">${esc(dateText(previous.date))}</p><p class="prose">${esc(previous.text)}</p>`
     : `<p class="empty">${t("noDiary")}</p>`;
   return `<section class="compose"><h1 class="sr-only">${t("recordTitle")}</h1><form id="dream-form" class="compose-form">
  ${dateRow("date", "dream-date", d.date, count)}${chips}
@@ -1461,7 +1500,7 @@ function detailView() {
   const r = state.records.find((r) => r.id === selectedId);
   if (!r) return `<p class="empty">${t("empty")}</p>`;
   const dream = r.kind === "dream";
-  return `<section class="detail-page"><h1 class="sr-only">${t("detail")}</h1><div class="detail-head"><p class="eyebrow">${esc(dateText(r.date))}</p>${r.sleep ? `<span class="detail-sleep">${ICONS.sleep} ${esc(r.sleep.hours)}h · ${t("awakenings")} ${esc(r.sleep.awakenings)} · ${esc(r.sleep.rested)}/5</span>` : ""}</div><div class="paper detail-text"><p class="prose">${esc(r.text)}</p>${r.photo ? `<img class="photo" src="${esc(r.photo)}" alt="${t("photoAlt")}">` : ""}</div>${dream && r.analysis ? analysisCard(r) : ""}<div class="page-actions">${dream ? `<button type="button" class="btn ghost icon-only" data-go="share" aria-label="${esc(ct("share"))}" title="${esc(ct("share"))}">${ICONS.share}</button>` : ""}<button type="button" class="btn ghost icon-only danger" data-action="delete" aria-label="${esc(t("delete"))}">${ICONS.trash}</button><button type="button" class="btn primary full" data-action="edit">${ICONS.edit}<span>${t("edit")}</span></button></div></section>`;
+  return `<section class="detail-page${dream && r.analysis ? " has-reading" : ""}"><h1 class="sr-only">${t("detail")}</h1><div class="detail-head"><p class="eyebrow">${esc(dateText(r.date))}</p>${r.sleep ? `<span class="detail-sleep">${ICONS.sleep} ${esc(r.sleep.hours)}h · ${t("awakenings")} ${esc(r.sleep.awakenings)} · ${esc(r.sleep.rested)}/5</span>` : ""}</div><div class="paper detail-text"><p class="prose">${esc(r.text)}</p>${r.photo ? `<img class="photo" src="${esc(r.photo)}" alt="${t("photoAlt")}">` : ""}</div>${dream && r.analysis ? analysisCard(r) : ""}<div class="page-actions">${dream ? `<button type="button" class="btn ghost icon-only" data-go="share" aria-label="${esc(ct("share"))}" title="${esc(ct("share"))}">${ICONS.share}</button>` : ""}<button type="button" class="btn ghost icon-only danger" data-action="delete" aria-label="${esc(t("delete"))}">${ICONS.trash}</button><button type="button" class="btn primary full" data-action="edit">${ICONS.edit}<span>${t("edit")}</span></button></div></section>`;
 }
 // How the app is used, what a plan costs and how to stop paying for it, what
 // happens to the writing, and where to ask for help. Opened from Settings, and
@@ -3048,7 +3087,6 @@ document.addEventListener("click", (event) => {
   if (closer) {
     if (closer.matches("[data-sheet-close]")) {
       setSheet(null);
-      document.body.classList.remove("sheet-open");
     } else if (closer.matches("[data-tip-close]")) hideTip();
     else {
       clearTimeout(toast.timer);
@@ -3059,7 +3097,6 @@ document.addEventListener("click", (event) => {
   const el = event.target.closest("button");
   if (el?.dataset.sheetOpen && !el.disabled) {
     setSheet(el.dataset.sheetOpen);
-    document.body.classList.add("sheet-open");
     return;
   }
   if (el?.matches("[data-page-tip]")) {
@@ -3155,10 +3192,22 @@ document.addEventListener("click", (event) => {
   }
 });
 document.addEventListener("keydown", (event) => {
-  if (event.key !== "Escape" || document.querySelector("dialog[open]")) return;
+  if (document.querySelector("dialog[open]")) return;
+  if (event.key === "Tab" && openSheetId) {
+    const controls = [...document.querySelectorAll(`[data-sheet="${openSheetId}"] :is(button, input, select, textarea, a[href])`)]
+      .filter((control) => !control.disabled && control.tabIndex >= 0 && control.getClientRects().length);
+    const first = controls[0], last = controls.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  }
+  if (event.key !== "Escape") return;
   if (openSheetId) {
     setSheet(null);
-    document.body.classList.remove("sheet-open");
   } else hideTip();
 });
 window.addEventListener("beforeunload", (event) => {
@@ -3370,7 +3419,7 @@ if (native) {
     // An open sheet closes first, like a dialog.
     if (openSheetId) {
       setSheet(null);
-      document.body.classList.remove("sheet-open");
+      haptics.transition("step");
       return;
     }
     if (page === "quiz") run(actions["quiz-back"]);

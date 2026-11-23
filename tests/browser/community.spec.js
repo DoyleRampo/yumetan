@@ -436,6 +436,12 @@ test("free members see three 15-character teasers with whole names and titles; r
   await boot(page);
   await page.locator("nav [data-go=community]").click();
   await expect(page.locator(".teaser-card")).toHaveCount(3);
+  const feedPager = page.locator(".feed-pager");
+  await expect(feedPager.locator("output")).toHaveText("1 / 3");
+  await feedPager.getByRole("button", { name: "Next panel" }).click();
+  await expect(feedPager.locator("output")).toHaveText("2 / 3");
+  await feedPager.getByRole("button", { name: "Previous panel" }).click();
+  await expect(feedPager.locator("output")).toHaveText("1 / 3");
   for (const text of await page.locator(".teaser-text").allInnerTexts()) {
     expect(text.replace(/… Read more$/, "").length).toBeLessThanOrEqual(15);
     expect(text).toContain("Read more");

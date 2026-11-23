@@ -137,7 +137,7 @@ export function createCommunity({
     const short = excerpt && !expanded.has(p.id) && chars.length > FEED_CHARS;
     return short
       ? `<p class="prose post-text post-excerpt">${esc(chars.slice(0, FEED_CHARS).join(""))}<button type="button" class="link-button" data-social="expand" data-id="${esc(p.id)}">${t("readMore")}</button></p>`
-      : `<p class="prose post-text">${esc(p.text)}</p>`;
+      : `<div class="post-text"><p class="prose">${esc(p.text)}</p></div>`;
   };
   const postCard = (p, open = true, withTitle = false, excerpt = false) =>
     `<article class="card feed-card${open ? " post-open" : ""}${p.mine ? " post-mine" : ""}" data-post-id="${esc(p.id)}" ${open ? `data-social="post" data-id="${esc(p.id)}" role="button" tabindex="0" aria-label="${esc(p.mine ? t("minePost") : p.alias)} · ${t("openPost")}"` : ""}>${author(p)}<div class="post-body"><strong class="post-name">${postName(p)}</strong>${withTitle ? `<p class="post-title">${esc(p.title)}</p>` : ""}${postText(p, excerpt)}${stampBar(p)}</div></article>`;

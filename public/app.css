@@ -51,6 +51,7 @@ body {
 body {
   display: flex;
   flex-direction: column;
+  height: min(100%, var(--visible-height, 100%));
   overflow: hidden;
   background: var(--bg);
   color: var(--ink);
@@ -615,7 +616,7 @@ body.fit-dense {
   --gutter: 12px;
 }
 body.fit-reflow #app {
-  overflow-y: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
 }
 body.fit-reflow #app > section {
@@ -645,14 +646,12 @@ body.fit-reflow #app > section {
   min-height: 38px;
   padding: 6px 14px;
   font-size: 12px;
-  white-space: nowrap;
+  min-width: 0;
 }
 .plans-overview .chip-row,
 .plan-detail .chip-row {
   flex: none;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
+  gap: 4px 8px;
 }
 .link-row {
   flex: none;
@@ -2131,9 +2130,8 @@ body[data-screen="quiz"] #toast {
 .day-entries {
   flex: none;
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  flex-wrap: wrap;
+  gap: 6px;
   padding-bottom: 2px;
 }
 .day-entries::-webkit-scrollbar {
@@ -3998,4 +3996,95 @@ body.fit-dense .companion-prompt {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* The existing layouts stay in place. Long content is read in screen-sized panels. */
+.paginated {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-content: stretch;
+  gap: 0;
+  overflow: hidden;
+}
+.panel-viewport {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  contain: paint;
+}
+.panel-flow {
+  width: 100%;
+  height: 100%;
+  column-width: var(--panel-width, 100px);
+  column-fill: auto;
+  column-gap: 0;
+  overflow-wrap: anywhere;
+}
+.panel-flow > * + * { margin-block-start: 8px; }
+.panel-flow :is(h2, h3) { break-after: avoid; }
+.panel-flow :is(.field, .photo, .day-record, .theme-group, .sheet-actions) {
+  break-inside: avoid;
+}
+.panel-flow .photo {
+  max-height: 100%;
+  object-fit: contain;
+}
+.panel-flow .day-record { margin-bottom: 8px; }
+.panel-controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.panel-controls[hidden] { display: none; }
+.panel-controls button {
+  height: 44px;
+  min-width: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  color: var(--gold);
+  background: var(--surface);
+  font-size: 20px;
+}
+.panel-controls button:disabled { opacity: .35; }
+.stage-pager {
+  flex-shrink: 0;
+  padding: 2px var(--gutter);
+}
+.sheet:not(.tall) .sheet-panel { height: min(64%, 530px); }
+.sheet .sheet-panel { max-height: calc(100% - var(--safe-top) - 12px); }
+.sheet-body.paginated { padding-bottom: 0; }
+.sheet-open [inert] { pointer-events: none; }
+.detail-text.paginated {
+  flex-basis: 42%;
+  min-height: 104px;
+  max-height: 50%;
+  padding: 8px 12px;
+}
+.detail-page:not(.has-reading) .detail-text.paginated {
+  flex: 1;
+  max-height: none;
+}
+.post-text.paginated {
+  align-self: stretch;
+  padding: 0 4px;
+}
+.post-text.paginated::before { display: none; }
+@media (max-height: 570px) {
+  .sheet:not(.tall) .sheet-panel { height: min(82%, 470px); }
+  .panel-controls button { height: 36px; }
+}
+.feed-pager {
+  margin-block: -4px 0;
+}
+
+/* Plan terms and purchase actions share the stage pager on short screens. */
+.plan-detail > .plan-card {
+  flex: none;
+  overflow: visible;
 }
