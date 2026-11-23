@@ -596,3 +596,56 @@ test("quiz answers are short words with an icon, and saved answers stay valid", 
     "n1,n2,n3,p1,p2,p3,l1,l2,l3,r1,r2,r3,sn,sp,sl,sr,m1,m2,f1,f2,k1,k2,t1,t2",
   );
 });
+test("every one of the 16 characters has answers that choose it, by a clear margin", () => {
+  const seen = new Set();
+  for (const type of TYPES) {
+    const axes = GROUP_AXES[type.group];
+    // Its group's dreams often, the others never; its own scene; its two
+    // style poles at full strength.
+    const answers = QUESTIONS.map((q) =>
+      q.kind === "frequency"
+        ? q.group === type.group
+          ? 4
+          : 0
+        : q.kind === "scene"
+          ? q.group === type.group
+            ? q.options.findIndex((o) => o.type === type.id)
+            : 0
+          : axes.includes(q.axis)
+            ? 2 * TYPE_POLES[type.id][axes.indexOf(q.axis)]
+            : 0,
+    );
+    const result = classify(answers);
+    assert.equal(result.id, type.id);
+    assert.equal(result.tied, false, type.id);
+    assert.ok(
+      result.scores.find((s) => s.id === type.id).score -
+        result.runnerUp.score >=
+        20,
+      type.id,
+    );
+    seen.add(result.id);
+  }
+  assert.equal(seen.size, 16);
+  // Answering at random reaches every character, none of them dominating.
+  let seed = 7;
+  const random = () => (seed = (seed * 48271) % 2147483647) / 2147483647;
+  const counts = {};
+  for (let i = 0; i < 4000; i++) {
+    const id = classify(
+      QUESTIONS.map((q) => {
+        const values =
+          q.kind === "frequency"
+            ? [0, 1, 2, 3, 4]
+            : q.kind === "scene"
+              ? [0, 1, 2, 3]
+              : [-2, -1, 0, 1, 2];
+        return values[Math.floor(random() * values.length)];
+      }),
+    ).id;
+    counts[id] = (counts[id] || 0) + 1;
+  }
+  assert.equal(Object.keys(counts).length, 16);
+  for (const [id, n] of Object.entries(counts))
+    assert.ok(n / 4000 < 0.12, `${id} ${n}`);
+});

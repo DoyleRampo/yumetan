@@ -1147,7 +1147,10 @@ async function finishPlanOffer() {
 }
 // The first login of this device: a new account takes over the profile and the
 // quiz answers entered as a guest, and sees the paid plans next. An existing
-// account keeps its own profile (the guest's is dropped) and only guest
+// account takes the registration and the quiz just completed here too: the
+// person has just seen that result, and keeping the account's older answers
+// made every new quiz land on the same old character. The account keeps what
+// registration does not ask (such as the character collection). Guest
 // journals, if any, go through the usual import consent.
 async function completeIntroductionLogin(sourceKey, guest) {
   if (options.introduction?.phase !== "login") {
@@ -1155,10 +1158,23 @@ async function completeIntroductionLogin(sourceKey, guest) {
     return;
   }
   const carried = !state.profile && guest?.profile && !guest.records.length;
-  if (carried) {
-    await commit({ ...state, profile: guest.profile });
+  const retaken =
+    !carried && state.profile && guest?.profile?.typeAnswers
+      ? {
+          ...state.profile,
+          nickname: guest.profile.nickname || state.profile.nickname,
+          ageGroup: guest.profile.ageGroup || state.profile.ageGroup,
+          language: guest.profile.language || state.profile.language,
+          typeAnswers: guest.profile.typeAnswers,
+          typeVersion: guest.profile.typeVersion,
+        }
+      : null;
+  if (carried || retaken) {
+    await commit({ ...state, profile: carried ? guest.profile : retaken });
+    applyAccountPreferences();
     await syncCloud();
-  } else if (guest?.records.length) await offerGuestImport(sourceKey, guest);
+  }
+  if (!carried && guest?.records.length) await offerGuestImport(sourceKey, guest);
   await saveIntroduction({
     phase: carried && state.profile?.typeAnswers ? "plan" : "done",
     step: 3,

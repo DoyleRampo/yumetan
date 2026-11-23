@@ -349,3 +349,62 @@ test("the result's evidence is one page that scrolls, and pulling its bar down c
   await expect(why).toBeVisible();
   await expect(why.locator(".rationale")).toBeInViewport();
 });
+// A returning member (or a tester reusing an account) goes through
+// registration and the quiz on a device, then signs in to an account that
+// already has answers. The quiz just taken is the one that counts: home shows
+// the character from the result screen, not the account's old one.
+test("signing in to an existing account keeps the quiz just taken", async ({
+  page,
+}) => {
+  const bound = QUESTIONS.map((q) =>
+    q.kind === "frequency"
+      ? q.group === "nightmare"
+        ? 4
+        : 0
+      : q.kind === "scene"
+        ? q.group === "nightmare"
+          ? q.options.findIndex((o) => o.type === "bound")
+          : 0
+        : ["motion", "focus"].includes(q.axis)
+          ? 2
+          : 0,
+  );
+  await page.addInitScript((typeAnswers) => {
+    if (localStorage.getItem("ob.db.member")) return;
+    localStorage.setItem(
+      "ob.db.member",
+      JSON.stringify({
+        records: [],
+        profile: {
+          nickname: "まえの名前",
+          ageGroup: "30代",
+          language: "ja",
+          characterSet: "animal",
+          typeAnswers,
+          typeVersion: 2,
+          updatedAt: "2026-01-01T00:00:00Z",
+        },
+      }),
+    );
+  }, bound);
+  await configured(page);
+  await passTour(page);
+  await registerAndQuiz(page, { nickname: "ゆめ" });
+  const result = await page
+    .locator(".result-copy .character-name")
+    .textContent();
+  expect(result).not.toBe("ネム");
+  await page.locator("[data-action=begin]").click();
+  await page.locator("[data-auth-provider=google]").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-page", "home");
+  await expect(page.locator(".character-row .character-name")).toHaveText(
+    result,
+  );
+  await expect(page.locator(".home-greeting")).toHaveText("ゆめ");
+  const saved = await page.evaluate(
+    () => JSON.parse(localStorage.getItem("yumetan.v4.member")).profile,
+  );
+  expect(saved.typeAnswers).not.toEqual(bound);
+  // The account's own preferences that the quiz does not ask about stay.
+  expect(saved.characterSet).toBe("animal");
+});
