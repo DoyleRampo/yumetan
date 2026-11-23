@@ -702,6 +702,19 @@ body[data-screen="home"].home-reflow #nav {
     grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   }
 }
+@media (max-height: 500px) and (min-width: 600px) {
+  .home-dashboard {
+    grid-template-rows: minmax(0, 1fr);
+    align-items: center;
+  }
+  .home-dashboard .character-row,
+  .home-insights {
+    grid-row: 1;
+  }
+  .companion-action .avatar {
+    width: min(112px, 24dvh);
+  }
+}
 /* Four short, animated pages after registration. */
 body[data-screen="intro"] #app {
   padding-bottom: max(20px, env(safe-area-inset-bottom));

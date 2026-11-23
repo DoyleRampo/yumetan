@@ -296,14 +296,13 @@ test("a quick horizontal drag moves the gray thumb continuously and switches onl
   await page.mouse.up();
   await expect(page.locator("#diary-text")).toBeVisible();
 });
-test("home devotes more area to writing and level progress and spells out the next level", async ({
+test("the home character opens the journal and the card spells out the next level", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await ready(page);
-  expect(
-    (await page.locator(".hero .btn").first().boundingBox()).height,
-  ).toBeGreaterThan(75);
+  const companion = page.locator(".companion-action");
+  expect((await companion.boundingBox()).height).toBeGreaterThan(75);
   expect(
     (await page.locator(".level-card").boundingBox()).height,
   ).toBeGreaterThan(170);
@@ -314,4 +313,6 @@ test("home devotes more area to writing and level progress and spells out the ne
     "あと3個の夢を記録するとLv.2になります",
   );
   await expect(page.locator(".dream-count")).toHaveText("記録した夢: 0");
+  await companion.click();
+  await expect(page.locator("#dream-form")).toBeVisible();
 });

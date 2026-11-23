@@ -1,4 +1,4 @@
-const CACHE = "yumetan-4.8.11";
+const CACHE = "yumetan-4.8.12";
 const SHELL = [
   "./",
   "index.html",
@@ -15,7 +15,7 @@ const SHELL = [
   "core/interface.js",
   "core/loading.js",
   "loading.css?v=4.8.0",
-  "interface.css?v=4.8.0",
+  "interface.css?v=4.8.1",
   "core/purchases.js",
   "core/auth-providers.js",
   "core/auth-i18n.js",
