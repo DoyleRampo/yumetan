@@ -649,7 +649,7 @@ test("every one of the 16 characters has answers that choose it, by a clear marg
   for (const [id, n] of Object.entries(counts))
     assert.ok(n / 4000 < 0.12, `${id} ${n}`);
 });
-test("the rarity estimates cover the 16 types once, add up to 100.0 and rank from common to rare", async () => {
+test("the rarity estimates cover the 16 types once, add up to 100.0 and rank the rarest first", async () => {
   const { RARITY, RARITY_RANKING, rarityTier } =
     await import("../public/core/rarity.js");
   assert.deepEqual(Object.keys(RARITY).sort(), TYPES.map((t) => t.id).sort());
@@ -659,8 +659,23 @@ test("the rarity estimates cover the 16 types once, add up to 100.0 and rank fro
     assert.equal(Math.round(p * 10) / 10, p);
   RARITY_RANKING.forEach((r, i) => {
     assert.equal(r.rank, i + 1);
-    if (i) assert.ok(RARITY_RANKING[i - 1].percent >= r.percent);
+    if (i) assert.ok(RARITY_RANKING[i - 1].percent <= r.percent);
   });
-  assert.equal(rarityTier(RARITY_RANKING[0].percent), 1);
-  assert.equal(rarityTier(RARITY_RANKING.at(-1).percent), 5);
+  assert.equal(rarityTier(RARITY_RANKING[0].percent), 5);
+  assert.equal(rarityTier(RARITY_RANKING.at(-1).percent), 1);
+});
+test("every type has a guide balance of the four groups, its own group highest", async () => {
+  const { TYPE_BALANCE } = await import("../public/core/type-balance.js");
+  for (const type of TYPES) {
+    const balance = TYPE_BALANCE[type.id];
+    assert.deepEqual(
+      Object.keys(balance).sort(),
+      GROUPS.map((g) => g.id).sort(),
+      type.id,
+    );
+    for (const [id, percent] of Object.entries(balance)) {
+      assert.ok(Number.isInteger(percent) && percent >= 0 && percent <= 100);
+      if (id !== type.group) assert.ok(balance[type.group] > percent, type.id);
+    }
+  }
 });

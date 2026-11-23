@@ -389,12 +389,14 @@ test("the rarity ranking lists all 16 with one-decimal percentages, marks your t
   const values = await page.locator(".rarity-value b").allTextContents();
   for (const v of values) expect(v).toMatch(/^\d{1,2}\.\d%$/);
   const numbers = values.map((v) => parseFloat(v));
-  expect(numbers).toEqual([...numbers].sort((a, b) => b - a));
+  // The rarest first.
+  expect(numbers).toEqual([...numbers].sort((a, b) => a - b));
+  await expect(rows.first()).toContainText("ルマ");
   expect(Math.round(numbers.reduce((a, b) => a + b, 0) * 10)).toBe(1000);
   // This profile is Kiro (the challenger): marked in the list and summed up on top.
   await expect(page.locator(".rarity-list .mine")).toContainText("キロ");
   await expect(page.locator(".rarity-you")).toContainText("3.4");
-  await expect(page.locator(".rarity-you")).toContainText("16タイプ中15位");
+  await expect(page.locator(".rarity-you")).toContainText("レア度 2位 / 16");
   expect(
     await page.evaluate(() => {
       const list = document.querySelector(".rarity-list");
@@ -406,4 +408,11 @@ test("the rarity ranking lists all 16 with one-decimal percentages, marks your t
   await page.locator(".rarity-list [data-type-detail=lucid]").click();
   await expect(page.locator(".rarity-chip")).toContainText("2.6%");
   await expect(page.locator(".rarity-chip")).toContainText("超レア");
+  // Its detail also shows a guide balance of the four groups, its own lit.
+  await page.locator("[data-tab=why]").click();
+  const meters = page.locator(".type-balance li");
+  await expect(meters).toHaveCount(4);
+  await expect(page.locator(".type-balance li.active")).toContainText("明晰");
+  await expect(page.locator(".type-balance li.active")).toContainText("88%");
+  await expect(page.locator(".balance-title")).toContainText("目安");
 });

@@ -24,9 +24,9 @@ export const RARITY = {
   challenge: 3.4,
   lucid: 2.6,
 };
-// Most common first.
+// Rarest first: rank 1 is the type the fewest people have.
 export const RARITY_RANKING = Object.entries(RARITY)
-  .sort((a, b) => b[1] - a[1])
+  .sort((a, b) => a[1] - b[1])
   .map(([id, percent], i) => ({ id, percent, rank: i + 1 }));
 export const rarityOf = (id) => RARITY_RANKING.find((r) => r.id === id);
 // Five tiers, from "common" (1) to "very rare" (5).

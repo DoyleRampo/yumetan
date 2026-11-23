@@ -11,6 +11,7 @@ import { wrapJapaneseLabels } from "./core/ui-text.js";
 import { TYPE_FEATURES } from "./core/type-features.js";
 import { TYPE_LORE } from "./core/type-lore.js";
 import { RARITY_RANKING, rarityOf, rarityTier } from "./core/rarity.js";
+import { TYPE_BALANCE } from "./core/type-balance.js";
 import {
   QUESTIONS,
   FREQUENCY_ICONS,
@@ -1311,15 +1312,19 @@ function loreCard(type) {
   return `<section class="lore"><h3>${t("storyTitle")}</h3><p>${esc(localized(TYPE_LORE[type.id].story, language()))}</p></section>`;
 }
 // The evidence behind a result: group profile, the two style axes, the scene pick, recent dreams.
+// The balance of the four groups as meters, the type's own group lit.
+function groupMeters(groups, active) {
+  return groups
+    .map((g) => {
+      const grp = GROUPS.find((x) => x.id === g.id);
+      return `<li class="${g.id === active ? "active" : ""}" style="--accent:${grp.color}"><span class="meter-label">${esc(groupShort(grp))}<small>${g.percent}%</small></span><span class="meter" role="img" aria-label="${esc(groupShort(grp))} ${g.percent}%"><span class="meter-fill" style="width:${g.percent}%"></span></span></li>`;
+    })
+    .join("");
+}
 function rationaleCard(result, type) {
   const lang = language(),
     ev = result.evidence;
-  const groups = result.groups
-    .map((g) => {
-      const grp = GROUPS.find((x) => x.id === g.id);
-      return `<li class="${g.id === type.group ? "active" : ""}" style="--accent:${grp.color}"><span class="meter-label">${esc(groupShort(grp))}<small>${g.percent}%</small></span><span class="meter" role="img" aria-label="${esc(groupShort(grp))} ${g.percent}%"><span class="meter-fill" style="width:${g.percent}%"></span></span></li>`;
-    })
-    .join("");
+  const groups = groupMeters(result.groups, type.group);
   const axes = ev.axes
     .map((a) => {
       const axis = axisById(a.axis),
@@ -1422,7 +1427,7 @@ function rarityChip(id) {
 }
 function rarityView() {
   const mine = currentType()?.id,
-    top = RARITY_RANKING[0].percent;
+    top = Math.max(...RARITY_RANKING.map((r) => r.percent));
   const you = mine ? rarityOf(mine) : null;
   return `<section class="rarity-page"><h1 class="sr-only">${t("rarity")}</h1>${
     you
@@ -1453,7 +1458,10 @@ function typeDetailView() {
     [
       "why",
       t("whyTitle"),
-      `<p class="prose">${esc(localized(TYPE_LORE[type.id].basis, language()))}</p>`,
+      `<h3 class="balance-title">${t("groupProfile")}<small>${t("typicalBalance")}</small></h3><ul class="meters type-balance">${groupMeters(
+        GROUPS.map((g) => ({ id: g.id, percent: TYPE_BALANCE[type.id][g.id] })),
+        type.group,
+      )}</ul><p class="prose">${esc(localized(TYPE_LORE[type.id].basis, language()))}</p>`,
     ],
   ])}</section>`;
 }
