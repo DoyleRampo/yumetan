@@ -279,6 +279,10 @@ export const messages = {
     "Find my dream type",
   ],
   quiz: ["16タイプ診断", "16유형 테스트", "16型测试", "Dream type quiz"],
+  quizLess: ["少ない", "적게", "少", "Rarely"],
+  quizMore: ["多い", "자주", "多", "Often"],
+  quizHalf: ["あと半分だよ！", "이제 절반 남았어!", "还剩一半啦！", "Halfway there!"],
+  quizHalfSub: ["その調子、その調子♪", "잘하고 있어♪", "继续加油♪", "You're doing great ♪"],
   quizHint: [
     "こんな夢、見る？",
     "이런 꿈을 꿔요?",

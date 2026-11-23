@@ -109,19 +109,21 @@ export const TYPE_POLES = {
 };
 
 export const FREQUENCY_OPTIONS = [
-  ["まったくない", "전혀 없어요", "从来没有", "Never"],
-  ["年に数回", "1년에 몇 번", "一年几次", "A few per year"],
-  ["月に1〜2回", "한 달에 1~2번", "每月一两次", "1–2×/month"],
-  ["週に1回", "주 1번", "每周一次", "Weekly"],
-  ["週に数回", "주 몇 번", "每周几次", "Several per week"],
+  ["ない", "없음", "没有", "Never"],
+  ["年に数回", "1년에 몇 번", "一年几次", "Yearly"],
+  ["月1〜2回", "한 달 1~2번", "每月一两次", "Monthly"],
+  ["週1回", "주 1번", "每周一次", "Weekly"],
+  ["週に数回", "주 몇 번", "每周几次", "2+ a week"],
 ];
+// The frequency scale reads like the moon filling up.
+export const FREQUENCY_ICONS = ["🌑", "🌒", "🌓", "🌔", "🌕"];
 // Bipolar answers run -2 … 2; the label describes how strongly the pole applies.
 export const SCALE_STRENGTH = [
-  ["かなり", "많이", "非常", "Strongly"],
-  ["やや", "조금", "有点", "Slightly"],
-  ["どちらとも", "중간", "中间", "Neutral"],
-  ["やや", "조금", "有点", "Slightly"],
-  ["かなり", "많이", "非常", "Strongly"],
+  ["とても", "많이", "非常", "Very"],
+  ["やや", "조금", "有点", "A bit"],
+  ["半々", "반반", "一半", "Both"],
+  ["やや", "조금", "有点", "A bit"],
+  ["とても", "많이", "非常", "Very"],
 ];
 export const PARTS = [
   {
@@ -156,11 +158,15 @@ export const PARTS = [
   },
 ];
 
-const frequency = (id, group, text) => ({
+// Every question keeps its id, position and answer values (saved answers stay
+// valid); only the words and the way they are shown change. Answers are short
+// words with an icon, so every choice fits on one screen at a glance.
+const frequency = (id, group, icon, text) => ({
   id,
   kind: "frequency",
   part: "frequency",
   group,
+  icon,
   text,
 });
 const scene = (id, group, text, options) => ({
@@ -169,187 +175,160 @@ const scene = (id, group, text, options) => ({
   part: "scene",
   group,
   text,
-  options, // [{ type, text }]
+  options, // [{ type, icon, text }]
 });
-const style = (id, axis, text, left, right) => ({
+const option = (type, icon, text) => ({ type, icon, text });
+const style = (id, axis, text, [leftIcon, left], [rightIcon, right]) => ({
   id,
   kind: "style",
   part: "style",
   axis,
   text,
+  icons: [leftIcon, rightIcon],
   left,
   right,
 });
 
 export const QUESTIONS = [
-  // ---- Part 1: group scales (0–4 each) ----
-  frequency("n1", "nightmare", [
-    "追いかけられて逃げる",
-    "쫓겨서 달아나요",
-    "被追赶，一直逃跑",
-    "Running from someone",
+  // ---- Part 1: how often (0–4 each). The dream is the question. ----
+  frequency("n1", "nightmare", "🏃", [
+    "追いかけられる夢",
+    "쫓기는 꿈",
+    "被追赶的梦",
+    "Being chased",
   ]),
-  frequency("n2", "nightmare", [
-    "動けない、逃げられない、大切なものを失う",
-    "움직이거나 달아날 수 없거나 소중한 걸 잃어요",
-    "动不了、逃不掉，或失去重要的东西",
-    "Unable to move or escape, or losing something dear",
+  frequency("n2", "nightmare", "⛓️", [
+    "体が動かない夢",
+    "몸이 안 움직이는 꿈",
+    "身体动不了的梦",
+    "Being unable to move",
   ]),
-  frequency("n3", "nightmare", [
-    "起きても怖さが残る",
-    "깨고 나서도 무서워요",
-    "醒来以后还觉得害怕",
+  frequency("n3", "nightmare", "😨", [
+    "起きても怖い夢",
+    "깨도 무서운 꿈",
+    "醒来还害怕的梦",
     "Still scared after waking",
   ]),
-  frequency("p1", "premonition", [
-    "あとで夢と同じことが起きた気がする",
-    "나중에 꿈과 같은 일이 일어난 것 같아요",
-    "后来好像遇到了梦里的事",
-    "Later, something seems to happen just as in the dream",
+  frequency("p1", "premonition", "🎬", [
+    "あとで本当に起きる夢",
+    "나중에 정말 일어나는 꿈",
+    "后来真的发生的梦",
+    "A dream that later comes true",
   ]),
-  frequency("p2", "premonition", [
-    "起きて「何かの知らせかも」と思う",
-    "깨고 나서 무슨 신호 같다고 느껴요",
-    "醒来后觉得梦在给自己提示",
-    "Waking up feeling the dream was a sign",
+  frequency("p2", "premonition", "📯", [
+    "お知らせのような夢",
+    "신호 같은 꿈",
+    "像是预兆的梦",
+    "A dream that feels like a sign",
   ]),
-  frequency("p3", "premonition", [
-    "夢に出た物が妙に気になる",
-    "꿈에 나온 물건이 유독 마음에 걸려요",
-    "梦里的一样东西总让你在意",
-    "An object from the dream sticks in your mind",
+  frequency("p3", "premonition", "🔮", [
+    "出てきた物が気になる夢",
+    "나온 물건이 신경 쓰이는 꿈",
+    "梦里的东西让人在意",
+    "An object you can't forget",
   ]),
-  frequency("l1", "lucid", [
-    "夢の途中で「夢だ」と気づく",
-    "꿈을 꾸다가 꿈인 걸 알아요",
-    "做梦时意识到自己在做梦",
-    "Realizing you're dreaming",
+  frequency("l1", "lucid", "💡", [
+    "「夢だ」と気づく夢",
+    "꿈인 걸 알아차리는 꿈",
+    "意识到在做梦",
+    "Knowing you're dreaming",
   ]),
-  frequency("l2", "lucid", [
-    "夢だと気づいて、飛んだり場面を変えたりする",
-    "꿈인 걸 알고 날거나 장면을 바꿔요",
-    "发现自己在做梦后飞起来或改变场景",
-    "Knowing it's a dream and flying or changing the scene",
+  frequency("l2", "lucid", "🕊️", [
+    "思いどおりに動ける夢",
+    "마음대로 움직이는 꿈",
+    "随心所欲的梦",
+    "Steering the dream yourself",
   ]),
-  frequency("l3", "lucid", [
-    "映画みたいに、離れて見る",
-    "영화처럼 멀리서 봐요",
-    "像看电影一样，从旁边看",
-    "Watching from a distance, like a movie",
+  frequency("l3", "lucid", "🎞️", [
+    "映画のように眺める夢",
+    "영화처럼 바라보는 꿈",
+    "像看电影一样的梦",
+    "Watching it like a movie",
   ]),
-  frequency("r1", "recurring", [
-    "同じ場所や人がまた出てくる",
-    "같은 장소나 사람이 또 나와요",
-    "又梦到了同一个地方或同一个人",
-    "The same place or person returns",
+  frequency("r1", "recurring", "🏠", [
+    "同じ場所や人が出る夢",
+    "같은 장소나 사람이 나오는 꿈",
+    "同一个地方或人出现",
+    "The same place or person again",
   ]),
-  frequency("r2", "recurring", [
-    "別の夜にも同じ話が進む",
-    "다른 날에도 같은 이야기가 이어져요",
-    "不同的夜晚，梦里却是同样的故事",
-    "The same story plays out on different nights",
+  frequency("r2", "recurring", "📖", [
+    "前の夢の続き",
+    "지난 꿈의 이어짐",
+    "上次梦的后续",
+    "Picking up where it left off",
   ]),
-  frequency("r3", "recurring", [
-    "起きるといつも似た気持ち",
-    "깨면 늘 비슷한 기분이에요",
-    "醒来时总是有相似的感受",
-    "Waking up with a familiar feeling",
+  frequency("r3", "recurring", "🌫️", [
+    "いつも同じ気分で目覚める",
+    "늘 같은 기분으로 깨는 꿈",
+    "醒来总是同样的心情",
+    "Waking with the same feeling",
   ]),
   // ---- Part 2: scene picks (index of the chosen option) ----
   scene(
     "sn",
     "nightmare",
     [
-      "怖い夢で、どれが近い？",
-      "무서운 꿈에서 뭐가 가장 가까워요?",
-      "可怕的梦里，哪一幕最接近？",
-      "In a scary dream, what feels closest?",
+      "怖い夢といえば？",
+      "무서운 꿈이라면?",
+      "说到可怕的梦？",
+      "Your kind of scary dream?",
     ],
     [
-      {
-        type: "chase",
-        text: [
-          "追いかけられて、必死に走っている",
-          "쫓겨서 필사적으로 달린다",
-          "被追赶，拼命奔跑",
-          "I am chased and run for my life",
-        ],
-      },
-      {
-        type: "loss",
-        text: [
-          "大切な人や物を失って、探し回っている",
-          "소중한 사람이나 물건을 잃고 찾아 헤맨다",
-          "失去重要的人或东西，四处寻找",
-          "I lose someone or something dear and search everywhere",
-        ],
-      },
-      {
-        type: "bound",
-        text: [
-          "動きたいのに、体が動かない・声が出ない",
-          "움직이고 싶은데 몸이 안 움직이거나 목소리가 안 나온다",
-          "想动却动不了、发不出声音",
-          "I want to move, but my body or voice will not respond",
-        ],
-      },
-      {
-        type: "collapse",
-        text: [
-          "建物や地面、自分の体が崩れていく",
-          "건물이나 땅, 내 몸이 무너져 간다",
-          "建筑、地面或自己的身体崩塌",
-          "Buildings, the ground, or my own body fall apart",
-        ],
-      },
+      option("chase", "🏃", ["追われる", "쫓긴다", "被追", "Chased"]),
+      option("loss", "🔍", [
+        "なくして探す",
+        "잃고 찾는다",
+        "丢了在找",
+        "Lost, searching",
+      ]),
+      option("bound", "🪨", [
+        "動けない",
+        "못 움직인다",
+        "动不了",
+        "Can't move",
+      ]),
+      option("collapse", "🏚️", [
+        "崩れていく",
+        "무너진다",
+        "崩塌",
+        "Falling apart",
+      ]),
     ],
   ),
   scene(
     "sp",
     "premonition",
     [
-      "夢が何かを知らせるとしたら？",
-      "꿈이 무언가를 알려준다면?",
-      "如果梦像是在提醒你什么？",
-      "If a dream feels like a sign, what is it like?",
+      "夢のお知らせは、どんな形？",
+      "꿈의 신호는 어떤 모습?",
+      "梦的预兆是什么样？",
+      "How does a dream's sign come?",
     ],
     [
-      {
-        type: "future",
-        text: [
-          "具体的な出来事や場面が、あとで本当に起きる",
-          "구체적인 사건이나 장면이 나중에 실제로 일어난다",
-          "具体的事情或场景后来真的发生",
-          "A concrete event or scene later really happens",
-        ],
-      },
-      {
-        type: "intuition",
-        text: [
-          "理由はないのに、嫌な予感や胸騒ぎだけが残る",
-          "이유는 없는데 불길한 예감이나 두근거림만 남는다",
-          "说不出原因，只留下不祥的预感或心悸",
-          "An uneasy feeling lingers, with no clear reason",
-        ],
-      },
-      {
-        type: "symbol",
-        text: [
-          "動物や水、光など、意味ありげなものが出てくる",
-          "동물·물·빛 등 의미심장한 것이 나온다",
-          "出现动物、水、光等意味深长的东西",
-          "Meaningful things appear, like animals, water, or light",
-        ],
-      },
-      {
-        type: "deja",
-        text: [
-          "「この場面、前にも見た」という強い既視感がある",
-          "'이 장면, 전에도 봤어'라는 강한 기시감이 든다",
-          "有“这个场景以前见过”的强烈既视感",
-          "A strong sense that I have seen this scene before",
-        ],
-      },
+      option("future", "🎬", [
+        "本当に起きる",
+        "실제로 일어난다",
+        "真的发生",
+        "It comes true",
+      ]),
+      option("intuition", "💓", [
+        "胸さわぎ",
+        "불길한 예감",
+        "心神不宁",
+        "A bad feeling",
+      ]),
+      option("symbol", "🐚", [
+        "意味ありげな物",
+        "의미심장한 것",
+        "神秘的象征",
+        "A symbol",
+      ]),
+      option("deja", "🔁", [
+        "前にも見た",
+        "전에도 봤다",
+        "以前见过",
+        "Seen it before",
+      ]),
     ],
   ),
   scene(
@@ -358,118 +337,69 @@ export const QUESTIONS = [
     [
       "「夢だ」と気づいたら？",
       "꿈인 걸 알아차리면?",
-      "发现自己在做梦时？",
-      "When you realize it's a dream?",
+      "发现在做梦时？",
+      "When you know it's a dream?",
     ],
     [
-      {
-        type: "lucid",
-        text: [
-          "飛んだり場面を変えたり、自由に動き回る",
-          "날거나 장면을 바꾸며 자유롭게 돌아다닌다",
-          "飞行、切换场景，自由行动",
-          "I fly, change the scene, and move freely",
-        ],
-      },
-      {
-        type: "aware",
-        text: [
-          "気づいてはいるけれど、思うように体が動かない",
-          "알아차리긴 했지만 몸이 뜻대로 움직이지 않는다",
-          "虽然意识到了，身体却不听使唤",
-          "I know it, but my body will not do what I want",
-        ],
-      },
-      {
-        type: "observer",
-        text: [
-          "自分を外から眺めるように、ただ見ている",
-          "나 자신을 밖에서 보듯 그저 바라본다",
-          "像从外面看着自己一样，只是旁观",
-          "I simply watch, as if looking at myself from outside",
-        ],
-      },
-      {
-        type: "challenge",
-        text: [
-          "目の前の相手や課題に、そのまま挑み続ける",
-          "눈앞의 상대나 과제에 그대로 계속 도전한다",
-          "继续挑战眼前的对手或课题",
-          "I keep taking on whatever is in front of me",
-        ],
-      },
+      option("lucid", "🕊️", [
+        "自由に飛ぶ",
+        "자유롭게 난다",
+        "自由飞翔",
+        "Fly freely",
+      ]),
+      option("aware", "🫧", [
+        "思うように動けない",
+        "뜻대로 안 된다",
+        "不听使唤",
+        "Can't steer it",
+      ]),
+      option("observer", "👀", [
+        "ただ眺める",
+        "그저 바라본다",
+        "静静旁观",
+        "Just watch",
+      ]),
+      option("challenge", "⚔️", [
+        "立ち向かう",
+        "맞선다",
+        "迎难而上",
+        "Face it",
+      ]),
     ],
   ),
   scene(
     "sr",
     "recurring",
     [
-      "夢で何が繰り返される？",
-      "꿈에서 뭐가 반복돼요?",
-      "梦里什么会反复出现？",
-      "What repeats in your dreams?",
+      "夢でくり返すのは？",
+      "꿈에서 반복되는 건?",
+      "梦里反复出现的是？",
+      "What keeps coming back?",
     ],
     [
-      {
-        type: "place",
-        text: [
-          "舞台になる場所（実家・学校・知らない街など）",
-          "무대가 되는 장소(본가·학교·낯선 거리 등)",
-          "作为舞台的地点（老家、学校、陌生的街道等）",
-          "The setting, such as a childhood home, school, or an unknown town",
-        ],
-      },
-      {
-        type: "person",
-        text: [
-          "登場する人（家族・昔の恋人・知らない誰か）",
-          "등장하는 사람(가족·옛 연인·낯선 누군가)",
-          "出场的人（家人、旧情人、陌生人）",
-          "The people, such as family, an old love, or a stranger",
-        ],
-      },
-      {
-        type: "story",
-        text: [
-          "ストーリーの流れや結末",
-          "이야기의 흐름이나 결말",
-          "故事的走向或结局",
-          "The way the story unfolds or ends",
-        ],
-      },
-      {
-        type: "emotion",
-        text: [
-          "目覚めたときの気持ち",
-          "깨어났을 때의 기분",
-          "醒来时的心情",
-          "The feeling I wake up with",
-        ],
-      },
+      option("place", "🏠", ["場所", "장소", "地点", "A place"]),
+      option("person", "👤", ["人", "사람", "人物", "A person"]),
+      option("story", "📖", ["ストーリー", "이야기", "情节", "The story"]),
+      option("emotion", "💭", [
+        "目覚めの気分",
+        "깨어날 때 기분",
+        "醒来的心情",
+        "The feeling",
+      ]),
     ],
   ),
-  // ---- Part 3: style axes (-2 … 2, negative = left pole) ----
+  // ---- Part 3: this or that (-2 … 2, negative = left) ----
   style(
     "m1",
     "motion",
     [
-      "夢でピンチになったら？",
-      "꿈에서 곤란한 일이 생기면?",
-      "梦里遇到麻烦时？",
-      "When things go wrong in a dream?",
+      "夢でピンチ！どうする？",
+      "꿈에서 위기! 어떻게 해?",
+      "梦里遇到危机！怎么办？",
+      "Trouble in a dream! You…",
     ],
-    [
-      "走る・戦う・探すなど、とにかく動く",
-      "달리거나 싸우거나 찾는 등 일단 움직인다",
-      "奔跑、战斗、寻找，总之先行动",
-      "I run, fight, or search: I move",
-    ],
-    [
-      "体が固まる・ただ見ている",
-      "몸이 굳거나 그저 바라본다",
-      "身体僵住，只是看着",
-      "I freeze, or just watch",
-    ],
+    ["🏃", ["とにかく動く", "일단 움직인다", "先行动", "Move"]],
+    ["🧊", ["固まって見る", "굳어서 본다", "僵住旁观", "Freeze and watch"]],
   ),
   style(
     "m2",
@@ -478,147 +408,85 @@ export const QUESTIONS = [
       "夢の中の自分は？",
       "꿈속의 나는?",
       "梦里的自己是？",
-      "What are you like in dreams?",
+      "In your dreams, you are…",
     ],
-    [
-      "自分から働きかける主人公",
-      "스스로 움직이는 주인공",
-      "主动出击的主角",
-      "the lead who makes things happen",
-    ],
-    [
-      "起きることを受け止める語り手",
-      "일어나는 일을 받아들이는 화자",
-      "接受发生之事的叙述者",
-      "the narrator who takes in what happens",
-    ],
+    ["🦸", ["主人公", "주인공", "主角", "The lead"]],
+    ["🎥", ["見ている人", "지켜보는 사람", "旁观者", "The onlooker"]],
   ),
   style(
     "f1",
     "focus",
     [
-      "夢で強く印象に残るのは？",
-      "꿈에서 가장 인상에 남는 건?",
-      "梦里最难忘的是什么？",
-      "What stands out in a dream?",
+      "強く残るのは？",
+      "강하게 남는 건?",
+      "印象最深的是？",
+      "What stays with you?",
     ],
-    [
-      "相手・場所・出来事など、まわりで起きること",
-      "상대·장소·사건 등 주변에서 일어나는 일",
-      "对方、地点、事件等周围发生的事",
-      "what happened around me: people, places, events",
-    ],
-    [
-      "自分の体の感覚や心の動き",
-      "내 몸의 감각이나 마음의 움직임",
-      "自己身体的感觉或内心的波动",
-      "how my body and heart felt",
-    ],
+    ["🌍", ["起きた出来事", "일어난 일", "发生的事", "What happened"]],
+    ["💗", ["自分の気持ち", "내 마음", "自己的心情", "How I felt"]],
   ),
   style(
     "f2",
     "focus",
     [
       "起きて最初に思い出すのは？",
-      "깨고 나서 가장 먼저 떠오르는 건?",
-      "醒来后先想起什么？",
-      "What do you remember first on waking?",
+      "깨서 먼저 떠오르는 건?",
+      "醒来先想起的是？",
+      "On waking, you recall…",
     ],
-    ["何が起きたか", "무슨 일이 있었는지", "发生了什么", "what happened"],
-    [
-      "自分がどう感じたか",
-      "내가 어떻게 느꼈는지",
-      "自己感受到了什么",
-      "how I felt",
-    ],
+    ["🧭", ["誰と・どこで", "누구와·어디서", "和谁、在哪", "Who and where"]],
+    ["🫀", ["体の感覚", "몸의 감각", "身体的感觉", "A bodily feeling"]],
   ),
   style(
     "k1",
     "texture",
     [
-      "夢を思い出すと？",
-      "꿈을 떠올리면?",
-      "回想起梦时？",
-      "When you remember a dream?",
+      "思い出す夢は？",
+      "떠오르는 꿈은?",
+      "回想起的梦是？",
+      "The dreams you recall are…",
     ],
-    [
-      "場面や出来事をはっきり覚えている",
-      "장면이나 사건을 또렷이 기억한다",
-      "清楚记得场景和事件",
-      "clear scenes and events",
-    ],
-    [
-      "雰囲気や気配だけが残る",
-      "분위기나 기운만 남는다",
-      "只留下氛围和气息",
-      "a mood or an atmosphere",
-    ],
+    ["📷", ["くっきり場面", "또렷한 장면", "清晰的画面", "Sharp scenes"]],
+    ["☁️", ["ふんわり空気", "흐릿한 분위기", "朦胧的氛围", "A hazy mood"]],
   ),
   style(
     "k2",
     "texture",
     [
-      "夢の意味を考えるときは？",
-      "꿈의 의미를 생각할 때는?",
-      "想到梦的含义时？",
-      "When you think about what the dream meant?",
+      "夢の意味を考えるなら？",
+      "꿈의 의미를 생각한다면?",
+      "思考梦的含义时？",
+      "Making sense of a dream?",
     ],
+    ["🧩", ["出来事と結ぶ", "사건과 연결", "联系现实", "Link it to events"]],
     [
-      "具体的な出来事と結びつける",
-      "구체적인 사건과 연결한다",
-      "与具体的事情联系起来",
-      "I tie it to concrete events",
-    ],
-    [
-      "イメージや感覚として味わう",
-      "이미지나 감각으로 음미한다",
-      "当作意象和感觉去体会",
-      "I take it in as images and feelings",
+      "🎨",
+      ["イメージで味わう", "이미지로 느낀다", "品味意象", "Savor the images"],
     ],
   ),
   style(
     "t1",
     "direction",
     [
-      "夢が知らせてくれるとしたら？",
-      "꿈이 무언가를 알려준다면?",
-      "如果梦在提醒你什么？",
-      "If a dream is telling you something?",
+      "夢が教えてくれるのは？",
+      "꿈이 알려주는 건?",
+      "梦告诉你的是？",
+      "A dream tells you about…",
     ],
-    [
-      "これから起こること",
-      "앞으로 일어날 일",
-      "将要发生的事",
-      "what is coming",
-    ],
-    [
-      "すでに知っている・過去の何か",
-      "이미 알고 있는 것·과거의 무언가",
-      "已经知道的、过去的事",
-      "what I already know or have lived",
-    ],
+    ["🌅", ["これから", "앞으로", "将来", "What's ahead"]],
+    ["🕰️", ["過去のこと", "지난 일", "过去", "What's past"]],
   ),
   style(
     "t2",
     "direction",
     [
-      "夢が気になるのはどんなとき？",
-      "어떤 꿈이 신경 쓰여요?",
-      "什么时候一个梦会让你在意？",
-      "What makes you wonder about a dream?",
+      "気になる夢の景色は？",
+      "신경 쓰이는 꿈의 풍경은?",
+      "让你在意的梦境是？",
+      "The dream scenery that stays?",
     ],
-    [
-      "はじめて見るものが多い",
-      "처음 보는 것이 많다",
-      "多是第一次见到的",
-      "mostly new to me",
-    ],
-    [
-      "どこかで見た・懐かしいものが多い",
-      "어디선가 본·그리운 것이 많다",
-      "多是似曾相识、令人怀念的",
-      "mostly familiar, from somewhere in my life",
-    ],
+    ["✨", ["初めて見る", "처음 본다", "初次见到", "Brand new"]],
+    ["🌙", ["なつかしい", "그립다", "似曾相识", "Familiar"]],
   ),
 ];
 export const questionById = (id) => QUESTIONS.find((q) => q.id === id);

@@ -576,3 +576,23 @@ test("dream level grows with logged dreams only, on a widening curve without a c
   for (let level = 2; level < 30; level++)
     assert.ok(levelThreshold(level) < levelThreshold(level + 1));
 });
+test("quiz answers are short words with an icon, and saved answers stay valid", () => {
+  for (const q of QUESTIONS) {
+    if (q.kind === "frequency") assert.ok(q.icon, q.id);
+    for (const o of q.options || []) {
+      assert.ok(o.icon, q.id);
+      assert.ok([...o.text[0]].length <= 10, `${q.id}: ${o.text[0]}`);
+    }
+    if (q.kind === "style") {
+      assert.equal(q.icons.length, 2, q.id);
+      for (const side of [q.left, q.right])
+        assert.ok([...side[0]].length <= 10, `${q.id}: ${side[0]}`);
+    }
+  }
+  for (const label of FREQUENCY_OPTIONS) assert.ok([...label[0]].length <= 6);
+  // The order and the answer values are those of the version-2 sheet.
+  assert.deepEqual(
+    QUESTIONS.map((q) => q.id).join(","),
+    "n1,n2,n3,p1,p2,p3,l1,l2,l3,r1,r2,r3,sn,sp,sl,sr,m1,m2,f1,f2,k1,k2,t1,t2",
+  );
+});

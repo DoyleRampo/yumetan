@@ -1,6 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { QUESTIONS } from "../../public/core/diagnosis.js";
-import { passTour, registerAndQuiz, answerQuestion } from "./helpers/introduction.js";
+import {
+  passTour,
+  registerAndQuiz,
+  answerQuestion,
+} from "./helpers/introduction.js";
 async function begin(page, lang = "ja", configured = false) {
   await page.route("**/firebase-config.js*", (r) =>
     r.fulfill({
@@ -254,4 +258,50 @@ test("reduced motion disables decorative introduction animations", async ({
     "none",
   );
   await expect(page.locator(".intro-moon")).toHaveCSS("animation-name", "none");
+});
+test("the quiz sits mid-screen with short answers, and a character cheers once at halfway", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await begin(page);
+  await passTour(page);
+  await page.locator("#nickname").fill("ゆめ");
+  await page.locator("#profile-form button[type=submit]").click();
+  const half = Math.ceil(QUESTIONS.length / 2);
+  for (let i = 0; i < QUESTIONS.length; i++) {
+    await expect(page.locator("progress")).toHaveAttribute(
+      "value",
+      String(i + 1),
+    );
+    // Every answer is a few words, and the answers sit around the middle of
+    // the screen, never squeezed against the bottom edge.
+    const labels = await page
+      .locator(".quiz-answers .quiz-label")
+      .allTextContents();
+    expect(
+      Math.max(...labels.map((l) => [...l].length)),
+      QUESTIONS[i].id,
+    ).toBeLessThanOrEqual(10);
+    const box = await page.locator(".quiz-answers").boundingBox();
+    expect(box.y + box.height, QUESTIONS[i].id).toBeLessThan(844 * 0.85);
+    expect(box.y, QUESTIONS[i].id).toBeGreaterThan(844 * 0.35);
+    await answerQuestion(page, 0);
+    if (i === half - 1) {
+      const cheer = page.locator(".quiz-cheer");
+      await expect(cheer).toBeVisible();
+      await expect(cheer).toContainText("あと半分だよ！");
+      // It leaves by itself, quickly.
+      await expect(cheer).toHaveCount(0, { timeout: 3000 });
+      // Stepping back over the halfway mark does not bring it back.
+      await page.locator("[data-action=quiz-back]").click();
+      await page.locator("[data-action=quiz-next]").click();
+      await expect(page.locator("progress")).toHaveAttribute(
+        "value",
+        String(half + 1),
+      );
+      await page.waitForTimeout(300);
+      await expect(cheer).toHaveCount(0);
+    }
+  }
+  await expect(page.locator("[data-action=begin]")).toBeVisible();
 });

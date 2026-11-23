@@ -12,6 +12,7 @@ import { TYPE_FEATURES } from "./core/type-features.js";
 import { TYPE_LORE } from "./core/type-lore.js";
 import {
   QUESTIONS,
+  FREQUENCY_ICONS,
   AXES,
   GROUP_AXES,
   TYPE_POLES,
@@ -1094,48 +1095,76 @@ function profileView() {
  <div class="field-row"><label class="field"><span>${t("age")}</span><select id="ageGroup" class="input">${ages.map((a) => `<option value="${a === "60" ? "60代以上" : a + "代"}" ${p.ageGroup === (a === "60" ? "60代以上" : a + "代") ? "selected" : ""}>${t("age" + a)}</option>`).join("")}</select></label>
  ${languageField()}</div><button class="btn primary full" type="submit">${t(first ? "startQuiz" : "save")}<span aria-hidden="true"> →</span></button></form></section>`;
 }
+// The quiz sits in the middle of the screen: the picture, the question and
+// its answers as one block. Answers are a few words with an icon: a moon that
+// fills up for "how often", four picture cards for a scene, and two sides
+// with five steps between them for "this or that".
 function quizView() {
   const q = QUESTIONS[quizIndex],
     lang = language(),
     total = QUESTIONS.length,
     answer = quizAnswers[quizIndex],
     values = answerValues(q);
-  const option = (v, label, symbol = "", extra = "") =>
-    `<button type="button" class="quiz-answer" data-answer="${v}" aria-pressed="${answer === v}"${extra}>${symbol ? `<span class="quiz-symbol" aria-hidden="true">${symbol}</span>` : ""}<span class="quiz-label">${label}</span></button>`;
-  const illustration = q.group && TYPES.find((type) => type.group === q.group);
-  let answers;
+  const option = (v, label, icon, cls = "", extra = "") =>
+    `<button type="button" class="quiz-answer ${cls}" data-answer="${v}" aria-pressed="${answer === v}"${extra}><span class="quiz-icon" aria-hidden="true">${icon}</span><span class="quiz-label">${label}</span></button>`;
+  // A character of the question's group; "this or that" questions are asked
+  // by the guide (the same character that cheers at halfway).
+  const illustration = q.group
+    ? TYPES.find((type) => type.group === q.group)
+    : typeById("observer");
+  let answers, prompt = "";
   if (q.kind === "frequency") {
-    const symbols = ["○", "✦", "✦✦", "✦✦✦", "✦✦✦✦"];
-    answers = values
+    prompt = `<p class="quiz-prompt" id="quiz-prompt">${t("quizHint")}</p>`;
+    answers = `<div class="quiz-moons">${values
       .map((v) =>
-        option(v, esc(localized(FREQUENCY_OPTIONS[v], lang)), symbols[v]),
+        option(v, esc(localized(FREQUENCY_OPTIONS[v], lang)), FREQUENCY_ICONS[v]),
       )
-      .join("");
+      .join("")}</div><div class="quiz-ends" aria-hidden="true"><span>${t("quizLess")}</span><span>${t("quizMore")}</span></div>`;
   } else if (q.kind === "scene") {
     answers = q.options
-      .map((o, i) =>
-        option(i, esc(localized(o.text, lang)), typeById(o.type).symbol),
-      )
+      .map((o, i) => option(i, esc(localized(o.text, lang)), o.icon, "quiz-card-option"))
       .join("");
   } else {
     const left = esc(localized(q.left, lang)),
       right = esc(localized(q.right, lang));
-    answers = `<div class="quiz-poles"><span>${left}</span><span>${right}</span></div><div class="quiz-scale">${values
+    answers = `<div class="quiz-sides" aria-hidden="true"><span class="quiz-side left"><span class="quiz-icon">${q.icons[0]}</span>${left}</span><span class="quiz-vs">or</span><span class="quiz-side right"><span class="quiz-icon">${q.icons[1]}</span>${right}</span></div><div class="quiz-steps">${values
       .map((v, i) => {
         const strength = esc(localized(SCALE_STRENGTH[i], lang));
         const label = v === 0 ? strength : `${v < 0 ? left : right} · ${strength}`;
-        return option(v, strength, ["«", "‹", "·", "›", "»"][i], ` aria-label="${label}"`);
+        return `<button type="button" class="quiz-answer quiz-step step-${i}" data-answer="${v}" aria-pressed="${answer === v}" aria-label="${label}"><span class="quiz-dot" aria-hidden="true"></span><span class="quiz-label" aria-hidden="true">${strength}</span></button>`;
       })
       .join("")}</div>`;
   }
+  const icon =
+    q.kind === "frequency" ? `<span class="quiz-badge" aria-hidden="true">${q.icon}</span>` : "";
   // Tapping an answer moves on by itself; the arrows step back and forth.
   return `<section class="quiz-flow" data-kind="${q.kind}"${illustration ? ` style="--accent:${group(illustration).color}"` : ""}><div class="quiz-header"><button type="button" class="icon-action" data-action="quiz-back" aria-label="${t("back")}">${ICONS.back}</button><div class="quiz-meter"><h1>${t("quiz")}</h1><progress class="progress" max="${total}" value="${quizIndex + 1}" aria-label="${t("quiz")}"></progress></div><span class="quiz-count">${quizIndex + 1}<small>/${total}</small></span><button type="button" class="icon-action quiz-next" data-action="quiz-next" aria-label="${t(quizIndex === total - 1 ? "result" : "next")}" ${answer === null ? "disabled" : ""}><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="m9.5 5.5 6.5 6.5-6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+  <div class="quiz-body">
   <div class="quiz-card">
-    ${illustration ? `<div class="quiz-art" aria-hidden="true">${avatar(illustration)}</div>` : ""}
+    ${illustration ? `<div class="quiz-art" aria-hidden="true">${avatar(illustration)}${icon}</div>` : ""}
     <h2 id="quiz-scene" tabindex="-1">${esc(localized(q.text, lang))}</h2>
-    ${q.kind === "frequency" ? `<p class="quiz-prompt" id="quiz-prompt">${t("quizHint")}</p>` : ""}
+    ${prompt}
   </div>
-  <div class="quiz-answers quiz-${q.kind}" role="group" aria-labelledby="quiz-scene${q.kind === "frequency" ? " quiz-prompt" : ""}">${answers}</div></section>`;
+  <div class="quiz-answers quiz-${q.kind}" role="group" aria-labelledby="quiz-scene${prompt ? " quiz-prompt" : ""}">${answers}</div></div></section>`;
+}
+// Halfway through the quiz a character pops up to cheer, then leaves on its
+// own (a tap anywhere also sends it away). Once per round of the quiz.
+let quizCheered = false;
+function cheerHalfway() {
+  quizCheered = true;
+  document.querySelector(".quiz-cheer")?.remove();
+  const el = document.createElement("div");
+  el.className = "quiz-cheer";
+  el.setAttribute("role", "status");
+  el.innerHTML = `<img src="${getCharacter("observer", effectiveSet()).image}" width="768" height="768" alt=""><p><strong>${esc(t("quizHalf"))}</strong><span>${esc(t("quizHalfSub"))}</span></p>`;
+  document.body.append(el);
+  const leave = () => {
+    el.classList.add("leaving");
+    setTimeout(() => el.remove(), 260);
+    document.removeEventListener("pointerdown", leave, true);
+  };
+  document.addEventListener("pointerdown", leave, true);
+  setTimeout(leave, 1800);
 }
 // A saved questionnaire draft is only restored when every answer fits the current questions.
 function quizDraft(progress) {
@@ -2346,6 +2375,9 @@ async function saveQuizDraft() {
 let quizAdvance = null;
 async function moveQuiz(index) {
   clearTimeout(quizAdvance);
+  const half = Math.ceil(QUESTIONS.length / 2);
+  if (index === half && index > quizIndex && !quizCheered)
+    setTimeout(cheerHalfway, 120);
   await write(`${storageKey}.quiz`, { answers: quizAnswers, index });
   quizIndex = index;
   haptics.transition("step");
@@ -3011,6 +3043,7 @@ const actions = {
     navigate(firstRunPage() === "plan-offer" ? "plan-offer" : "home", true),
   back: goBack,
   retake: async () => {
+    quizCheered = false;
     quizAnswers = Array(QUESTIONS.length).fill(null);
     quizIndex = 0;
     pendingResult = null;
