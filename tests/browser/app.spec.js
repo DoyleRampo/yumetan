@@ -287,9 +287,17 @@ test("quiz and record navigation send haptic feedback", async ({ page }) => {
   await page.locator(".companion-action .character-art").click();
   await expect(page.locator("#dream-form")).toBeVisible();
   expect(await pulses()).toEqual([18]);
+
+  await page.locator("#dream-text").fill("A dream I want to keep.");
   await page.goBack();
+  await page.locator("[data-dialog-cancel]").click();
+  await expect(page.locator("#dream-text")).toHaveValue("A dream I want to keep.");
+  await expect(page).toHaveURL(/#record$/);
+
+  await page.goBack();
+  await page.locator("[data-dialog-discard]").click();
   await expect(page.locator(".companion-action")).toBeVisible();
-  expect(await pulses()).toEqual([18, 18]);
+  expect((await pulses()).filter((pulse) => pulse === 18)).toEqual([18, 18]);
 });
 test("AI failures retain the unsaved dream; free members get a local reflection and an upgrade hint", async ({
   page,

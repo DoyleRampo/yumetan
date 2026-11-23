@@ -35,7 +35,7 @@ export function createHaptics(cap) {
       if (!control || control.matches(':disabled, [aria-disabled="true"]'))
         return;
       const step = control.matches(
-        "[data-go], [data-entry], [data-type-detail], [data-action=back], [data-action=quiz-back], [data-action=quiz-next], [data-action=home], [data-action=record], [data-action=diary], [data-action=history], [data-action=catalog], [data-action=begin]",
+        "[data-go], [data-dialog-discard], [data-entry], [data-type-detail], [data-action=back], [data-action=quiz-back], [data-action=quiz-next], [data-action=home], [data-action=record], [data-action=diary], [data-action=history], [data-action=catalog], [data-action=begin]",
       );
       interaction(step ? "step" : "tap");
     },

@@ -1038,7 +1038,7 @@ function homeView() {
      ${avatar(type, value.stars, { inline: true })}
      <span class="companion-prompt" aria-hidden="true">${t("dreamPrompt")} <span>✎</span></span>
    </button>
-   <div class="companion-details"><button type="button" class="character-link" data-type-detail="${type.id}"><strong class="character-name">${name(characterById(type.id))}</strong></button><p class="help">${name(type)}</p>${button("catalog", "catalog", "small ghost")}</div>
+   <div class="companion-details"><p class="help">${esc(state.profile?.nickname)}</p><button type="button" class="character-link" data-type-detail="${type.id}"><strong class="character-name">${name(characterById(type.id))}</strong></button><p class="help">${name(type)}</p>${button("catalog", "catalog", "small ghost")}</div>
  </div>
  <div class="home-insights"><div class="card level-card"><div class="row between"><h2>${t("level")}</h2><div class="score">Lv.<b>${value.level}</b></div></div><div class="level-gauge" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value.progress}" aria-label="${esc(t("level"))}"><i style="width:${value.progress}%"></i></div><p class="help level-next">${esc(
    t("nextLevel")
@@ -2859,6 +2859,11 @@ window.addEventListener("popstate", async ({ state: route }) => {
   if (route.index === routeIndex) return;
   if (processing || (dirty && !(await confirmDiscard(t)))) {
     history.go(routeIndex - route.index);
+    return;
+  }
+  // An in-app Back can replace the active entry with its parent page.
+  if (!dirty && route.index > 0 && route.index < routeIndex && route.page === page) {
+    history.back();
     return;
   }
   const record = page === "detail" ? state.records.find((r) => r.id === selectedId) : null;
