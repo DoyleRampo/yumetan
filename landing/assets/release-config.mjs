@@ -12,5 +12,5 @@ export const APP_STORE_ID = "6813241714";
 // GA4 measurement ID of the landing site's web data stream (G-…). Empty: the
 // site sends nothing to Google Analytics. `npm run ga4:setup -- --write`
 // fills it in (docs/analytics/GA4_SETUP.md).
-export const GA4_MEASUREMENT_ID = "";
+export const GA4_MEASUREMENT_ID = "G-Q6DEB1Q09F";
 export const SUPPORT_EMAIL = "doyle.rampo.dev@gmail.com";

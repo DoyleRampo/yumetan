@@ -48,58 +48,61 @@ export const STREAMS = [
   },
 ];
 // Event-scoped custom dimensions (parameter → display name). GA4 allows 50.
+// Display names may only hold letters, digits, spaces and underscores, so
+// they are English; the event dictionary in docs/analytics/GA4_SETUP.md §4
+// explains each parameter in Japanese.
 export const EVENT_DIMENSIONS = {
-  screen_name: "画面名 (screen_name)",
-  app_platform: "プラットフォーム (app_platform)",
-  plan: "プラン (plan)",
-  cycle: "請求サイクル (cycle)",
-  engine: "読み解きエンジン (engine)",
-  error_code: "エラーコード (error_code)",
-  source: "遷移元 (source)",
-  method: "ログイン方法 (method)",
-  stamp: "スタンプ (stamp)",
-  link_kind: "外部リンク種別 (link_kind)",
-  location: "ページ内位置 (location)",
-  section: "セクション (section)",
-  feature: "機能タブ (feature)",
-  question: "FAQ (question)",
-  text_length: "文字数区分 (text_length)",
-  dream_type: "夢タイプ (dream_type)",
-  character: "キャラクター (character)",
-  store: "ストア (store)",
-  cancel_reason: "解約理由 (cancel_reason)",
-  expiration_reason: "失効理由 (expiration_reason)",
-  period_type: "期間種別 (period_type)",
-  page_name: "ページ名 (page_name)",
-  kind: "記録種別 (kind)",
-  deleted_by: "削除経路 (deleted_by)",
-  link_domain: "リンク先ドメイン (link_domain)",
-  mood: "目覚めの気分 (mood)",
-  action: "操作 (action)",
-  screen: "操作時の画面 (screen)",
-  language: "言語 (language)",
-  character_set: "キャラクターシリーズ (character_set)",
-  plan_after: "確認後のプラン (plan_after)",
-  product_id: "商品ID (product_id)",
-  environment: "購入環境 (environment)",
-  target: "リンク先 (target)",
+  screen_name: "Screen name",
+  app_platform: "Platform",
+  plan: "Plan",
+  cycle: "Billing cycle",
+  engine: "Reading engine",
+  error_code: "Error code",
+  source: "Source",
+  method: "Login method",
+  stamp: "Stamp",
+  link_kind: "Link kind",
+  location: "Location on page",
+  section: "Section",
+  feature: "Feature tab",
+  question: "FAQ question",
+  text_length: "Text length bucket",
+  dream_type: "Dream type",
+  character: "Character",
+  store: "Store",
+  cancel_reason: "Cancel reason",
+  expiration_reason: "Expiration reason",
+  period_type: "Period type",
+  page_name: "Page name",
+  kind: "Record kind",
+  deleted_by: "Deleted by",
+  link_domain: "Link domain",
+  mood: "Wake mood",
+  action: "Action",
+  screen: "Screen at action",
+  language: "Language",
+  character_set: "Character set",
+  plan_after: "Plan after check",
+  product_id: "Product ID",
+  environment: "Purchase environment",
+  target: "Link target",
 };
 // User-scoped custom dimensions (user properties). GA4 allows 25.
 export const USER_DIMENSIONS = {
-  plan: "ユーザー: プラン",
-  dream_type: "ユーザー: 夢タイプ",
-  dream_level: "ユーザー: 夢レベル",
-  language: "ユーザー: 言語",
-  character_set: "ユーザー: キャラクターシリーズ",
-  login_provider: "ユーザー: ログイン方法",
-  app_platform: "ユーザー: プラットフォーム",
-  app_version: "ユーザー: アプリバージョン",
+  plan: "User plan",
+  dream_type: "User dream type",
+  dream_level: "User dream level",
+  language: "User language",
+  character_set: "User character set",
+  login_provider: "User login provider",
+  app_platform: "User platform",
+  app_version: "User app version",
 };
 // Event-scoped custom metrics (numeric parameters).
 export const METRICS = {
-  dreams_total: "夢の累計件数 (dreams_total)",
-  level: "到達レベル (level)",
-  themes: "テーマ数 (themes)",
+  dreams_total: "Dreams total",
+  level: "Level reached",
+  themes: "Themes",
 };
 // Key events (conversions). `purchase` is a key event in every property already.
 export const KEY_EVENTS = [
@@ -115,6 +118,10 @@ export const KEY_EVENTS = [
   "support_contact_click",
   "demo_submit",
 ];
+// The Admin API wants every audience filter as and_group → or_group → leaves.
+const anyOf = (filterExpressions) => ({
+  andGroup: { filterExpressions: [{ orGroup: { filterExpressions } }] },
+});
 export const AUDIENCES = [
   {
     displayName: "有料会員（プラン: starter / standard）",
@@ -125,17 +132,15 @@ export const AUDIENCES = [
         clauseType: "INCLUDE",
         simpleFilter: {
           scope: "AUDIENCE_FILTER_SCOPE_ACROSS_ALL_SESSIONS",
-          filterExpression: {
-            orGroup: {
-              filterExpressions: ["starter", "standard"].map((value) => ({
-                dimensionOrMetricFilter: {
-                  fieldName: "plan",
-                  stringFilter: { matchType: "EXACT", value },
-                  atAnyPointInTime: false,
-                },
-              })),
-            },
-          },
+          filterExpression: anyOf(
+            ["starter", "standard"].map((value) => ({
+              dimensionOrMetricFilter: {
+                fieldName: "customUser:plan",
+                stringFilter: { matchType: "EXACT", value },
+                atAnyPointInTime: false,
+              },
+            })),
+          ),
         },
       },
     ],
@@ -149,9 +154,9 @@ export const AUDIENCES = [
         clauseType: "INCLUDE",
         simpleFilter: {
           scope: "AUDIENCE_FILTER_SCOPE_ACROSS_ALL_SESSIONS",
-          filterExpression: {
-            eventFilter: { eventName: "dream_save" },
-          },
+          filterExpression: anyOf([
+            { eventFilter: { eventName: "dream_save" } },
+          ]),
         },
       },
     ],
@@ -165,16 +170,18 @@ export const AUDIENCES = [
         clauseType: "INCLUDE",
         simpleFilter: {
           scope: "AUDIENCE_FILTER_SCOPE_ACROSS_ALL_SESSIONS",
-          filterExpression: { eventFilter: { eventName: "view_plans" } },
+          filterExpression: anyOf([
+            { eventFilter: { eventName: "view_plans" } },
+          ]),
         },
       },
       {
         clauseType: "EXCLUDE",
         simpleFilter: {
           scope: "AUDIENCE_FILTER_SCOPE_ACROSS_ALL_SESSIONS",
-          filterExpression: {
-            eventFilter: { eventName: "purchase_confirmed" },
-          },
+          filterExpression: anyOf([
+            { eventFilter: { eventName: "purchase_confirmed" } },
+          ]),
         },
       },
     ],
@@ -377,6 +384,7 @@ export async function runSetup({
           "PATCH",
           `${stream.name}/enhancedMeasurementSettings?updateMask=${Object.keys(settings).join(",")}`,
           settings,
+          { version: "v1alpha" },
         );
         kept(
           `拡張計測 ${spec.displayName}: スクロール・外部リンク on、ページ変更 ${spec.pageChanges ? "on" : "off"}`,
@@ -584,7 +592,13 @@ async function main() {
     );
     return;
   }
-  const token = args.dryRun ? "dry-run" : accessToken(args);
+  // A dry run still reads the property, so it uses a token when one is there.
+  let token = "dry-run";
+  if (!args.dryRun) token = accessToken(args);
+  else
+    try {
+      token = accessToken(args);
+    } catch {}
   let siteUrl = STREAMS[0].defaultUri;
   try {
     siteUrl =

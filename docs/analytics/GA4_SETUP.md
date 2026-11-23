@@ -55,7 +55,11 @@ npm run ga4:setup -- --write
 
 Google アカウントにはプロパティの **編集者** 権限が必要です。`gcloud` が使えない場合は `--token <アクセストークン>` か環境変数 `GA4_ACCESS_TOKEN` で渡せます（[OAuth Playground](https://developers.google.com/oauthplayground/) で `https://www.googleapis.com/auth/analytics.edit` を選んで取得）。
 
+**設定状況（2026-11-23 実行済み）**: プロパティ `552897004`（yumetan-a31f0）に上記 1〜5・7・8 を作成しました。測定 ID は LP が `G-Q6DEB1Q09F`、アプリが `G-VQCNJKPC3R` で、`public/config.js` と `landing/assets/release-config.mjs` に書き込み済みです。カスタムディメンション・指標の表示名は、GA4 が英数字・空白・下線しか受け付けないため英語です（例: `Screen name`、`User plan`）。6 の Measurement Protocol シークレットは、プロパティ所有者による「ユーザーデータの収集に関する確認」が済んでいないため未作成です（2-2 の 0 を参照）。
+
 ### 2-2. 手で行うこと（API では設定できない項目）
+
+0. **ユーザーデータの収集に関する確認**: 管理 → データの収集と修正 → データ収集 →「ユーザーデータの収集に関する確認」で同意します。そのあと 管理 → データストリーム →「ユメタン アプリ」→ Measurement Protocol API secrets → 作成（名前 `yumetan-server`）で値を作り、Render の環境変数 `GA4_API_SECRET` に設定します（`GA4_MEASUREMENT_ID` には `G-VQCNJKPC3R`）。
 
 GA4 管理画面（左下の歯車）で:
 

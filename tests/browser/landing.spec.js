@@ -43,19 +43,24 @@ test.beforeAll(async () => {
   origin = `http://127.0.0.1:${server.address().port}`;
 });
 test.afterAll(() => server?.close());
-async function withTag(page) {
-  // The site's config, with a test stream; the tag script itself is blocked.
-  await page.route(/\/assets\/release-config\.mjs$/, (route) =>
+// The site's config with the measurement ID replaced (the real one, a test
+// stream, or none), whatever the committed config holds.
+function withMeasurementId(page, id) {
+  return page.route(/\/assets\/release-config\.mjs$/, (route) =>
     route.fulfill({
       contentType: "text/javascript",
       body: fs
         .readFileSync("landing/assets/release-config.mjs", "utf8")
         .replace(
-          'GA4_MEASUREMENT_ID = ""',
-          'GA4_MEASUREMENT_ID = "G-LP123456"',
+          /GA4_MEASUREMENT_ID = "[^"]*"/,
+          `GA4_MEASUREMENT_ID = ${JSON.stringify(id)}`,
         ),
     }),
   );
+}
+async function withTag(page) {
+  // A test stream; the tag script itself is blocked.
+  await withMeasurementId(page, "G-LP123456");
   const tag = [];
   await page.route(/googletagmanager\.com/, (route) => {
     tag.push(route.request().url());
@@ -153,6 +158,7 @@ test("the top page renders, and store, support and FAQ interactions reach GA4 wi
   expect(errors).toEqual([]);
 });
 test("support, privacy, terms and a missing page work", async ({ page }) => {
+  await withMeasurementId(page, "");
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(origin + "/support/");
