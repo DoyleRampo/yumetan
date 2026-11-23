@@ -96,9 +96,10 @@ test("skip leads to registration and the quiz; the result asks for an account, t
   await expect(page.locator("[data-action=begin]")).toHaveText(
     "登録・ログインしてはじめる",
   );
-  await expect(page.locator(".type-note summary")).toContainText(
-    "タイプについて",
-  );
+  await expect(page.locator("summary").filter({ hasText: "タイプについて" })).toBeVisible();
+  await expect(page.locator(".rationale")).toBeHidden();
+  await page.locator("summary").filter({ hasText: "診断の根拠" }).click();
+  await expect(page.locator(".rationale")).toBeVisible();
   await expect(page.locator("#nav")).toBeHidden();
   await expect(page.locator("#header [data-go=settings]")).toHaveCount(0);
   await page.locator("[data-action=begin]").click();
