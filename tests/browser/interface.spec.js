@@ -3,6 +3,7 @@ import {
   chooseDate,
   savedDreamDetails,
   submitDream,
+  fillSleep,
 } from "./helpers/journal.js";
 const today = new Date().toLocaleDateString("sv-SE", {
   timeZone: "Asia/Tokyo",
@@ -59,10 +60,7 @@ test("saved dream clears all draft fields only after successful persistence", as
   await page.locator("nav [data-go=record]").click();
   await chooseDate(page, "dream-date", "2024-02-29");
   await page.locator("#dream-text").fill("うるう日の夢");
-  await page.locator("#include-sleep").check();
-  await page.locator("#hours").fill("8");
-  await page.locator("#awakenings").fill("0");
-  await page.locator("#rested").selectOption("4");
+  await fillSleep(page, { hours: "8", awakenings: "0", rested: "4" });
   await submitDream(page);
   await expect(page.locator("#dream-text")).toHaveValue("");
   await expect(page.locator("#dream-date")).toHaveValue(today);
@@ -211,7 +209,7 @@ for (const language of ["ja", "en", "ko", "zh"])
           page.evaluate(() => ({
             height: document.documentElement.scrollHeight,
             viewport: innerHeight,
-            reflow: document.body.classList.contains("home-reflow"),
+            reflow: document.body.classList.contains("fit-reflow"),
           })),
         )
         .toEqual({ height, viewport: height, reflow: false });
@@ -249,13 +247,14 @@ test("very short screens and enlarged text retain reachable home controls", asyn
 }) => {
   await page.setViewportSize({ width: 320, height: 360 });
   await ready(page);
-  await expect(page.locator("body")).toHaveClass(/home-reflow/);
   for (const zoom of ["1", "2"]) {
     await page.evaluate((zoom) => {
       document.documentElement.style.zoom = zoom;
       window.dispatchEvent(new Event("resize"));
     }, zoom);
-    await expect(page.locator("body")).toHaveClass(/home-reflow/);
+    // At twice the text size the screen no longer fits and its content scrolls.
+    if (zoom === "2")
+      await expect(page.locator("body")).toHaveClass(/fit-reflow/);
     const box = await page.locator("nav").boundingBox();
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(321);
@@ -301,18 +300,76 @@ test("the home character opens the journal and the card spells out the next leve
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await ready(page);
+  // The character fills most of the screen; the level card sits whole above the tab bar.
   const companion = page.locator(".companion-action");
-  expect((await companion.boundingBox()).height).toBeGreaterThan(75);
-  expect(
-    (await page.locator(".level-card").boundingBox()).height,
-  ).toBeGreaterThan(170);
-  expect(
-    (await page.locator(".character-row").boundingBox()).height,
-  ).toBeLessThan(380);
+  expect((await companion.boundingBox()).height).toBeGreaterThan(300);
+  const level = await page.locator(".level-card").boundingBox(),
+    nav = await page.locator("nav").boundingBox();
+  expect(level.y + level.height).toBeLessThanOrEqual(nav.y);
   await expect(page.locator(".level-next")).toContainText(
     "あと3個の夢を記録するとLv.2になります",
   );
   await expect(page.locator(".dream-count")).toHaveText("記録した夢: 0");
   await companion.click();
   await expect(page.locator("#dream-form")).toBeVisible();
+});
+test("every main screen fits without scrolling on a common phone", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await ready(page, [record("dream", today, "夢の本文")]);
+  const fits = async (name) => {
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => ({
+            page: document.documentElement.scrollHeight <= innerHeight,
+            app:
+              document.querySelector("#app").scrollHeight <=
+              document.querySelector("#app").clientHeight + 1,
+            reflow: document.body.classList.contains("fit-reflow"),
+          })),
+        { message: name },
+      )
+      .toEqual({ page: true, app: true, reflow: false });
+  };
+  await fits("home");
+  for (const tab of ["record", "diary", "community"]) {
+    await page.locator(`nav [data-go=${tab}]`).click();
+    await fits(tab);
+  }
+  await page.locator("#header [data-go=settings]").click();
+  await fits("settings");
+  await page.locator("[data-go=help]").click();
+  await fits("help");
+  await page.locator("nav [data-go=home]").click();
+  await page.locator("[data-action=catalog]").click();
+  await fits("catalog");
+  await page.locator("[data-type-detail=lucid]").click();
+  await fits("type-detail");
+  await page.locator("nav [data-go=record]").click();
+  await page.locator("[data-open-days=dream]").click();
+  await fits("dream-days");
+  await page.locator("[data-entry]").click();
+  await fits("detail");
+});
+test("tips open once per screen, close with × and on their own", async ({
+  page,
+}) => {
+  await ready(page);
+  const tip = page.locator("#tip");
+  await expect(tip).toHaveClass(/visible/);
+  await expect(tip).toContainText("夢レベル");
+  await tip.locator("[data-tip-close]").click();
+  await expect(tip).not.toHaveClass(/visible/);
+  // The ? in the top bar brings the tip back; it then leaves by itself.
+  await page.locator("[data-page-tip]").click();
+  await expect(tip).toHaveClass(/visible/);
+  await expect(tip).not.toHaveClass(/visible/, { timeout: 12000 });
+  // A new screen explains itself once; one already explained stays quiet.
+  await page.locator("nav [data-go=diary]").click();
+  await expect(tip).toHaveClass(/visible/);
+  await page.locator("nav [data-go=home]").click();
+  await page.waitForTimeout(1000);
+  await expect(tip).not.toHaveClass(/visible/);
 });

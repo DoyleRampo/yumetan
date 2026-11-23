@@ -1,3 +1,4 @@
+import { openSheet, closeSheet } from "./helpers/journal.js";
 import { test, expect } from "@playwright/test";
 async function ready(page) {
   await page.route("**/firebase-config.js*", (r) =>
@@ -101,8 +102,11 @@ for (const [width, height] of [
     );
     await page.locator("nav [data-go=record]").click();
     await noOverflow(page);
-    await page.locator(".theme-picker summary").click();
+    await openSheet(page, "tags");
     await page.locator("[data-tag=challenge]").click();
+    await closeSheet(page, "tags");
+    await expect(page.locator("[data-sheet-open=tags]")).toHaveClass(/on/);
+    await openSheet(page, "sleep");
     await page.locator("#include-sleep").check();
     await noOverflow(page);
     await expect(page.locator("#hours")).toBeVisible();

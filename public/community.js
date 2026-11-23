@@ -84,8 +84,10 @@ export function createCommunity({
   // Purchases run only inside the store apps, and only once the server can verify them.
   const canBuy = () =>
     Boolean(isNative() && purchases?.available() && account.billingConfigured);
+  const info = (text, label = "") =>
+    `<button type="button" class="info-btn" data-tip="${esc(text)}" aria-label="${esc(label || t("details"))}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7.8" r="1.2" fill="currentColor"/></svg></button>`;
   const paywall = () =>
-    `<div class="card paywall"><p>${t("paidRequired")}</p>${b("plans", "plans")}${!signedIn() ? `<p>${t("loginRequired")}</p>${b("accountSettings", "settings")}` : ""}</div>`;
+    `<div class="paywall"><span class="paywall-moon" aria-hidden="true">☾</span><p>${t("paidRequired")}</p><div class="row">${b("plans", "plans")}${!signedIn() ? b("accountSettings", "settings") : ""}</div>${!signedIn() ? `<p class="sr-only">${t("loginRequired")}</p>` : ""}</div>`;
   const status = () =>
     error
       ? `<p role="alert" class="status">${esc(error)}</p>`
@@ -129,7 +131,7 @@ export function createCommunity({
       ? postCard(p, true, true)
       : `<article class="card feed-card teaser-card" data-post-id="${esc(p.id)}">${author(p)}<div class="post-body"><strong class="post-name">${postName(p)}</strong><p class="post-title">${esc(p.title)}</p><p class="prose post-text teaser-text">${esc(p.excerpt)}<button type="button" class="link-button" data-social="plans">${t("readMore")}</button></p>${stampBar(p)}</div></article>`;
   const teaserView = () =>
-    `<div class="teaser"><p class="help">${t("teaserHint")}</p><div class="feed-list">${(teaser?.posts || []).map(teaserCard).join("") || (!busy ? `<p class="empty">${t("emptyTeaser")}</p>` : "")}</div><button type="button" class="btn primary full" data-social="plans">${t("seeMore")}</button><p class="help">${t("paidRequired")}</p></div>`;
+    `<div class="teaser"><div class="feed-list carousel">${(teaser?.posts || []).map(teaserCard).join("") || (!busy ? `<p class="empty">${t("emptyTeaser")}</p>` : "")}</div><div class="page-actions"><button type="button" class="btn primary full" data-social="plans">${t("seeMore")}</button></div></div>`;
   const postText = (p, excerpt) => {
     const chars = Array.from(p.text || "");
     const short = excerpt && !expanded.has(p.id) && chars.length > FEED_CHARS;
@@ -199,7 +201,7 @@ export function createCommunity({
     `¥${p[cycle].toLocaleString(language())}`;
   // Guideline 3.1.2: the plan's name, length and price sit right above its purchase button.
   const purchaseSummary = (p) =>
-    `<div class="purchase-summary"><strong>${localized(p.names, language())} · ${t(cycle)}</strong><span>${t(cycle === "yearly" ? "periodYearly" : "periodMonthly")} · ${planPrice(p)}</span><p class="help">${t("storePrice")}</p></div>`;
+    `<div class="purchase-summary"><strong>${localized(p.names, language())} · ${t(cycle)}</strong><span>${t(cycle === "yearly" ? "periodYearly" : "periodMonthly")} · ${planPrice(p)}</span><small>${t("storePrice")}</small></div>`;
   const planName = (p) => localized(p.names, language());
   // The subscribe / switch call to action: every paid plan except the current
   // one (Free is never "subscribed to": cancelling returns there by itself).
@@ -230,24 +232,29 @@ export function createCommunity({
   // Required wherever a subscription is offered: what renews, and working links
   // to the terms and the privacy policy.
   const legal = () =>
-    `<p class="help legal-note">${t("autoRenewNote")}</p><div class="row legal-links"><button type="button" class="btn small ghost" data-link="${esc(legalUrl("terms"))}">${t("termsOfUse")} ↗</button><button type="button" class="btn small ghost" data-link="${esc(legalUrl("privacy"))}">${t("privacyPolicy")} ↗</button></div>`;
-  const ctaNote = () =>
-    `<p class="help cta-note">${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : planShown() !== "free" ? t("switchNote") : t("billingReturn")}</p>`;
+    `<div class="legal"><p class="legal-note">${t("autoRenewNote")}</p><div class="row legal-links"><button type="button" class="btn small ghost" data-link="${esc(legalUrl("terms"))}">${t("termsOfUse")} ↗</button><button type="button" class="btn small ghost" data-link="${esc(legalUrl("privacy"))}">${t("privacyPolicy")} ↗</button></div></div>`;
+  const ctaNoteText = () =>
+    !signedIn()
+      ? t("loginRequired")
+      : !isNative()
+        ? t("webBilling")
+        : !canBuy()
+          ? t("nativeBilling")
+          : planShown() !== "free"
+            ? t("switchNote")
+            : t("billingReturn");
+  const ctaNote = () => `<p class="cta-note">${ctaNoteText()}</p>`;
   // A build wired to RevenueCat's Test Store buys without the store sheet and
   // without charging: say so, or a simulated subscription passes for a real one.
   const testStoreNote = () =>
     purchases?.testStore?.()
       ? `<p class="status test-store" role="status">${t("testStore")}</p>`
       : "";
-  const recommendation = () =>
-    planShown() !== "free"
-      ? ""
-      : `<section class="card plan-recommend"><span class="eyebrow">${t("recommended")}</span><h2>${planName(PLANS.starter)} <span class="plan-price">${planPrice(PLANS.starter)}<small> / ${t(cycle)}</small></span></h2><p>${t("upgradeBanner")}</p>${cta(PLANS.starter)}${ctaNote()}</section>`;
   function plansView() {
     const plans = Object.values(PLANS);
-    return `<section class="plans-overview"><div class="row between page-heading"><h1>${t("comparePlans")}</h1>${cyclePicker()}</div>${status()}${testStoreNote()}${planState()}
+    return `<section class="plans-overview"><div class="plans-top"><h1>${t("comparePlans")}</h1>${cyclePicker()}</div>${status()}${testStoreNote()}${planState()}
     <table class="plan-comparison"><caption class="sr-only">${t("plans")} · ${t(cycle)}</caption><thead><tr><td></td>${plans.map((p) => `<th scope="col" class="${p.id === planShown() ? "current" : ""}"><span class="plan-name">${localized(p.names, language())}</span><span class="plan-price">${planPrice(p)}</span><small>${t(cycle)}</small>${p.id === planShown() ? `<span class="current-plan">${t("currentPlan")}</span>` : ""}</th>`).join("")}</tr></thead>
-    <tbody><tr class="plan-summaries"><th scope="row" class="sr-label">${t("plans")}</th>${plans.map((p) => `<td>${t(p.id + "Summary")}</td>`).join("")}</tr>${[
+    <tbody>${[
       ["dreamShort", "dreams"],
       ["aiShort", "reflections"],
       ["ocrShort", "handwriting"],
@@ -259,23 +266,29 @@ export function createCommunity({
       )
       .join("")}
     <tr class="plan-links"><th scope="row">${t("planDetails")}</th>${plans.map((p) => `<td>${b("details", "plan-detail", `data-plan="${p.id}" aria-label="${localized(p.names, language())} · ${t("details")}"`)}</td>`).join("")}</tr>
-    <tr class="plan-cta-row"><th scope="row" class="sr-label">${t("subscribe")}</th>${plans.map((p) => `<td>${cta(p, true) || (p.id === planShown() ? `<span class="current-plan">${t("currentPlan")}</span>` : "")}</td>`).join("")}</tr></tbody></table>
-    ${recommendation()}<p class="help included-note">${t("includedShort")}</p><div class="plan-footer"><p class="help">${t("billingShort")}</p>${b("remaining", "plan-detail", `data-plan="${planShown()}"`)}${b("cancelPlan", "help-cancel")}</div>${legal()}
-    <div class="row">${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}</div></section>`;
+    <tr class="plan-cta-row"><th scope="row" class="sr-label">${info(ctaNoteText(), t("subscribe"))}</th>${plans.map((p) => `<td>${cta(p, true) || (p.id === planShown() ? `<span class="current-plan">${t("currentPlan")}</span>` : "")}</td>`).join("")}</tr></tbody></table>
+    <div class="chip-row">${b("remaining", "plan-detail", `data-plan="${planShown()}"`)}${b("cancelPlan", "help-cancel")}${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}</div>${legal()}</section>`;
   }
   function planDetailsView() {
     const p = PLANS[selectedPlan] || PLANS.starter;
-    return `<div class="narrow plan-detail"><div class="row between page-heading"><h1>${localized(p.names, language())}</h1>${cyclePicker()}</div>${status()}${testStoreNote()}${planState()}<section class="card plan-card"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${p.id === planShown() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${planFields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl><p class="help">${t("freeFeatures")}</p><p class="help">${t("renewalNote")}</p>${cta(p) ? `${purchaseSummary(p)}${cta(p)}${ctaNote()}` : ""}</section><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.day?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}<p>${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : t("billingReturn")}</p></div><div class="row">${b("cancelPlan", "help-cancel")}</div>${legal()}<p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p>${cta(p) ? `<section class="card plan-detail-bottom"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${purchaseSummary(p)}${cta(p)}${ctaNote()}</section>` : ""}</div>`;
+    const notes = [
+      t("freeFeatures"),
+      t("renewalNote"),
+      t("planRules"),
+      t("costNote"),
+      t("readNote"),
+    ].join("\n");
+    return `<section class="plan-detail"><div class="plans-top"><h1>${localized(p.names, language())}</h1>${cyclePicker()}</div>${status()}${testStoreNote()}${planState()}<section class="plan-card"><div class="plan-card-head"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p>${p.id === planShown() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}${info(notes, t("planDetails"))}</div><p class="plan-summary">${t(p.id + "Summary")}</p><dl>${planFields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl></section>${cta(p) ? `<div class="purchase-bar">${purchaseSummary(p)}${cta(p)}${ctaNote()}</div>` : ""}<div class="usage-strip"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")} ${account.usage?.day?.reflections || 0}/${PLANS[plan()].reflections} · ${t("ocrLimit")} ${account.usage?.month?.handwriting || 0}/${PLANS[plan()].handwriting} · ${t("readLimit")} ${account.usage?.day?.reads || 0}/${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}</div><div class="chip-row">${b("refresh", "refresh")}${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}${b("cancelPlan", "help-cancel")}</div>${legal()}</section>`;
   }
   function shareView() {
     const d = shareDraft;
     if (error)
-      return `<div class="narrow"><h1>${t("share")}</h1>${status()}${b("refresh", "refresh")}</div>`;
-    return `<div class="narrow"><h1>${t("share")}</h1><p>${t("privacyNote")}</p>${status()}${!signedIn() ? `<p>${t("shareLogin")}</p>${paywall()}` : busy ? "" : `<div class="card"><strong>${t(sharing?.public ? "public" : "private")}</strong>${sharing?.public ? b("unpublish", "unpublish", `data-id="${sharing.id}"`) : ""}<p class="help">${t("shareSnapshot")}</p></div>${d ? `<form id="share-form" class="card"><label class="field"><span>${t("alias")}</span><input id="share-alias" required maxlength="30" value="${esc(d.alias)}"></label><label class="field"><span>${t("postTitle")}</span><input id="share-title" required maxlength="80" value="${esc(d.title)}"></label><label class="field"><span>${t("postText")}</span><textarea id="share-text" rows="9" required maxlength="20000">${esc(d.text)}</textarea></label><p class="help">${t("copyLimit")}</p><label class="check"><input id="share-consent" type="checkbox" required><span>${t("consent")}</span></label><button class="btn primary" type="submit">${t("publish")}</button></form>` : ""}`}</div>`;
+      return `<section class="share-page"><h1 class="sr-only">${t("share")}</h1>${status()}${b("refresh", "refresh")}</section>`;
+    return `<section class="share-page"><h1 class="sr-only">${t("share")}</h1>${status()}${!signedIn() ? `<p class="status">${t("shareLogin")}</p>${paywall()}` : busy ? "" : `<div class="share-state"><span class="state-dot${sharing?.public ? " on" : ""}" aria-hidden="true"></span><strong>${t(sharing?.public ? "public" : "private")}</strong>${info(t("shareSnapshot"), t("share"))}${sharing?.public ? b("unpublish", "unpublish", `data-id="${sharing.id}"`) : ""}</div>${d ? `<form id="share-form" class="compose-form"><div class="field-row"><label class="field"><span>${t("alias")}</span><input id="share-alias" class="input" required maxlength="30" value="${esc(d.alias)}"></label><label class="field"><span>${t("postTitle")}</span><input id="share-title" class="input" required maxlength="80" value="${esc(d.title)}"></label></div><label class="paper"><span class="paper-label">${t("postText")}</span><textarea id="share-text" required maxlength="20000">${esc(d.text)}</textarea></label><label class="check"><input id="share-consent" type="checkbox" required><span>${t("consent")}</span></label><div class="page-actions"><button class="btn primary full" type="submit">${t("publish")}</button></div></form>` : ""}`}</section>`;
   }
   function detailView() {
-    if (!detail) return `<h1>${t("community")}</h1>${status()}`;
-    return `<div class="narrow">${status()}${postCard(detail.post, false, true)}</div>${pickerView()}`;
+    if (!detail) return `<h1 class="sr-only">${t("community")}</h1>${status()}`;
+    return `<section class="post-page">${status()}${postCard(detail.post, false, true)}</section>${pickerView()}`;
   }
   // Shown once, right after a new account's first quiz result: what the paid
   // plans add, then (on "subscribe") Starter and Standard side by side with
@@ -290,18 +303,31 @@ export function createCommunity({
   function planOfferView() {
     const { free, starter, standard } = PLANS,
       paid = [starter, standard];
-    const freeLink = `<button type="button" class="link-button offer-free" data-social="offer-free">${t("offerFree")}</button>`;
+    const freeLink = `<div class="offer-free-row"><button type="button" class="link-button offer-free" data-social="offer-free">${t("offerFree")}</button>${info(t("offerFreeNote"), t("offerFree"))}</div>`;
     if (offerStep === "choose")
-      return `<section class="narrow plan-offer" data-offer-step="choose"><button type="button" class="back-link" data-social="offer-back">← ${t("offerBack")}</button><div class="row between page-heading"><h1>${t("offerChooseTitle")}</h1>${cyclePicker()}</div><p class="muted">${t("offerChooseHint")}</p>${testStoreNote()}${planState()}<div class="offer-plans">${paid
+      return `<section class="plan-offer" data-offer-step="choose"><button type="button" class="back-link inline-back" data-social="offer-back">‹ ${t("offerBack")}</button><div class="plans-top"><h1>${t("offerChooseTitle")}</h1>${cyclePicker()}</div>${testStoreNote()}${planState()}<div class="offer-plans">${paid
         .map(
           (p) =>
-            `<section class="card plan-card offer-plan${p.id === "starter" ? " recommended" : ""}" data-offer-plan="${p.id}">${p.id === "starter" ? `<span class="eyebrow">${t("recommended")}</span>` : ""}<h2>${planName(p)}</h2><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p><dl>${planFields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl>${purchaseSummary(p)}${cta(p)}</section>`,
+            `<section class="plan-card offer-plan${p.id === "starter" ? " recommended" : ""}" data-offer-plan="${p.id}">${p.id === "starter" ? `<span class="ribbon">${t("recommended")}</span>` : ""}<h2>${planName(p)}</h2><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><dl>${planFields
+              .filter(([, key]) =>
+                [
+                  "dreams",
+                  "diary",
+                  "reflections",
+                  "handwriting",
+                  "reads",
+                ].includes(key),
+              )
+              .map(
+                ([label, key]) =>
+                  `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`,
+              )
+              .join("")}</dl>${purchaseSummary(p)}${cta(p)}</section>`,
         )
-        .join(
-          "",
-        )}</div>${ctaNote()}<p class="help">${t("freeFeatures")}</p><div class="offer-actions">${freeLink}</div>${legal()}</section>`;
+        .join("")}</div>${ctaNote()}${freeLink}${legal()}</section>`;
     const features = [
       [
+        "✎",
         "offerDreamsTitle",
         "offerDreamsText",
         {
@@ -311,16 +337,19 @@ export function createCommunity({
         },
       ],
       [
+        "☾",
         "offerDiaryTitle",
         "offerDiaryText",
         { free: free.diary, starter: starter.diary, standard: standard.diary },
       ],
       [
+        "▣",
         "offerOcrTitle",
         "offerOcrText",
         { starter: starter.handwriting, standard: standard.handwriting },
       ],
       [
+        "♡",
         "offerCommunityTitle",
         "offerCommunityText",
         {
@@ -330,24 +359,24 @@ export function createCommunity({
           standardReactions: standard.reactions,
         },
       ],
-      ["offerCharactersTitle", "offerCharactersText", {}],
+      ["✦", "offerCharactersTitle", "offerCharactersText", {}],
     ];
-    return `<section class="narrow plan-offer" data-offer-step="intro"><p class="eyebrow">YOUR DREAM, YOUR PLAN</p><h1>${t("offerTitle")}</h1><p class="muted">${t("offerIntro")}</p>${testStoreNote()}<div class="offer-prices">${paid
+    return `<section class="plan-offer" data-offer-step="intro"><p class="eyebrow">YOUR DREAM, YOUR PLAN</p><h1>${t("offerTitle")}</h1>${testStoreNote()}<div class="offer-prices">${paid
       .map(
         (p) =>
-          `<div class="card offer-price" data-offer-plan="${p.id}"><span class="plan-name">${planName(p)}</span><span class="plan-price">${priceOf(p, "monthly")}<small> / ${t("monthly")}</small></span><small>${priceOf(p, "yearly")} / ${t("yearly")}</small></div>`,
+          `<div class="offer-price${p.id === "starter" ? " recommended" : ""}" data-offer-plan="${p.id}"><span class="plan-name">${planName(p)}</span><span class="plan-price">${priceOf(p, "monthly")}<small> / ${t("monthly")}</small></span><small>${priceOf(p, "yearly")} / ${t("yearly")}</small></div>`,
       )
       .join("")}</div><ul class="offer-features">${features
       .map(
-        ([title, text, values]) =>
-          `<li><strong>${t(title)}</strong><p>${fill(text, values)}</p></li>`,
+        ([icon, title, text, values]) =>
+          `<li><button type="button" class="offer-feature" data-tip="${esc(fill(text, values))}"><span class="tile-icon" aria-hidden="true">${icon}</span><strong>${t(title)}</strong></button></li>`,
       )
-      .join("")}</ul><p class="help">${fill("offerPricing", {
+      .join("")}</ul><p class="sr-only">${fill("offerPricing", {
       starterMonthly: priceOf(starter, "monthly"),
       starterYearly: priceOf(starter, "yearly"),
       standardMonthly: priceOf(standard, "monthly"),
       standardYearly: priceOf(standard, "yearly"),
-    })}</p><p class="help">${t("offerFreeNote")}</p><div class="offer-actions"><button type="button" class="btn primary plan-cta" data-social="offer-choose">${t("offerSubscribe")}</button>${freeLink}</div>${legal()}</section>`;
+    })}</p><div class="offer-actions"><button type="button" class="btn primary plan-cta full" data-social="offer-choose">${t("offerSubscribe")}</button>${freeLink}</div>${legal()}</section>`;
   }
   function view(page) {
     if (page === "plans") return plansView();
@@ -355,8 +384,8 @@ export function createCommunity({
     if (page === "plan-offer") return planOfferView();
     if (page === "share") return shareView();
     if (page === "community-post") return detailView();
-    // The timeline: no toolbar, just the dreams. A failed load offers a retry.
-    return `<h1>${t("community")}</h1>${status()}${error ? `<div class="row">${b("refresh", "refresh")}</div>` : ""}${plan() === "free" ? (signedIn() ? teaserView() : paywall()) : `<p class="help">${t("todayOnly")}</p><div class="feed-list timeline">${posts.map((p) => postCard(p, true, false, true)).join("") || (!busy ? `<p class="empty">${t("emptyFeed")}</p>` : "")}</div>${next ? b("nextPage", "next") : ""}`}${pickerView()}`;
+    // The timeline: today's dreams as cards side by side; swipe through them.
+    return `<section class="community-page"><h1 class="sr-only">${t("community")}</h1>${status()}${error ? `<div class="row">${b("refresh", "refresh")}</div>` : ""}${plan() === "free" ? (signedIn() ? teaserView() : paywall()) : `<div class="feed-list timeline carousel">${posts.map((p) => postCard(p, true, false, true)).join("") || (!busy ? `<p class="empty">${t("emptyFeed")}</p>` : "")}</div>${next ? `<div class="page-actions">${b("nextPage", "next")}</div>` : ""}`}</section>${pickerView()}`;
   }
   async function refreshAccount() {
     return setAccount(

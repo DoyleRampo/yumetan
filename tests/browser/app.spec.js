@@ -1,8 +1,11 @@
-import { finishIntroduction, startFree } from "./helpers/introduction.js";
+import { finishIntroduction, startFree, answerQuestion } from "./helpers/introduction.js";
 import {
   chooseDate,
   savedDreamDetails,
   submitDream,
+  openSheet,
+  closeSheet,
+  fillSleep,
 } from "./helpers/journal.js";
 import { test, expect } from "@playwright/test";
 import { QUESTIONS } from "../../public/core/diagnosis.js";
@@ -78,8 +81,7 @@ async function start(page, lang = "ja") {
   await page.locator("#profile-form button[type=submit]").click();
   await expect(page.locator('[data-answer="2"]')).toBeVisible();
   for (const value of CHALLENGE_SHEET) {
-    await page.locator(`[data-answer="${value}"]`).click();
-    await page.locator('[data-action="quiz-next"]').click();
+    await answerQuestion(page, value);
   }
   await expect(page.locator("[data-action=begin]")).toBeVisible();
   await expect(page.locator(".character-name")).toHaveText(
@@ -111,9 +113,9 @@ for (const [lang, label] of [
       { ja: "キロ", ko: "키로", zh: "奇洛", en: "Kiro" }[lang],
     );
     await expect(page.locator("html")).toHaveAttribute("lang", lang);
-    // Icon-only floating tab bar with the settings button in the header.
+    // The tab bar: four icons, each with a short label, and settings in the top bar.
     await expect(page.locator("nav button")).toHaveCount(4);
-    await expect(page.locator("nav button")).toHaveText(["", "", "", ""]);
+    await expect(page.locator("nav .nav-label")).toHaveCount(4);
     await expect(page.locator("#header [data-go=settings]")).toBeVisible();
     await expect(page.locator("#header #language")).toHaveCount(0);
     await expect(page.locator("main")).not.toContainText("undefined");
@@ -160,10 +162,7 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
   await page
     .locator("#dream-text")
     .fill("I faced a challenge and climbed a mountain.");
-  await page.locator("#include-sleep").check();
-  await page.locator("#hours").fill("8");
-  await page.locator("#awakenings").fill("0");
-  await page.locator("#rested").selectOption("5");
+  await fillSleep(page, { hours: "8", awakenings: "0", rested: "5" });
   await submitDream(page);
   await savedDreamDetails(page);
   await expect(page.locator("main")).toContainText(
@@ -172,7 +171,7 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
   // Sleep is never graded: the level comes from the number of logged dreams.
   await expect(page.locator("main")).not.toContainText("Sleep level");
   // The entry page has a "← previous page" link; the edge swipe does the same.
-  await expect(page.locator(".back-link")).toHaveText("← Dream journal");
+  await expect(page.locator(".back-link")).toHaveText("Dream journal");
   await page.locator("[data-action=edit]").click();
   await expect(page.locator("#dream-text")).toHaveValue(
     "I faced a challenge and climbed a mountain.",
@@ -187,7 +186,7 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
   await expect(page.locator(".back-link")).toHaveCount(0);
   await page.locator(".character-row .character-link").first().click();
   await expect(page.locator("h1")).toHaveText("Kiro");
-  await expect(page.locator(".back-link")).toHaveText("← Home");
+  await expect(page.locator(".back-link")).toHaveText("Home");
   await page.locator(".back-link").click();
   await expect(page.locator("[data-action=catalog]")).toBeVisible();
   await page.reload();
@@ -200,7 +199,7 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
     "I faced a challenge and climbed a mountain.",
   );
 
-  await page.locator("summary").filter({ hasText: "handwritten" }).click();
+  await openSheet(page, "photo");
   await page.locator("#photo-file").setInputFiles({
     name: "note.png",
     mimeType: "image/png",
@@ -210,6 +209,7 @@ test("diary context, sleep growth, date-based journals, image, and delete", asyn
     ),
   });
   await expect(page.locator(".photo")).toBeVisible();
+  await closeSheet(page, "photo");
   await submitDream(page);
   await savedDreamDetails(page);
   await expect(page.locator(".photo")).toBeVisible();
@@ -242,8 +242,7 @@ test("partial questionnaire survives refresh and back navigation", async ({
   await finishIntroduction(page);
   await page.locator("#nickname").fill("Test");
   await page.locator("#profile-form button").click();
-  await page.locator('[data-answer="1"]').click();
-  await page.locator("[data-action=quiz-next]").click();
+  await answerQuestion(page, 1);
   await page.reload();
   await expect(page.locator("progress")).toHaveAttribute("value", "2");
   await page.locator("[data-action=quiz-back]").click();
@@ -265,8 +264,8 @@ test("quiz and record navigation send haptic feedback", async ({ page }) => {
 
   const pulses = () => page.evaluate(() => window.hapticPulses);
   await page.locator(`[data-answer="${CHALLENGE_SHEET[0]}"]`).click();
-  expect((await pulses()).at(-1)).toBe(12);
-  await page.locator("[data-action=quiz-next]").click();
+  expect(await pulses()).toContain(12);
+  // The answer moves on to the next question by itself.
   await expect(page.locator("progress")).toHaveAttribute("value", "2");
   expect((await pulses()).at(-1)).toBe(18);
   await page.locator("[data-action=quiz-back]").click();
@@ -274,10 +273,9 @@ test("quiz and record navigation send haptic feedback", async ({ page }) => {
   expect((await pulses()).at(-1)).toBe(18);
 
   await page.locator("[data-action=quiz-next]").click();
-  for (const value of CHALLENGE_SHEET.slice(1)) {
-    await page.locator(`[data-answer="${value}"]`).click();
-    await page.locator("[data-action=quiz-next]").click();
-  }
+  await expect(page.locator("progress")).toHaveAttribute("value", "2");
+  for (const value of CHALLENGE_SHEET.slice(1))
+    await answerQuestion(page, value);
   await expect(page.locator("[data-action=begin]")).toBeVisible();
   expect((await pulses()).at(-1)).toEqual([25, 45, 35]);
   await page.locator("[data-action=begin]").click();
@@ -534,7 +532,7 @@ test("AI reading shows state of mind and fortune, sends recent diaries, and OCR 
   );
   await page.locator("nav [data-go=record]").click();
   await page.locator("#dream-text").fill("My challenge");
-  await page.locator("summary").filter({ hasText: "handwritten" }).click();
+  await openSheet(page, "photo");
   await page.locator("#photo-file").setInputFiles({
     name: "note.png",
     mimeType: "image/png",
@@ -611,10 +609,7 @@ test("account switching isolates journals and reload restores the active scope",
   await page.locator("#nickname").fill("First account");
   await page.locator("#profile-form button").click();
   // Every question accepts 0 (never / first scene / neutral).
-  for (let i = 0; i < QUESTIONS.length; i++) {
-    await page.locator('[data-answer="0"]').click();
-    await page.locator("[data-action=quiz-next]").click();
-  }
+  for (let i = 0; i < QUESTIONS.length; i++) await answerQuestion(page, 0);
   await page.locator("[data-action=begin]").click();
   // A signed-in free member sees the plan offer once after the first quiz.
   await startFree(page);
@@ -821,10 +816,7 @@ test("paid members switch collections both ways without changing journals, type 
   await start(page, "en");
   await page.locator("nav [data-go=record]").click();
   await page.locator("#dream-text").fill("A challenge in the mountains");
-  await page.locator("#include-sleep").check();
-  await page.locator("#hours").fill("8");
-  await page.locator("#awakenings").fill("0");
-  await page.locator("#rested").selectOption("5");
+  await fillSleep(page, { hours: "8", awakenings: "0", rested: "5" });
   await submitDream(page);
   const saved = await page.evaluate(() =>
     localStorage.getItem("yumetan.v4.member"),
@@ -834,6 +826,7 @@ test("paid members switch collections both ways without changing journals, type 
     ["animal", "Kiro", "Luno", "Coco"],
   ]) {
     await page.locator("#header [data-go=settings]").click();
+    await openSheet(page, "characters");
     await page.locator("#character-form input[value=" + set + "]").check();
     await page.locator("#character-form button[type=submit]").click();
     await expect(page.locator("#toast")).toContainText("Saved");
@@ -882,6 +875,7 @@ test("failed appearance saves do not switch the active collection", async ({
   await paidMember(page);
   await start(page, "en");
   await page.locator("#header [data-go=settings]").click();
+  await openSheet(page, "characters");
   await page.locator("#character-form input[value=human]").check();
   await page.locator("#character-form button[type=submit]").click();
   await expect(page.locator("#toast")).toContainText("Saved");
@@ -892,9 +886,12 @@ test("failed appearance saves do not switch the active collection", async ({
       return original.call(this, key, value);
     };
   });
+  await openSheet(page, "characters");
   await page.locator("#character-form input[value=animal]").check();
   await page.locator("#character-form button[type=submit]").click();
   await expect(page.locator("#toast")).not.toHaveText("Saved");
+  // The failed choice stays in the open sheet; leaving asks to discard it.
+  await closeSheet(page, "characters");
   await page.locator("nav [data-go=home]").click();
   await page.locator("[data-dialog-discard]").click();
   await expect(page.locator(".character-row .character-name")).toHaveText(
@@ -952,13 +949,13 @@ test("the dream level climbs with logged dreams and swiping in from the left edg
   );
   await page.locator("[data-action=catalog]").click();
   await page.locator("[data-type-detail=chase]").click();
-  await expect(page.locator(".back-link")).toHaveText("← Explore all 16");
+  await expect(page.locator(".back-link")).toHaveText("Explore all 16");
   await page.mouse.move(8, 400);
   await page.mouse.down();
   for (let x = 20; x <= 140; x += 20) await page.mouse.move(x, 402);
   await page.mouse.up();
   await expect(page.locator("[data-type-detail]")).toHaveCount(16);
-  await expect(page.locator(".back-link")).toHaveText("← Home");
+  await expect(page.locator(".back-link")).toHaveText("Home");
   await page.goBack();
   await expect(page.locator("[data-action=catalog]")).toBeVisible();
 });
@@ -974,8 +971,14 @@ test("the guide explains the app, plans and cancelling, and links out to support
   await page.locator("#header [data-go=settings]").click();
   await page.locator("[data-go=help]").click();
   await expect(page.locator("#app")).toHaveAttribute("data-page", "help");
+  // Each topic is a tile; its answer opens in a sheet.
   for (const id of ["start", "community", "plans", "cancel", "data"])
-    await expect(page.locator(`#help-${id}`)).toBeVisible();
+    await expect(
+      page.locator(`[data-sheet-open="help-${id}"]`),
+    ).toBeVisible();
+  await openSheet(page, "help-cancel");
+  await expect(page.locator("#help-cancel")).toBeVisible();
+  await closeSheet(page, "help-cancel");
   await expect(page.locator("#help-cancel")).toContainText("Subscriptions");
   await expect(page.locator("#help-community")).toContainText("15 characters");
   await expect(page.locator("main")).not.toContainText("undefined");

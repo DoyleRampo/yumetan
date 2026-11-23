@@ -65,6 +65,11 @@ export const messages = {
     "Your result and profile are saved to your account. Sign in or sign up to continue.",
   ],
   introSkip: ["スキップ", "건너뛰기", "跳过", "Skip"],
+  toolVoice: ["音声", "음성", "语音", "Voice"],
+  toolPhoto: ["写真", "사진", "照片", "Photo"],
+  toolTags: ["テーマ", "테마", "主题", "Themes"],
+  toolSleep: ["睡眠", "수면", "睡眠", "Sleep"],
+  toolDiary: ["前日", "전날", "前一天", "Yesterday"],
   introRegister: [
     "登録へ進む",
     "등록으로",

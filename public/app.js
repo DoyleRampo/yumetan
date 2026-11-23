@@ -278,14 +278,120 @@ const button = (text, action, cls = "") =>
   `<button type="button" class="btn ${cls}" data-action="${action}">${esc(t(text))}</button>`;
 const input = (label, key, value = "", type = "text", attrs = "") =>
   `<label class="field"><span>${esc(t(label))}</span><input class="input" id="${key}" name="${key}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
-const area = (label, key, value = "", placeholder = "") =>
-  `<label class="field"><span>${esc(t(label))}</span><textarea id="${key}" name="${key}" rows="3" maxlength="20000" placeholder="${esc(placeholder)}">${esc(value)}</textarea></label>`;
+const CLOSE_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+// Messages float above the tab bar, close with × or on their own; the thin
+// line along the bottom shows how long they stay.
 function toast(message) {
-  $("#toast").textContent = message;
-  $("#toast").classList.add("visible");
+  // One popup at a time at the top: a message replaces a tip.
+  hideTip();
+  const el = $("#toast");
+  el.innerHTML = `<span class="toast-text">${esc(message)}</span><button type="button" class="popup-close" data-toast-close aria-label="${esc(t("close"))}">${CLOSE_ICON}</button><span class="popup-timer" aria-hidden="true"></span>`;
+  el.classList.remove("visible");
+  void el.offsetWidth;
+  el.classList.add("visible");
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => $("#toast").classList.remove("visible"), 6500);
+  toast.timer = setTimeout(() => el.classList.remove("visible"), 5000);
 }
+// Explanations no longer sit on the screens. Each screen opens a short tip
+// once per device; the ⓘ / ? buttons bring a tip back. A tip closes with ×,
+// on a tap elsewhere, or after a few seconds.
+function showTip(text, { title = "", anchor = null } = {}) {
+  const el = $("#tip");
+  if (!el || !text) return;
+  // The two share the top of the screen: the newest one stays.
+  clearTimeout(toast.timer);
+  $("#toast")?.classList.remove("visible");
+  // Long enough to read: about ten characters a second, 5–16 seconds.
+  const TIP_MS = Math.min(16000, Math.max(5000, String(text).length * 90));
+  el.innerHTML = `<span class="tip-icon" aria-hidden="true">✦</span><span class="tip-body">${title ? `<strong>${esc(title)}</strong>` : ""}<span>${esc(text)}</span></span><button type="button" class="popup-close" data-tip-close aria-label="${esc(t("close"))}">${CLOSE_ICON}</button><span class="popup-timer" aria-hidden="true"></span>`;
+  el.style.setProperty("--tip-ms", `${TIP_MS}ms`);
+  el.classList.remove("visible");
+  void el.offsetWidth;
+  el.classList.add("visible");
+  el.dataset.anchor = anchor ? "inline" : "top";
+  clearTimeout(showTip.timer);
+  showTip.timer = setTimeout(hideTip, TIP_MS);
+}
+function hideTip() {
+  clearTimeout(showTip.timer);
+  $("#tip")?.classList.remove("visible");
+}
+// The tip each screen opens with: [message key, translator].
+function pageTip(p = page) {
+  const free = displayPlan() === "free";
+  const tips = {
+    home: ["levelHint"],
+    record: ["dreamJournalHint"],
+    diary: ["diaryHint"],
+    reading: ["readingNote"],
+    catalog: ["catalogHint"],
+    "type-detail": ["typeNote"],
+    result: [
+      pendingResult?.tied || currentType()?.tied
+        ? "tie"
+        : pendingResult?.provisional || currentType()?.provisional
+          ? "provisional"
+          : "typeNote",
+    ],
+    settings: ["privacy"],
+    help: ["helpHint"],
+    onboard: ["profileHint"],
+    "welcome-login": ["introLoginHint"],
+    community: [free ? "teaserHint" : "todayOnly", "community"],
+    plans: ["includedShort", "community"],
+    share: ["privacyNote", "community"],
+  };
+  const tip = tips[p];
+  if (!tip) return null;
+  return tip[1] === "community" ? ct(tip[0]) : t(tip[0]);
+}
+function openPageTip(force = false) {
+  const text = pageTip();
+  if (!text) return;
+  const seen = options.tipsSeen || [];
+  if (!force && seen.includes(page)) return;
+  // A screen's own tip waits for a message that is still showing.
+  if (!force && $("#toast").classList.contains("visible")) {
+    const shown = page;
+    setTimeout(() => page === shown && openPageTip(), 5200);
+    return;
+  }
+  showTip(text, { title: pageTitle(page) || t("brand") });
+  if (!seen.includes(page)) {
+    options = { ...options, tipsSeen: [...seen, page] };
+    write("yumetan.v4.options", options).catch(() => {});
+  }
+}
+// Bottom sheets hold what used to be expandable sections: they open over the
+// screen, keep their form fields in the page (so drafts survive), and close
+// with ×, the backdrop or Escape.
+let openSheetId = null;
+function sheet(id, title, content, { cls = "" } = {}) {
+  const open = openSheetId === id;
+  return `<div class="sheet ${cls}" data-sheet="${id}" ${open ? "" : "hidden"}><div class="sheet-backdrop" data-sheet-close></div><section class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-${id}-title"><header class="sheet-head"><h2 id="sheet-${id}-title">${title}</h2><button type="button" class="popup-close" data-sheet-close aria-label="${esc(t("close"))}">${CLOSE_ICON}</button></header><div class="sheet-body">${content}</div></section></div>`;
+}
+function setSheet(id) {
+  openSheetId = id;
+  document.querySelectorAll("[data-sheet]").forEach((el) => {
+    el.hidden = el.dataset.sheet !== id;
+  });
+  document
+    .querySelectorAll("[data-sheet-open]")
+    .forEach((el) =>
+      el.setAttribute("aria-expanded", String(el.dataset.sheetOpen === id)),
+    );
+  if (id) {
+    hideTip();
+    const panel = document.querySelector(`[data-sheet="${id}"] .sheet-panel`);
+    (
+      panel?.querySelector("input:not([type=hidden]),select,textarea,button:not([data-sheet-close])") ||
+      panel?.querySelector("[data-sheet-close]")
+    )?.focus({ preventScroll: true });
+  }
+}
+// The small ⓘ beside a control explains it in a tip.
+const infoButton = (text, label = "") =>
+  `<button type="button" class="info-btn" data-tip="${esc(text)}" aria-label="${esc(label || t("help"))}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7.8" r="1.2" fill="currentColor"/></svg></button>`;
 async function commit(next, fromCloud = false) {
   if (
     !fromCloud &&
@@ -343,6 +449,23 @@ $("#app").addEventListener(
 const icon = (paths) =>
   `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 const ICONS = {
+  back: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="m14.5 5.5-6.5 6.5 6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  history: icon('<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4.5v3.8h3.8"/><path d="M12 8v4.4l3 1.8"/>'),
+  tip: icon('<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.6"/><path d="M12 17h.01" stroke-width="2.6"/>'),
+  mic: icon('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/>'),
+  camera: icon('<path d="M4 8h3l1.6-2.5h6.8L17 8h3v11H4z"/><circle cx="12" cy="13.2" r="3.4"/>'),
+  tag: icon('<path d="M3.5 12.5V4h8.5l8.5 8.5-8 8z"/><circle cx="8" cy="8.5" r="1.3"/>'),
+  sleep: icon('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/><path d="M15 4h4l-4 4.5h4"/>'),
+  book: icon('<path d="M4 5.5c3-1 5.5-.8 8 1 2.5-1.8 5-2 8-1V19c-3-1-5.5-.8-8 1-2.5-1.8-5-2-8-1z"/><path d="M12 6.5V20"/>'),
+  trash: icon('<path d="M4.5 7h15"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l1 13h9l1-13"/>'),
+  edit: icon('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
+  share: icon('<path d="M12 15V3.5"/><path d="M7.5 8 12 3.5 16.5 8"/><path d="M5 12.5V20h14v-7.5"/>'),
+  grid: icon('<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>'),
+  retake: icon('<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4.5H15"/>'),
+  globe: icon('<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.4 2.3 3.6 5.2 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.2-3.6-8.5s1.2-6.2 3.6-8.5z"/>'),
+  star: icon('<path d="m12 3.5 2.6 5.6 6 .7-4.5 4.1 1.2 6-5.3-3-5.3 3 1.2-6L3.4 9.8l6-.7z"/>'),
+  user: icon('<circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>'),
+  link: icon('<path d="M14 4.5h5.5V10"/><path d="M19.5 4.5 11 13"/><path d="M17 14v5.5H4.5V7H10"/>'),
   home: icon('<path d="M3.5 11.2 12 4l8.5 7.2"/><path d="M5.5 10v10h13V10"/>'),
   record: icon(
     '<path d="M19.5 14.2A7.5 7.5 0 0 1 9.8 4.5a7.5 7.5 0 1 0 9.7 9.7z"/><path d="M17.5 3.5v3M16 5h3"/>',
@@ -366,11 +489,24 @@ function header() {
   // Settings and the tab bar appear once the first run is over: a guest who
   // has answered the quiz but not signed in yet has neither.
   const ready = firstRunPage() === "home";
-  $("#header").innerHTML =
-    `<button class="brand" data-go="home">☾ ${esc(t("brand"))}</button>` +
-    (ready
-      ? `<button type="button" class="icon-btn" data-go="settings" aria-label="${esc(t("settings"))}" ${page === "settings" ? 'aria-current="page"' : ""}>${ICONS.settings}</button>`
-      : "");
+  // The top bar: back (with where it leads) or the moon, the screen's name,
+  // then the screen's own shortcut, its tip and Settings.
+  const bare = ["intro", "quiz"].includes(page);
+  const left = hasBack()
+    ? `<button type="button" class="back-link" data-action="back">${ICONS.back}<span>${esc(pageTitle(backTarget()) || t("back"))}</span></button>`
+    : `<button type="button" class="brand" data-go="home" aria-label="${esc(t("brand"))}"><span class="brand-moon" aria-hidden="true">☾</span>${page === "home" || !pageTitle(page) ? `<span class="brand-name">${esc(t("brand"))}</span>` : ""}</button>`;
+  const title =
+    page === "home" || hasBack() ? "" : esc(pageTitle(page) || "");
+  const shortcut =
+    page === "record"
+      ? `<button type="button" class="icon-btn" data-open-days="dream" aria-label="${esc(t("recentDreams"))}" title="${esc(t("recentDreams"))}">${ICONS.history}</button>`
+      : page === "diary"
+        ? `<button type="button" class="icon-btn" data-open-days="diary" aria-label="${esc(t("recentDiaries"))}" title="${esc(t("recentDiaries"))}">${ICONS.history}</button>`
+        : "";
+  $("#header").innerHTML = bare
+    ? ""
+    : `<div class="topbar">${left}${title ? `<span class="topbar-title">${title}</span>` : `<span class="topbar-title"></span>`}<div class="topbar-actions">${shortcut}${pageTip() ? `<button type="button" class="icon-btn" data-page-tip aria-label="${esc(t("help"))}" title="${esc(t("help"))}">${ICONS.tip}</button>` : ""}${ready ? `<button type="button" class="icon-btn" data-go="settings" aria-label="${esc(t("settings"))}" ${page === "settings" ? 'aria-current="page"' : ""}>${ICONS.settings}</button>` : ""}</div></div>`;
+  $("#header").hidden = bare;
   const nav = $("#nav");
   nav.hidden =
     !ready ||
@@ -391,7 +527,7 @@ function header() {
   nav.style.setProperty("--nav-count", NAV.length);
   nav.innerHTML = `<div class="nav-track"><span class="nav-indicator" aria-hidden="true"></span>${NAV.map(
     (p) =>
-      `<button type="button" data-go="${p}" aria-label="${esc(navLabel(p))}" title="${esc(navLabel(p))}" ${activePage === p ? 'aria-current="page"' : ""}>${ICONS[p]}</button>`,
+      `<button type="button" data-go="${p}" aria-label="${esc(navLabel(p))}" title="${esc(navLabel(p))}" ${activePage === p ? 'aria-current="page"' : ""}>${ICONS[p]}<span class="nav-label" aria-hidden="true">${esc(navLabel(p))}</span></button>`,
   ).join("")}</div>`;
 }
 bindSlideNavigation($("#nav"), navigate);
@@ -504,47 +640,47 @@ function bindEdgeSwipe() {
   });
 }
 bindEdgeSwipe();
+// Every screen is laid out to fit between the top bar and the tab bar. When a
+// very small window (or enlarged text) cannot hold it, the screen first
+// tightens its spacing, then lets its content scroll as a last resort.
 let fitFrame;
-function updateHomeFit() {
+function updateFit() {
   cancelAnimationFrame(fitFrame);
   fitFrame = requestAnimationFrame(() => {
-    document.body.classList.remove("home-dense", "home-reflow");
-    if (page !== "home") return;
-    const fits = () =>
-      [
-        ...document.querySelectorAll(
-          ".home-dashboard > *, .home-dashboard .btn, .home-dashboard .score, .home-dashboard .character-art, .home-dashboard .character-link, .home-dashboard .companion-action, .home-dashboard .character-stars",
-        ),
-      ].every((el) => {
-        const r = el.getBoundingClientRect(),
-          main = $("#app").getBoundingClientRect();
-        return (
-          r.top >= main.top - 1 &&
-          r.bottom <= main.bottom + 1 &&
-          r.right <= innerWidth + 1 &&
-          r.left >= -1 &&
-          (!el.closest(".character-row") ||
-            el === el.closest(".character-row") ||
-            (r.top >=
-              el.closest(".character-row").getBoundingClientRect().top &&
-              r.bottom <=
-                el.closest(".character-row").getBoundingClientRect().bottom))
-        );
-      }) && $("#app").scrollHeight <= $("#app").clientHeight + 1;
-    if (!fits()) document.body.classList.add("home-dense");
-    if (!fits()) document.body.classList.add("home-reflow");
+    const body = document.body,
+      app = $("#app");
+    body.classList.remove("fit-dense", "fit-reflow");
+    const fits = () => {
+      const box = app.getBoundingClientRect();
+      return (
+        app.scrollHeight <= app.clientHeight + 1 &&
+        [...app.querySelectorAll(".page-actions, .home-actions, .level-card, .companion-action")]
+          .filter((el) => el.getClientRects().length)
+          .every((el) => {
+            const r = el.getBoundingClientRect();
+            return r.bottom <= box.bottom + 1 && r.top >= box.top - 1;
+          })
+      );
+    };
+    if (!fits()) body.classList.add("fit-dense");
+    if (!fits()) body.classList.add("fit-reflow");
   });
 }
-window.addEventListener("resize", updateHomeFit);
+window.addEventListener("resize", updateFit);
 $("#app").addEventListener(
   "load",
   (event) => {
-    if (page === "home" && event.target.matches(".character-art"))
-      updateHomeFit();
+    if (event.target.matches(".character-art")) updateFit();
   },
   true,
 );
+// Nothing paints before startup has chosen the first screen: a background
+// plan check or sync that finishes during the welcome screen would otherwise
+// show a page early, and startup's own first paint would then wipe whatever
+// had been typed into it.
+let booted = false;
 function render() {
+  if (!booted) return;
   t = translator(displayLanguage());
   header();
   document.body.dataset.screen = page;
@@ -576,12 +712,12 @@ function render() {
     ? document.activeElement.id
     : null;
   $("#app").dataset.page = page;
-  $("#app").innerHTML =
-    (hasBack()
-      ? `<button type="button" class="back-link" data-action="back">← ${esc(pageTitle(backTarget()) || t("back"))}</button>`
-      : "") + (views[page] || homeView)();
+  $("#app").innerHTML = (views[page] || homeView)();
+  if (openSheetId && !document.querySelector(`[data-sheet="${openSheetId}"]`))
+    openSheetId = null;
+  document.body.classList.toggle("sheet-open", Boolean(openSheetId));
   wrapJapaneseLabels($("#app"), displayLanguage());
-  updateHomeFit();
+  updateFit();
   bindForms();
   if (keepFocus) {
     const el = $(`#${keepFocus}`);
@@ -729,9 +865,14 @@ async function navigate(next, force = false, back = false) {
   const push = next !== from && !back && !force;
   if (push) routeIndex++;
   page = next;
+  if (next !== from) {
+    openSheetId = null;
+    hideTip();
+  }
   setRoute(push);
   render();
   animatePage(from);
+  if (next !== from) setTimeout(() => page === next && openPageTip(), 450);
   analytics.page(page);
   if (page === "quiz" && from !== "quiz")
     track("quiz_start", { retake: Boolean(state.profile?.typeAnswers) });
@@ -744,9 +885,9 @@ async function navigate(next, force = false, back = false) {
   window.scrollTo(0, 0);
   $("#app").focus({ preventScroll: true });
   if (page === "help" && helpSection) {
-    const section = $(`#help-${helpSection}`);
+    setSheet(`help-${helpSection}`);
+    document.body.classList.add("sheet-open");
     helpSection = null;
-    section?.scrollIntoView({ block: "start" });
   }
   // The plans pages check store and server again on every visit.
   if (["plans", "plan-details", "plan-offer"].includes(page))
@@ -833,7 +974,8 @@ function introductionView() {
   return `<section class="introduction narrow" lang="ja" data-intro-step="${step}"><div class="intro-toolbar"><button type="button" class="intro-back" data-action="intro-back" aria-label="戻る" ${step === 0 ? 'disabled aria-hidden="true"' : ""}><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="m14 6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="intro-progress" role="group" aria-label="${esc(t("introProgress"))}">${Array.from({ length: 4 }, (_, i) => `<span class="intro-dot ${i === step ? "current" : ""}" aria-label="${i + 1} / 4" ${i === step ? 'aria-current="step"' : ""}></span>`).join("")}</div><button type="button" class="intro-skip" data-action="intro-skip">${t("introSkip")}</button></div><div class="intro-slide"><div class="intro-art intro-art-${step}" aria-hidden="true">${arts[step]}</div><div class="intro-copy" aria-live="polite"><p class="eyebrow">${step + 1} / 4</p><h1 tabindex="-1">${t(`intro${step + 1}Title`)}</h1><p>${t(`intro${step + 1}Text`)}</p></div></div><div class="intro-actions"><button type="button" class="btn primary" data-action="intro-next">${t(step === 3 ? "introStart" : "next")}<span aria-hidden="true"> →</span></button></div></section>`;
 }
 function introductionLoginView() {
-  return `<section class="narrow intro-login"><h1>${t("signIn")}</h1><p class="muted">${t("introLoginHint")}</p>${signedIn() ? `<div class="card"><p>${t("introSignedIn")}</p><button class="btn primary full" data-action="intro-continue">${t(state.profile ? "startQuiz" : "introRegister")}</button></div>` : accountView(true)}</section>`;
+  const type = typeById(currentType()?.id) || TYPES[0];
+  return `<section class="intro-login" style="--accent:${group(type).color}"><div class="login-hero"><span class="login-hero-art">${avatar(type, null, { inline: true })}</span><h1>${t("signIn")}</h1></div>${signedIn() ? `<div class="account-panel"><p>${t("introSignedIn")}</p><button class="btn primary full" data-action="intro-continue">${t(state.profile ? "startQuiz" : "introRegister")}</button></div>` : accountView(true)}</section>`;
 }
 async function moveIntroduction(offset) {
   if (page !== "intro") return;
@@ -903,11 +1045,13 @@ function setRoute(push = false) {
   history[push ? "pushState" : "replaceState"](route, "", `#${page}`);
 }
 function profileView() {
-  const p = draft || state.profile || {};
-  return `<div class="narrow"><h1>${t("welcome")}</h1><form id="profile-form" class="card">
+  const p = draft || state.profile || {},
+    first = !state.profile?.typeAnswers;
+  const ages = ["10", "20", "30", "40", "50", "60"];
+  return `<section class="profile-page"><div class="profile-hero" aria-hidden="true"><img class="intro-character" src="${getCharacter("observer", "animal").image}" width="768" height="768" alt=""></div><h1>${t(first ? "welcome" : "profile")}</h1><form id="profile-form" class="form-stack">
  ${input("nickname", "nickname", p.nickname, "text", 'required maxlength="20" autocomplete="nickname"')}
- <label class="field"><span>${t("age")}</span><select id="ageGroup" class="input">${["10", "20", "30", "40", "50", "60"].map((a) => `<option value="${a === "60" ? "60代以上" : a + "代"}" ${p.ageGroup === (a === "60" ? "60代以上" : a + "代") ? "selected" : ""}>${t("age" + a)}</option>`).join("")}</select></label>
- ${languageField()}<button class="btn primary full" type="submit">${t(state.profile?.typeAnswers ? "save" : "startQuiz")}</button></form></div>`;
+ <div class="field-row"><label class="field"><span>${t("age")}</span><select id="ageGroup" class="input">${ages.map((a) => `<option value="${a === "60" ? "60代以上" : a + "代"}" ${p.ageGroup === (a === "60" ? "60代以上" : a + "代") ? "selected" : ""}>${t("age" + a)}</option>`).join("")}</select></label>
+ ${languageField()}</div><button class="btn primary full" type="submit">${t(first ? "startQuiz" : "save")}<span aria-hidden="true"> →</span></button></form></section>`;
 }
 function quizView() {
   const q = QUESTIONS[quizIndex],
@@ -916,35 +1060,41 @@ function quizView() {
     answer = quizAnswers[quizIndex],
     values = answerValues(q);
   const option = (v, label, symbol = "", extra = "") =>
-    `<button type="button" class="quiz-answer" data-answer="${v}" aria-pressed="${answer === v}"${extra}>${symbol ? `<span aria-hidden="true">${symbol}</span>` : ""}${label}</button>`;
+    `<button type="button" class="quiz-answer" data-answer="${v}" aria-pressed="${answer === v}"${extra}>${symbol ? `<span class="quiz-symbol" aria-hidden="true">${symbol}</span>` : ""}<span class="quiz-label">${label}</span></button>`;
   const illustration = q.group && TYPES.find((type) => type.group === q.group);
   let answers;
   if (q.kind === "frequency") {
     const symbols = ["○", "✦", "✦✦", "✦✦✦", "✦✦✦✦"];
-    answers = values.map((v) =>
-      option(v, esc(localized(FREQUENCY_OPTIONS[v], lang)), symbols[v]),
-    ).join("");
+    answers = values
+      .map((v) =>
+        option(v, esc(localized(FREQUENCY_OPTIONS[v], lang)), symbols[v]),
+      )
+      .join("");
   } else if (q.kind === "scene") {
-    answers = q.options.map((o, i) =>
-      option(i, esc(localized(o.text, lang)), typeById(o.type).symbol),
-    ).join("");
+    answers = q.options
+      .map((o, i) =>
+        option(i, esc(localized(o.text, lang)), typeById(o.type).symbol),
+      )
+      .join("");
   } else {
-    const left = esc(localized(q.left, lang)), right = esc(localized(q.right, lang));
-    answers = `<div class="quiz-poles"><span>${left}</span><span>${right}</span></div>${values.map((v, i) => {
-      const strength = esc(localized(SCALE_STRENGTH[i], lang));
-      const label = v === 0 ? strength : `${v < 0 ? left : right} · ${strength}`;
-      return option(v, strength, ["«", "‹", "·", "›", "»"][i], ` aria-label="${label}"`);
-    }).join("")}`;
+    const left = esc(localized(q.left, lang)),
+      right = esc(localized(q.right, lang));
+    answers = `<div class="quiz-poles"><span>${left}</span><span>${right}</span></div><div class="quiz-scale">${values
+      .map((v, i) => {
+        const strength = esc(localized(SCALE_STRENGTH[i], lang));
+        const label = v === 0 ? strength : `${v < 0 ? left : right} · ${strength}`;
+        return option(v, strength, ["«", "‹", "·", "›", "»"][i], ` aria-label="${label}"`);
+      })
+      .join("")}</div>`;
   }
-  return `<div class="narrow quiz-flow"><div class="row between quiz-header"><button type="button" class="icon-action" data-action="quiz-back" aria-label="${t("back")}">‹</button><h1>${t("quiz")}</h1><span>${quizIndex + 1} / ${total}</span></div>
-  <progress class="progress" max="${total}" value="${quizIndex + 1}" aria-label="${t("quiz")}"></progress>
-  <div class="quiz-card"${illustration ? ` style="--accent:${group(illustration).color}"` : ""}>
+  // Tapping an answer moves on by itself; the arrows step back and forth.
+  return `<section class="quiz-flow" data-kind="${q.kind}"${illustration ? ` style="--accent:${group(illustration).color}"` : ""}><div class="quiz-header"><button type="button" class="icon-action" data-action="quiz-back" aria-label="${t("back")}">${ICONS.back}</button><div class="quiz-meter"><h1>${t("quiz")}</h1><progress class="progress" max="${total}" value="${quizIndex + 1}" aria-label="${t("quiz")}"></progress></div><span class="quiz-count">${quizIndex + 1}<small>/${total}</small></span><button type="button" class="icon-action quiz-next" data-action="quiz-next" aria-label="${t(quizIndex === total - 1 ? "result" : "next")}" ${answer === null ? "disabled" : ""}><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="m9.5 5.5 6.5 6.5-6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+  <div class="quiz-card">
     ${illustration ? `<div class="quiz-art" aria-hidden="true">${avatar(illustration)}</div>` : ""}
     <h2 id="quiz-scene" tabindex="-1">${esc(localized(q.text, lang))}</h2>
+    ${q.kind === "frequency" ? `<p class="quiz-prompt" id="quiz-prompt">${t("quizHint")}</p>` : ""}
   </div>
-  ${q.kind === "frequency" ? `<p class="quiz-prompt" id="quiz-prompt">${t("quizHint")}</p>` : ""}
-  <div class="quiz-answers quiz-${q.kind}" role="group" aria-labelledby="quiz-scene${q.kind === "frequency" ? " quiz-prompt" : ""}">${answers}</div>
-  <button type="button" class="btn primary quiz-next" data-action="quiz-next" ${answer === null ? "disabled" : ""}>${t(quizIndex === total - 1 ? "result" : "next")} <span aria-hidden="true">→</span></button></div>`;
+  <div class="quiz-answers quiz-${q.kind}" role="group" aria-labelledby="quiz-scene${q.kind === "frequency" ? " quiz-prompt" : ""}">${answers}</div></section>`;
 }
 // A saved questionnaire draft is only restored when every answer fits the current questions.
 function quizDraft(progress) {
@@ -980,7 +1130,7 @@ function typeSignature(type) {
     .join(" × ");
 }
 function loreCard(type) {
-  return `<section class="card lore"><h2>${t("storyTitle")}</h2><p>${esc(localized(TYPE_LORE[type.id].story, language()))}</p></section>`;
+  return `<section class="lore"><h3>${t("storyTitle")}</h3><p>${esc(localized(TYPE_LORE[type.id].story, language()))}</p></section>`;
 }
 // The evidence behind a result: group profile, the two style axes, the scene pick, recent dreams.
 function rationaleCard(result, type) {
@@ -1021,57 +1171,90 @@ function rationaleCard(result, type) {
     ev.dreams ? fmt(t("dreamVotes"), ev.dreams) : t("dreamVotesNone"),
     fmt(t("runnerUp"), `${name(characterById(runner.id))} · ${name(runner)}`),
   ].filter(Boolean);
-  return `<section class="card rationale"><h2>${t("whyTitle")}</h2><p class="help">${esc(localized(TYPE_LORE[type.id].basis, lang))}</p><h3>${t("groupProfile")}</h3><ul class="meters">${groups}</ul>${axes ? `<h3>${t("styleProfile")}</h3><ul class="meters">${axes}</ul>` : ""}<ul class="facts">${facts.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>${result.version === 1 ? `<p class="help">${t("legacyQuizHint")}</p>${button("newQuiz", "retake", "small ghost")}` : ""}</section>`;
+  return `<section class="rationale"><p class="prose">${esc(localized(TYPE_LORE[type.id].basis, lang))}</p><h3>${t("groupProfile")}</h3><ul class="meters">${groups}</ul>${axes ? `<h3>${t("styleProfile")}</h3><ul class="meters">${axes}</ul>` : ""}<ul class="facts">${facts.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>${result.version === 1 ? `<p class="help">${t("legacyQuizHint")}</p>${button("newQuiz", "retake", "small ghost")}` : ""}</section>`;
 }
 function resultView() {
   const result = pendingResult || currentType(),
-    type = typeById(result.id);
-  return `<div class="narrow center"><h1>${t("yourType")}</h1><div class="card accent" style="--accent:${group(type).color}">${avatar(type)}<span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)} · ${typeSignature(type)}</p><blockquote class="character-quote">${esc(localized(characterById(type.id).quotes, language()))}</blockquote>${result.tied ? `<p class="help">${t("tie")}</p>` : ""}${result.provisional ? `<p class="help">${t("provisional")}</p>` : ""}</div><details class="type-note"><summary>${t("whyTitle")}</summary>${rationaleCard(result, type)}${loreCard(type)}</details>${button(firstRunPage() === "welcome-login" ? "beginLogin" : "begin", "begin", "primary full")}<details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
+    type = typeById(result.id),
+    character = characterById(type.id);
+  return `<section class="result-page" style="--accent:${group(type).color}"><p class="eyebrow">${t("yourType")}</p><div class="result-stage"><span class="result-rays" aria-hidden="true"></span>${avatar(type)}</div><div class="result-copy"><span class="tag-label">${name(group(type))}</span><h1 class="character-name">${name(character)}</h1><p class="type-name">${name(type)}</p><p class="type-signature">${typeSignature(type)}</p><blockquote class="character-quote">${esc(localized(character.quotes, language()))}</blockquote></div><div class="page-actions stacked"><button type="button" class="btn ghost" data-sheet-open="why" aria-haspopup="dialog">${ICONS.star}<span>${t("whyTitle")}</span></button>${button(firstRunPage() === "welcome-login" ? "beginLogin" : "begin", "begin", "primary full")}</div>${sheet("why", t("whyTitle"), rationaleCard(result, type) + loreCard(type), { cls: "tall" })}</section>`;
 }
 function homeView() {
   const result = currentType(),
     type = typeById(result?.id) || TYPES[0],
-    value = dreamLevel(state.records);
-  return `<section class="home-dashboard">
- <div class="card accent character-row home-companion" style="--accent:${group(type).color}">
+    value = dreamLevel(state.records),
+    today = dreamsOn(localDate()).length;
+  // The character fills the screen; tapping it starts today's dream.
+  return `<section class="home-dashboard" style="--accent:${group(type).color}">
+ <div class="character-row home-companion">
+   <p class="home-greeting">${esc(state.profile?.nickname)}</p>
    <button type="button" class="companion-action" data-action="record" aria-label="${t("dreamPrompt")} ${t("record")}">
+     <span class="companion-halo" aria-hidden="true"></span>
      ${avatar(type, value.stars, { inline: true })}
-     <span class="companion-prompt" aria-hidden="true">${t("dreamPrompt")} <span>✎</span></span>
+     <span class="companion-prompt" aria-hidden="true">${today ? "✓ " : ""}${t("dreamPrompt")} <span>✎</span></span>
    </button>
-   <div class="companion-details"><p class="help">${esc(state.profile?.nickname)}</p><button type="button" class="character-link" data-type-detail="${type.id}"><strong class="character-name">${name(characterById(type.id))}</strong></button><p class="help">${name(type)}</p>${button("catalog", "catalog", "small ghost")}</div>
+   <div class="companion-details"><button type="button" class="character-link" data-type-detail="${type.id}"><strong class="character-name">${name(characterById(type.id))}</strong><small>${name(type)}</small></button></div>
  </div>
- <div class="home-insights"><div class="card level-card"><div class="row between"><h2>${t("level")}</h2><div class="score">Lv.<b>${value.level}</b></div></div><div class="level-gauge" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value.progress}" aria-label="${esc(t("level"))}"><i style="width:${value.progress}%"></i></div><p class="help level-next">${esc(
+ <div class="home-insights"><div class="level-card"><div class="level-head"><h2>${t("level")}</h2><div class="score">Lv.<b>${value.level}</b></div></div><div class="level-gauge" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value.progress}" aria-label="${esc(t("level"))}"><i style="width:${value.progress}%"></i></div><p class="level-next"><span>${esc(
    t("nextLevel")
      .replace("{n}", value.remaining)
      .replace("{l}", value.level + 1),
- )}<span class="dream-count">${t("dreamsLogged")}: ${value.count}</span></p></div></div></section>`;
+ )}</span><span class="dream-count">${t("dreamsLogged")}: ${value.count}</span></p></div>
+ <div class="home-actions"><button type="button" class="btn ghost" data-action="catalog">${ICONS.grid}<span>${esc(t("catalog"))}</span></button><button type="button" class="btn ghost" data-go="diary">${ICONS.diary}<span>${esc(t("diary"))}</span></button></div></div></section>`;
 }
 
 function catalogView() {
-  const active = currentType()?.id;
-  return `<div class="row between page-heading"><div><p class="eyebrow">${localized(characterSetById(effectiveSet()).names, language())}</p><h1>${t("catalog")}</h1></div></div><p class="help">${t("catalogHint")}</p>
-  <div class="catalog-filters" role="group" aria-label="${t("catalog")}">${[{ id: "all", names: [t("catalogAll"), t("catalogAll"), t("catalogAll"), t("catalogAll")] }, ...GROUPS].map((g) => `<button class="btn small ghost" data-catalog-group="${g.id}" aria-pressed="${catalogGroup === g.id}">${language() === "ja" ? name(g).replace("タイプ", "") : name(g)}</button>`).join("")}</div>
-  <div class="catalog-table">${GROUPS.filter(
-    (g) => catalogGroup === "all" || catalogGroup === g.id,
-  )
+  const active = currentType()?.id,
+    shown = TYPES.filter(
+      (type) => catalogGroup === "all" || type.group === catalogGroup,
+    );
+  return `<section class="catalog-page" data-group="${catalogGroup}"><h1 class="sr-only">${t("catalog")}</h1>
+  <div class="catalog-filters segmented" role="group" aria-label="${t("catalog")}">${[{ id: "all", names: [t("catalogAll"), t("catalogAll"), t("catalogAll"), t("catalogAll")] }, ...GROUPS].map((g) => `<button type="button" data-catalog-group="${g.id}" aria-pressed="${catalogGroup === g.id}" ${g.color ? `style="--accent:${g.color}"` : ""}>${esc(groupShort(g))}</button>`).join("")}</div>
+  <ul class="catalog-grid${catalogGroup === "all" ? "" : " catalog-focus"}">${shown
+    .map((type) => {
+      const g = group(type);
+      return `<li class="${type.id === active ? "active" : ""}" style="--accent:${g.color}"><button type="button" class="catalog-character" data-type-detail="${type.id}"><span class="catalog-art">${avatar(type, null, { inline: true })}</span><span class="catalog-names"><strong class="character-name">${name(characterById(type.id))}</strong><small>${name(type)}</small>${catalogGroup === "all" ? "" : `<em>${localized(TYPE_FEATURES[type.id], language())}</em>`}</span>${type.id === active ? `<span class="catalog-you" aria-hidden="true">★</span>` : ""}</button></li>`;
+    })
+    .join("")}</ul>
+  <div class="page-actions"><span class="catalog-set">${localized(characterSetById(effectiveSet()).names, language())}</span><button type="button" class="btn ghost small" data-action="retake">${ICONS.retake}<span>${esc(t("retake"))}</span></button></div></section>`;
+}
+// Tabs switch in place (no re-render), so long text never pushes the page.
+function tabs(id, items) {
+  const list = items.filter(Boolean);
+  return `<div class="tabs" data-tabs="${id}"><div class="tab-list" role="tablist">${list
     .map(
-      (g) =>
-        `<section class="catalog-group"><h2 class="group-heading" style="--accent:${g.color}">${name(g)}</h2><table><caption class="sr-only">${name(g)} · ${t("typeFeature")}</caption><tbody>${TYPES.filter(
-          (type) => type.group === g.id,
-        )
-          .map(
-            (type) =>
-              `<tr class="${type.id === active ? "active" : ""}" style="--accent:${g.color}"><th scope="row"><button type="button" class="catalog-character" data-type-detail="${type.id}">${avatar(type, null, { inline: true })}<span><strong class="character-name">${name(characterById(type.id))}</strong><small>${name(type)}</small></span></button></th><td>${localized(TYPE_FEATURES[type.id], language())}</td></tr>`,
-          )
-          .join("")}</tbody></table></section>`,
+      ([key, label], i) =>
+        `<button type="button" role="tab" id="tab-${id}-${key}" data-tab="${key}" aria-controls="panel-${id}-${key}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}">${label}</button>`,
     )
-    .join("")}</div>
-  <div class="row">${button("retake", "retake", "ghost")}</div>`;
+    .join("")}</div>${list
+    .map(
+      ([key, , body], i) =>
+        `<div class="tab-panel" role="tabpanel" id="panel-${id}-${key}" aria-labelledby="tab-${id}-${key}" data-panel="${key}" ${i === 0 ? "" : "hidden"}>${body}</div>`,
+    )
+    .join("")}</div>`;
 }
 function typeDetailView() {
   const type =
     typeById(selectedType) || typeById(currentType()?.id) || TYPES[0];
-  return `<div class="narrow"><div class="card type-detail" style="--accent:${group(type).color}">${avatar(type)}<div><span class="tag-label">${name(group(type))}</span><h1 class="character-name">${name(characterById(type.id))}</h1><p>${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p><p class="help">${typeSignature(type)}</p>${characterStory(type)}</div></div><section class="card"><h2>${t("whyTitle")}</h2><p class="help">${esc(localized(TYPE_LORE[type.id].basis, language()))}</p></section>${loreCard(type)}</div>`;
+  const character = characterById(type.id);
+  return `<section class="type-detail" style="--accent:${group(type).color}"><div class="type-hero">${avatar(type)}<div class="type-heading"><span class="tag-label">${name(group(type))}</span><h1 class="character-name">${name(character)}</h1><p class="type-name">${name(type)}</p><p class="type-signature">${typeSignature(type)}</p></div></div>
+  ${tabs("type", [
+    [
+      "story",
+      t("typeFeature"),
+      `<p class="type-feature">${localized(TYPE_FEATURES[type.id], language())}</p>${characterStory(type)}`,
+    ],
+    [
+      "lore",
+      t("storyTitle"),
+      `<p class="prose">${esc(localized(TYPE_LORE[type.id].story, language()))}</p>`,
+    ],
+    [
+      "why",
+      t("whyTitle"),
+      `<p class="prose">${esc(localized(TYPE_LORE[type.id].basis, language()))}</p>`,
+    ],
+  ])}</section>`;
 }
 function freshDream(date = localDate()) {
   return {
@@ -1112,22 +1295,19 @@ const shiftDate = (date, days) => {
   return localDate(d);
 };
 function dateField(label, id, value) {
-  return `<div class="field"><span id="${id}-label">${t(label)}</span><input type="hidden" id="${id}" value="${esc(value)}"><button type="button" class="date-trigger input" data-date-field="${id}" aria-labelledby="${id}-label ${id}-value" aria-haspopup="dialog"><span id="${id}-value">${esc(dateText(value))}</span><span aria-hidden="true">▦</span></button></div>`;
+  return `<div class="field date-field"><span id="${id}-label" class="sr-only">${t(label)}</span><input type="hidden" id="${id}" value="${esc(value)}"><button type="button" class="date-trigger" data-date-field="${id}" aria-labelledby="${id}-label ${id}-value" aria-haspopup="dialog"><span id="${id}-value">${esc(dateText(value))}</span><span class="date-icon" aria-hidden="true">▦</span></button></div>`;
 }
-function dateRow(label, key, date) {
-  return `<div class="date-row"><button type="button" class="icon-btn small" data-shift="-1" aria-label="${esc(t("previousDay"))}">◀︎</button>${dateField(label, key, date)}<button type="button" class="icon-btn small" data-shift="1" aria-label="${esc(t("nextDay"))}" ${date >= localDate() ? "disabled" : ""}>▶︎</button></div>`;
+function dateRow(label, key, date, extra = "") {
+  return `<div class="date-row"><button type="button" class="icon-btn small" data-shift="-1" aria-label="${esc(t("previousDay"))}">${ICONS.back}</button>${dateField(label, key, date)}<button type="button" class="icon-btn small flip" data-shift="1" aria-label="${esc(t("nextDay"))}" ${date >= localDate() ? "disabled" : ""}>${ICONS.back}</button>${extra}</div>`;
 }
 function languageField() {
   return `<label class="field"><span>${t("language")}</span><select id="language" class="input">${LANGUAGES.map((l) => `<option value="${l}" ${l === language() ? "selected" : ""}>${languageNames[l]}</option>`).join("")}</select></label>`;
-}
-function recentLink(kind) {
-  return `<button type="button" class="recent-link" data-open-days="${kind}"><span>${t(kind === "dream" ? "recentDreams" : "recentDiaries")}</span><span aria-hidden="true">›</span></button>`;
 }
 function journalView(kind) {
   const records = state.records
     .filter((r) => r.kind === kind && r.date === journalDate)
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-  return `<section class="narrow day-journal"><div class="row between page-heading"><h1>${t(kind === "dream" ? "dreamDays" : "diaryDays")}</h1></div><div class="day-navigation"><button type="button" class="btn ghost icon-button" data-day-step="-1" aria-label="${t("previousDay")}">◀︎</button><button type="button" class="date-trigger" data-journal-calendar aria-haspopup="dialog">${esc(dateText(journalDate))}<span aria-hidden="true">▦</span></button><button type="button" class="btn ghost icon-button" data-day-step="1" aria-label="${t("nextDay")}" ${journalDate >= localDate() ? "disabled" : ""}>▶︎</button></div><div class="day-records" aria-live="polite">${records.length ? records.map((r) => `<article class="card day-record"><p class="prose">${esc(r.text || t("sleep"))}</p>${r.photo ? `<img class="photo" src="${esc(r.photo)}" alt="${t("photoAlt")}">` : ""}${r.sleep ? `<p class="help">${t("hours")}: ${r.sleep.hours}</p>` : ""}<button class="btn ghost" data-entry="${esc(r.id)}">${t("more")}</button></article>`).join("") : `<p class="empty">${t("emptyDay")}</p>`}</div></section>`;
+  return `<section class="day-journal"><h1 class="sr-only">${t(kind === "dream" ? "dreamDays" : "diaryDays")}</h1><div class="day-navigation date-row"><button type="button" class="icon-btn small" data-day-step="-1" aria-label="${t("previousDay")}">${ICONS.back}</button><button type="button" class="date-trigger" data-journal-calendar aria-haspopup="dialog"><span>${esc(dateText(journalDate))}</span><span class="date-icon" aria-hidden="true">▦</span></button><button type="button" class="icon-btn small flip" data-day-step="1" aria-label="${t("nextDay")}" ${journalDate >= localDate() ? "disabled" : ""}>${ICONS.back}</button></div><div class="day-records" aria-live="polite">${records.length ? records.map((r) => `<button type="button" class="day-record" data-entry="${esc(r.id)}"><span class="prose">${esc(r.text || r.analysis?.title || t("sleep"))}</span><span class="day-record-meta">${r.photo ? `<span>${ICONS.camera}</span>` : ""}${r.sleep ? `<span>${ICONS.sleep} ${esc(r.sleep.hours)}h</span>` : ""}<span class="day-record-more">${t("more")} ›</span></span></button>`).join("") : `<div class="empty"><span class="empty-moon" aria-hidden="true">☾</span><p>${t("emptyDay")}</p></div>`}</div></section>`;
 }
 async function openJournal(kind) {
   if (dirty && !(await confirmDiscard(t))) return;
@@ -1142,7 +1322,7 @@ async function openJournal(kind) {
 function themes(selected) {
   return GROUPS.map(
     (g) =>
-      `<div style="--accent:${g.color}"><h3 class="group-heading">${name(g)}</h3><div class="tags">${TYPES.filter(
+      `<div class="theme-group" style="--accent:${g.color}"><h3 class="group-heading">${name(g)}</h3><div class="tags">${TYPES.filter(
         (type) => type.group === g.id,
       )
         .map(
@@ -1152,6 +1332,9 @@ function themes(selected) {
         .join("")}</div></div>`,
   ).join("");
 }
+// A tool on the writing card: an icon that opens its sheet, lit when it holds something.
+const tool = (sheetId, iconName, label, short, on = false, attrs = "") =>
+  `<button type="button" class="tool${on ? " on" : ""}" ${sheetId ? `data-sheet-open="${sheetId}" aria-haspopup="dialog" aria-expanded="${openSheetId === sheetId}"` : ""} ${attrs} aria-label="${esc(label)}" title="${esc(label)}">${ICONS[iconName]}<span class="tool-label" aria-hidden="true">${esc(short)}</span></button>`;
 function recordView() {
   draft ||= freshDream();
   const d = draft,
@@ -1168,26 +1351,32 @@ function recordView() {
     ? `<div class="day-entries" role="group" aria-label="${esc(t("dayEntries"))}">${saved
         .map(
           (r, i) =>
-            `<button type="button" class="tag" data-open-entry="${esc(r.id)}" aria-pressed="${r.id === d.id}">${i + 1}. ${esc((r.text || r.analysis?.title || t("sleep")).slice(0, 14))}</button>`,
+            `<button type="button" class="tag" data-open-entry="${esc(r.id)}" aria-pressed="${r.id === d.id}">${i + 1}. ${esc((r.text || r.analysis?.title || t("sleep")).slice(0, 10))}</button>`,
         )
         .join(
           "",
         )}${canAdd ? `<button type="button" class="tag" data-action="new-dream" aria-pressed="${!isSaved}">＋ ${t("newDream")}</button>` : `<button type="button" class="tag tag-cta" data-go="plans">＋ ${ct("moreDreamsCta")}</button>`}</div>`
     : "";
-  return `<div class="narrow"><h1>${t("recordTitle")}</h1><p class="help record-meta">${t("dreamJournalHint")} ${ct("dreamLimit")}: ${saved.length} / ${PLANS[plan].dreams}</p><form id="dream-form">
- <div class="card">${dateRow("date", "dream-date", d.date)}${chips}${isSaved ? `<p class="help saved-note">${t("savedEntry")} · ${esc(dateText(d.date))}</p>` : ""}${area("dreamText", "dream-text", d.text, t("dreamPlaceholder"))}<div class="record-tools">${button("voice", "voice", "small ghost")}<details ${d.photo ? "open" : ""}><summary>${t("photo")}</summary><label class="field"><span class="sr-only">${t("photo")}</span><input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp"></label>${d.photo ? `<img class="photo" src="${esc(d.photo)}" alt="${t("photoAlt")}"><div class="row">${button("recognize", "recognize", "small")}${button("removePhoto", "remove-photo", "small ghost")}</div>` : ""}</details></div></div>
- <details class="card theme-picker" ${d.typeTags.length ? "open" : ""}><summary>${t("tags")}</summary>${themes(d.typeTags)}</details>
- <div class="card"><h2>${t("sleep")}</h2><label class="check"><input type="checkbox" id="include-sleep" ${d.sleep ? "checked" : ""}><span>${t("sleepOptional")}</span></label><div id="sleep-fields" ${d.sleep ? "" : "hidden"}><div class="grid">${input("hours", "hours", d.sleep?.hours ?? "", "number", 'min="0" max="24" step="0.25"')}${input("awakenings", "awakenings", d.sleep?.awakenings ?? "", "number", 'min="0" max="30" step="1"')}</div><label class="field"><span>${t("rested")}</span><select class="input" id="rested"><option value="">—</option>${[1, 2, 3, 4, 5].map((v) => `<option value="${v}" ${d.sleep?.rested === v ? "selected" : ""}>${v}</option>`).join("")}</select></label><label class="check"><input type="checkbox" id="nightmare" ${d.sleep?.nightmare ? "checked" : ""}><span>${t("nightmare")}</span></label></div><p class="help">${t("sleepNote")}</p></div>
- <div class="row">${button("diagnose", "diagnose", "primary full")}${isSaved ? button("delete", "delete-entry", "danger ghost small") : ""}</div>
- <details class="previous-diary"><summary>${t("previousDiary")}</summary><p class="help">${previous ? esc(previous.text.slice(0, 500)) : t("noDiary")}</p></details>
- </form>${recentLink("dream")}</div>`;
+  const count = `<span class="quota" title="${esc(ct("dreamLimit"))}" aria-label="${esc(ct("dreamLimit"))}: ${saved.length} / ${PLANS[plan].dreams}">${saved.length}/${PLANS[plan].dreams}</span>`;
+  const photoSheet = `<label class="file-drop"><input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp"><span>${ICONS.camera}</span><strong>${t("photo")}</strong></label>${d.photo ? `<img class="photo" src="${esc(d.photo)}" alt="${t("photoAlt")}"><div class="sheet-actions">${button("recognize", "recognize", "primary")}${button("removePhoto", "remove-photo", "ghost")}</div>` : ""}`;
+  const sleepSheet = `<label class="switch-row"><input type="checkbox" id="include-sleep" ${d.sleep ? "checked" : ""}><span class="switch" aria-hidden="true"></span><span>${t("sleepOptional")}</span></label><div id="sleep-fields" ${d.sleep ? "" : "hidden"}><div class="grid">${input("hours", "hours", d.sleep?.hours ?? "", "number", 'min="0" max="24" step="0.25" inputmode="decimal"')}${input("awakenings", "awakenings", d.sleep?.awakenings ?? "", "number", 'min="0" max="30" step="1" inputmode="numeric"')}</div><label class="field"><span>${t("rested")}</span><select class="input" id="rested"><option value="">—</option>${[1, 2, 3, 4, 5].map((v) => `<option value="${v}" ${d.sleep?.rested === v ? "selected" : ""}>${v}</option>`).join("")}</select></label><label class="check"><input type="checkbox" id="nightmare" ${d.sleep?.nightmare ? "checked" : ""}><span>${t("nightmare")}</span></label></div><div class="sheet-actions"><button type="button" class="btn primary full" data-sheet-close>${t("close")}</button></div>`;
+  const previousSheet = previous
+    ? `<p class="eyebrow">${esc(dateText(previous.date))}</p><p class="prose">${esc(previous.text.slice(0, 500))}</p>`
+    : `<p class="empty">${t("noDiary")}</p>`;
+  return `<section class="compose"><h1 class="sr-only">${t("recordTitle")}</h1><form id="dream-form" class="compose-form">
+ ${dateRow("date", "dream-date", d.date, count)}${chips}
+ <div class="paper${isSaved ? " saved" : ""}"><label class="paper-label" for="dream-text">${isSaved ? `<span class="saved-note">✓ ${t("savedEntry")}</span>` : `<span>${t("dreamText")}</span>`}</label><textarea id="dream-text" name="dream-text" maxlength="20000" placeholder="${esc(t("dreamPlaceholder"))}">${esc(d.text)}</textarea>
+ <div class="record-tools">${tool("", "mic", t("voice"), t("toolVoice"), false, 'data-action="voice" aria-pressed="false"')}${tool("photo", "camera", t("photo"), t("toolPhoto"), Boolean(d.photo))}${tool("tags", "tag", t("tags"), t("toolTags"), d.typeTags.length > 0)}${tool("sleep", "sleep", t("sleep"), t("toolSleep"), Boolean(d.sleep))}${tool("previous", "book", t("previousDiary"), t("toolDiary"), Boolean(previous))}</div></div>
+ <div class="page-actions">${isSaved ? `<button type="button" class="btn ghost icon-only danger" data-action="delete-entry" aria-label="${esc(t("delete"))}">${ICONS.trash}</button>` : ""}<button type="button" class="btn primary full" data-action="diagnose">${t("diagnose")}</button></div>
+ ${sheet("photo", t("photo"), photoSheet)}${sheet("tags", t("tags"), `<div class="theme-picker">${themes(d.typeTags)}</div><div class="sheet-actions"><button type="button" class="btn primary full" data-sheet-close>${t("close")}</button></div>`, { cls: "tall" })}${sheet("sleep", t("sleep"), sleepSheet)}${sheet("previous", t("previousDiary"), previousSheet)}
+ </form></section>`;
 }
 // The reading page: the diagnosis of the dream on the journal page, the
 // dream's own share box (on by default when sharing is possible) and Save.
 function readingView() {
   const d = draft;
-  if (!d) return `<p>${t("empty")}</p>`;
-  return `<div class="narrow reading-page"><p class="eyebrow">${esc(dateText(d.date))}</p><h1>${t("readingTitle")}</h1><p class="help reading-excerpt">${esc((d.text || t("sleep")).slice(0, 80))}${d.text && d.text.length > 80 ? "…" : ""}</p>${analysisCard(d)}${shareField(d)}<div class="row">${button("save", "save-reading", "primary full")}</div></div>`;
+  if (!d) return `<p class="empty">${t("empty")}</p>`;
+  return `<section class="reading-page"><h1 class="sr-only">${t("readingTitle")}</h1><div class="reading-head"><p class="eyebrow">${esc(dateText(d.date))}</p><p class="reading-excerpt">${esc((d.text || t("sleep")).slice(0, 60))}${d.text && d.text.length > 60 ? "…" : ""}</p></div>${analysisCard(d)}<div class="page-actions stacked">${shareField(d)}${button("save", "save-reading", "primary full")}</div></section>`;
 }
 // Each dream decides for itself whether it appears in the feed. Sharing is part
 // of every plan and needs only an account; reading other members' dreams is
@@ -1198,7 +1387,7 @@ function shareField(d) {
   // new possibility, so their first dream is only published if they ask for it.
   const allowed = signedIn(),
     on = d.shared == null ? allowed && displayPlan() !== "free" : d.shared;
-  return `<div class="card share-card"><label class="check share-check"><input type="checkbox" id="share-public" ${on ? "checked" : ""} ${allowed ? "" : "disabled"}><span>${t("shareDream")}</span></label><p class="help">${allowed ? t("shareDreamHint") : at("loginHint")}</p></div>`;
+  return `<div class="share-card"><label class="switch-row share-check"><input type="checkbox" id="share-public" ${on ? "checked" : ""} ${allowed ? "" : "disabled"}><span class="switch" aria-hidden="true"></span><span>${t("shareDream")}</span></label>${infoButton(allowed ? t("shareDreamHint") : at("loginHint"), t("shareDream"))}</div>`;
 }
 const WEATHER = {
   sunny: ["☀️", "weatherSunny"],
@@ -1223,56 +1412,96 @@ function analysisCard(d) {
   const failure = d === draft && d.aiError && d.aiError !== "loginRequired";
   const upsell =
     !ai && !signedIn()
-      ? `<div class="reading-upsell"><p class="help">${t("readingLogin")}</p><button type="button" class="btn small ghost" data-go="settings">${t("signIn")}</button></div>`
+      ? `<div class="reading-upsell"><p>${t("readingLogin")}</p><button type="button" class="btn small ghost" data-go="settings">${t("signIn")}</button></div>`
       : !ai && failure
-        ? `<div class="reading-upsell reading-failure"><p class="help"><strong>${t("readingFailed")}</strong> ${esc(d.aiError === "networkError" ? t("networkError") : ct(errorMessageKey(d.aiError, "reading")))}</p>${["quotaReached", "aiBudgetReached", "paidRequired"].includes(d.aiError) ? `<button type="button" class="btn small ghost" data-go="plans">${t("viewPlans")}</button>` : d.aiError === "aiTextTooLong" ? "" : button("retryReading", "retry-reading", "small ghost")}</div>`
+        ? `<div class="reading-upsell reading-failure"><p><strong>${t("readingFailed")}</strong> ${esc(d.aiError === "networkError" ? t("networkError") : ct(errorMessageKey(d.aiError, "reading")))}</p>${["quotaReached", "aiBudgetReached", "paidRequired"].includes(d.aiError) ? `<button type="button" class="btn small ghost" data-go="plans">${t("viewPlans")}</button>` : d.aiError === "aiTextTooLong" ? "" : button("retryReading", "retry-reading", "small ghost")}</div>`
         : "";
-  const body = rich
-    ? `<section class="reading-section"><h3>${t("mentalState")}</h3><p class="mood-line">${weather ? `<span class="mood-icon" aria-hidden="true">${weather[0]}</span>` : ""}<strong>${esc(a.mood_label)}</strong>${weather ? `<small>${t(weather[1])}</small>` : ""}</p><p class="prose">${esc(a.mental_state)}</p></section>
-    <section class="reading-section fortune"><h3>${t("fortune")}</h3><p class="prose">${esc(a.fortune_overview)}</p><dl class="fortune-list"><div><dt>${t("fortuneMood")}</dt><dd>${esc(a.fortune_mood)}</dd></div><div><dt>${t("luckyHint")}</dt><dd>${esc(a.lucky_hint)}</dd></div><div><dt>${t("adviceToday")}</dt><dd>${esc(a.advice)}</dd></div></dl></section>
-    <p class="prose">${esc(a.reply)}</p>`
-    : `<p class="prose">${ai ? esc(a.reply || a.summary) : t(tags.length ? "reflectionText" : "noTheme")}</p>${upsell}`;
-  return `<div class="card reading-card"><h2>${t(ai ? "reading" : "reflection")}</h2><div class="tags">${tags
-    .map(typeById)
-    .filter(Boolean)
-    .map((type) => `<span class="tag-label">${name(type)}</span>`)
-    .join(
-      "",
-    )}</div>${body}${prev ? `<h3>${t("previousDiary")} · ${esc(dateText(prev.date))}</h3><p class="prose">${esc(prev.text)}</p><p class="help">${t("diaryContext")}</p>${common.length ? `<p>${t("sharedThemes")}: ${common.map(typeById).map(name).join(" · ")}</p>` : ""}` : `<p class="help">${t("noDiary")}</p>`}${ai ? `<p class="help">${t("readingNote")}</p>` : ""}</div>`;
+  const tagLine = tags.length
+    ? `<div class="tags">${tags
+        .map(typeById)
+        .filter(Boolean)
+        .map((type) => `<span class="tag-label">${name(type)}</span>`)
+        .join("")}</div>`
+    : "";
+  const diaryPanel = prev
+    ? `<p class="eyebrow">${t("previousDiary")} · ${esc(dateText(prev.date))}</p><p class="prose">${esc(prev.text)}</p>${common.length ? `<p class="shared-themes">${t("sharedThemes")}: ${common.map(typeById).map(name).join(" · ")}</p>` : ""}<p class="sr-only">${t("diaryContext")}</p>`
+    : `<p class="empty">${t("noDiary")}</p>`;
+  const note = ai ? `<p class="sr-only">${t("readingNote")}</p>` : "";
+  const panels = rich
+    ? [
+        [
+          "mind",
+          t("mentalState"),
+          `<div class="reading-section"><p class="mood-line">${weather ? `<span class="mood-icon" aria-hidden="true">${weather[0]}</span>` : ""}<span><strong>${esc(a.mood_label)}</strong>${weather ? `<small>${t(weather[1])}</small>` : ""}</span></p>${tagLine}<p class="prose">${esc(a.mental_state)}</p></div>`,
+        ],
+        [
+          "fortune",
+          t("fortune"),
+          `<div class="reading-section fortune"><p class="prose">${esc(a.fortune_overview)}</p><dl class="fortune-list"><div><dt>${t("fortuneMood")}</dt><dd>${esc(a.fortune_mood)}</dd></div><div><dt>${t("luckyHint")}</dt><dd>${esc(a.lucky_hint)}</dd></div><div><dt>${t("adviceToday")}</dt><dd>${esc(a.advice)}</dd></div></dl></div>`,
+        ],
+        ["message", "✉", `<p class="prose reading-reply">${esc(a.reply)}</p>`],
+        ["diary", t("previousDiary"), diaryPanel],
+      ]
+    : [
+        [
+          "mind",
+          t(ai ? "reading" : "reflection"),
+          `${tagLine}<p class="prose">${ai ? esc(a.reply || a.summary) : t(tags.length ? "reflectionText" : "noTheme")}</p>${upsell}`,
+        ],
+        ["diary", t("previousDiary"), diaryPanel],
+      ];
+  return `<div class="reading-card"><h2 class="sr-only">${t(ai ? "reading" : "reflection")}</h2>${tabs("reading", panels)}${note}</div>`;
 }
 function diaryView() {
   draft ||= diaryDraft(localDate());
   const isSaved = Boolean(draft.id);
-  return `<div class="narrow"><h1>${t("diaryTitle")}</h1><form id="diary-form" class="card">${dateRow("diaryDate", "diary-date", draft.date)}${isSaved ? `<p class="help saved-note">${t("savedEntry")} · ${esc(dateText(draft.date))}</p>` : ""}${area("diaryText", "diary-text", draft.text)}<div class="row"><button type="submit" class="btn primary">${t("save")}</button>${isSaved ? button("delete", "delete-entry", "danger ghost small") : ""}</div></form>${recentLink("diary")}</div>`;
+  return `<section class="compose"><h1 class="sr-only">${t("diaryTitle")}</h1><form id="diary-form" class="compose-form">${dateRow("diaryDate", "diary-date", draft.date)}<div class="paper diary-paper${isSaved ? " saved" : ""}"><label class="paper-label" for="diary-text">${isSaved ? `<span class="saved-note">✓ ${t("savedEntry")}</span>` : `<span>${t("diaryText")}</span>`}</label><textarea id="diary-text" name="diary-text" maxlength="20000">${esc(draft.text)}</textarea></div><div class="page-actions">${isSaved ? `<button type="button" class="btn ghost icon-only danger" data-action="delete-entry" aria-label="${esc(t("delete"))}">${ICONS.trash}</button>` : ""}<button type="submit" class="btn primary full">${t("save")}</button></div></form></section>`;
 }
 function detailView() {
   const r = state.records.find((r) => r.id === selectedId);
-  if (!r) return `<p>${t("empty")}</p>`;
-  return `<div class="narrow"><p class="eyebrow">${esc(dateText(r.date))}</p><h1>${t("detail")}</h1><div class="card"><p class="prose">${esc(r.text)}</p>${r.photo ? `<img class="photo" src="${esc(r.photo)}" alt="${t("photoAlt")}">` : ""}${r.sleep ? `<p class="help">${t("hours")}: ${r.sleep.hours} · ${t("awakenings")}: ${r.sleep.awakenings} · ${t("rested")}: ${r.sleep.rested}</p>` : ""}</div>${r.kind === "dream" && r.analysis ? analysisCard(r) : ""}${r.kind === "dream" ? `<div class="card"><h2>${ct("share")}</h2><p class="help">${ct("privacyNote")}</p><button class="btn ghost" data-go="share">${ct("share")}</button></div>` : ""}<div class="row">${button("edit", "edit", "primary")}${button("delete", "delete", "danger ghost")}</div></div>`;
+  if (!r) return `<p class="empty">${t("empty")}</p>`;
+  const dream = r.kind === "dream";
+  return `<section class="detail-page"><h1 class="sr-only">${t("detail")}</h1><div class="detail-head"><p class="eyebrow">${esc(dateText(r.date))}</p>${r.sleep ? `<span class="detail-sleep">${ICONS.sleep} ${esc(r.sleep.hours)}h · ${t("awakenings")} ${esc(r.sleep.awakenings)} · ${esc(r.sleep.rested)}/5</span>` : ""}</div><div class="paper detail-text"><p class="prose">${esc(r.text)}</p>${r.photo ? `<img class="photo" src="${esc(r.photo)}" alt="${t("photoAlt")}">` : ""}</div>${dream && r.analysis ? analysisCard(r) : ""}<div class="page-actions">${dream ? `<button type="button" class="btn ghost icon-only" data-go="share" aria-label="${esc(ct("share"))}" title="${esc(ct("share"))}">${ICONS.share}</button>` : ""}<button type="button" class="btn ghost icon-only danger" data-action="delete" aria-label="${esc(t("delete"))}">${ICONS.trash}</button><button type="button" class="btn primary full" data-action="edit">${ICONS.edit}<span>${t("edit")}</span></button></div></section>`;
 }
 // How the app is used, what a plan costs and how to stop paying for it, what
 // happens to the writing, and where to ask for help. Opened from Settings, and
 // from the plans page straight at the cancellation steps.
 let helpSection = null;
+const HELP_ICONS = {
+  start: "☾",
+  dream: "✎",
+  reading: "✦",
+  community: "♡",
+  plans: "◇",
+  cancel: "↺",
+  data: "🔒",
+  support: "?",
+};
+// Topics as tiles; each opens its answer in a sheet.
 function helpView() {
-  return `<div class="narrow help-page"><h1>${t("help")}</h1><p class="help">${t("helpHint")}</p>
- ${HELP_SECTIONS.map(
-   (section) =>
-     `<section class="card help-section" id="help-${section.id}"><h2>${esc(localized(section.title, language()))}</h2>${section.body
-       .map((line) => `<p>${esc(localized(line, language()))}</p>`)
-       .join("")}</section>`,
- ).join("")}
- <section class="card help-section" id="help-links"><h2>${t("helpLinks")}</h2><p class="help">${t("helpLinksHint")}</p><div class="row">${[
+  return `<section class="help-page"><h1 class="sr-only">${t("help")}</h1><ul class="tile-grid help-grid">${HELP_SECTIONS.map(
+    (section) =>
+      `<li><button type="button" class="tile" data-sheet-open="help-${section.id}" aria-haspopup="dialog"><span class="tile-icon" aria-hidden="true">${HELP_ICONS[section.id] || "✦"}</span><span class="tile-title">${esc(localized(section.title, language()))}</span></button></li>`,
+  ).join("")}</ul>
+ <div class="link-row" id="help-links"><h2 class="sr-only">${t("helpLinks")}</h2>${[
    ["supportSite", HELP_LINKS.support],
    ["privacyPolicy", legalLink("privacy")],
    ["termsOfUse", legalLink("terms")],
  ]
    .map(
      ([label, url]) =>
-       `<button type="button" class="btn ghost" data-link="${esc(url)}">${t(label)} ↗</button>`,
+       `<button type="button" class="btn ghost small" data-link="${esc(url)}">${t(label)} ↗</button>`,
    )
-   .join("")}</div></section>
- <p class="help">${t("version")} ${APP_VERSION}</p></div>`;
+   .join("")}</div><p class="version-note">${t("version")} ${APP_VERSION}</p>
+ ${HELP_SECTIONS.map((section) =>
+   sheet(
+     `help-${section.id}`,
+     esc(localized(section.title, language())),
+     `<div class="help-section" id="help-${section.id}">${section.body
+       .map((line) => `<p>${esc(localized(line, language()))}</p>`)
+       .join("")}</div>`,
+   ),
+ ).join("")}</section>`;
 }
 // External pages (support, privacy) open outside the app, never in its WebView.
 const legalLink = (kind) =>
@@ -1297,40 +1526,46 @@ function openExternal(url) {
     window.open(url, "_blank", "noopener");
   }
 }
-// Settings follow the usual mobile order: who you are, what you pay for, how
-// the app looks, reminders, account, and finally the small print.
+// Settings on one screen: who you are, then tiles for the plan, language,
+// characters and help; the account sits at the bottom.
 function settingsView() {
   const type = typeById(currentType()?.id) || TYPES[0],
     plan = displayPlan(),
-    planName = localized(PLANS[plan].names, language());
-  return `<div class="narrow settings-page"><h1>${t("settings")}</h1>
- <section class="card profile-card">${avatar(type, null, { mini: true })}<div><h2 class="character-name">${esc(state.profile?.nickname)}</h2><p class="help">${esc(state.profile?.ageGroup || "")} · ${esc(name(characterById(type.id)))} · ${esc(name(type))}</p><span class="tag-label">${esc(planName)}</span><div class="row">${button("edit", "profile", "small ghost")}${button("retake", "retake", "small ghost")}</div></div></section>
- <section class="card"><h2>${ct("plans")}</h2><p>${t("currentPlanLabel")}: <strong>${esc(planName)}</strong> · <span class="help">${ct(plan + "Summary")}</span></p><button class="btn primary" data-go="plans">${t("viewPlans")}</button></section>
- <section class="card"><h2>${t("appearance")}</h2>${languageField()}<p class="help">${t("privacy")}</p></section>
- <form id="character-form" class="card"><fieldset class="character-set-field"><legend>${t("characterSet")}</legend><p class="help">${t("characterSetHint")}</p><div class="character-set-options">${CHARACTER_SETS.map(
-   (set) => {
-     const locked = set.paid && plan === "free";
-     return `<label class="character-set-option ${locked ? "locked" : ""}"><input type="radio" name="character-set" value="${set.id}" ${effectiveSet() === set.id ? "checked" : ""} ${locked ? "disabled" : ""}><span class="character-set-label">${localized(set.label, language())}</span>${avatar(type, null, { setId: set.id })}<span>${localized(set.names, language())}</span>${locked ? `<span class="lock-note">🔒 ${t("paidOnly")}</span>` : ""}</label>`;
-   },
- ).join(
-   "",
- )}</div></fieldset><button type="submit" class="btn primary">${t("save")}</button></form>
+    planName = localized(PLANS[plan].names, language()),
+    set = characterSetById(effectiveSet());
+  const characterForm = `<form id="character-form"><fieldset class="character-set-field"><legend class="sr-only">${t("characterSet")}</legend><div class="character-set-options">${CHARACTER_SETS.map(
+    (option) => {
+      const locked = option.paid && plan === "free";
+      return `<label class="character-set-option ${locked ? "locked" : ""}"><input type="radio" name="character-set" value="${option.id}" ${effectiveSet() === option.id ? "checked" : ""} ${locked ? "disabled" : ""}>${avatar(type, null, { setId: option.id })}<span class="character-set-label">${localized(option.label, language())}</span><small>${localized(option.names, language())}</small>${locked ? `<span class="lock-note">🔒 ${t("paidOnly")}</span>` : ""}</label>`;
+    },
+  ).join(
+    "",
+  )}</div></fieldset><div class="sheet-actions">${infoButton(t("characterSetHint"), t("characterSet"))}<button type="submit" class="btn primary full">${t("save")}</button></div></form>`;
+  return `<section class="settings-page"><h1 class="sr-only">${t("settings")}</h1>
+ <div class="profile-card" style="--accent:${group(type).color}">${avatar(type, null, { mini: true })}<div class="profile-text"><h2 class="character-name">${esc(state.profile?.nickname)}</h2><p>${esc(name(characterById(type.id)))} · ${esc(name(type))}</p><span class="tag-label">${esc(planName)}</span></div><div class="profile-actions"><button type="button" class="icon-btn" data-action="profile" aria-label="${esc(t("edit"))}" title="${esc(t("edit"))}">${ICONS.edit}</button><button type="button" class="icon-btn" data-action="retake" aria-label="${esc(t("retake"))}" title="${esc(t("retake"))}">${ICONS.retake}</button></div></div>
+ <ul class="tile-grid settings-grid">
+  <li><button type="button" class="tile" data-go="plans"><span class="tile-icon" aria-hidden="true">${ICONS.star}</span><span class="tile-title">${ct("plans")}</span><span class="tile-value">${esc(planName)}</span></button></li>
+  <li><label class="tile tile-select"><span class="tile-icon" aria-hidden="true">${ICONS.globe}</span><span class="tile-title">${t("language")}</span><select id="language" class="tile-value">${LANGUAGES.map((l) => `<option value="${l}" ${l === language() ? "selected" : ""}>${languageNames[l]}</option>`).join("")}</select></label></li>
+  <li><button type="button" class="tile" data-sheet-open="characters" aria-haspopup="dialog"><span class="tile-icon" aria-hidden="true">${ICONS.user}</span><span class="tile-title">${t("characterSet")}</span><span class="tile-value">${esc(localized(set.label, language()))}</span></button></li>
+  <li><button type="button" class="tile" data-go="help"><span class="tile-icon" aria-hidden="true">${ICONS.tip}</span><span class="tile-title">${t("help")}</span><span class="tile-value">${t("openHelp")}</span></button></li>
+ </ul>
  ${accountCard()}
- <section class="card help-card"><h2>${t("help")}</h2><p class="help">${t("helpHint")}</p><div class="row"><button type="button" class="btn primary" data-go="help">${t("openHelp")}</button><button type="button" class="btn ghost" data-link="${esc(HELP_LINKS.support)}">${t("supportSite")} ↗</button></div></section>
- <section class="card about-card"><h2>${t("about")}</h2><p class="help">${t("typeNote")}</p><p class="help">${ct("planAIHint")}</p><p class="help">${t("version")} ${APP_VERSION}</p></section></div>`;
+ <div class="link-row"><button type="button" class="btn ghost small" data-link="${esc(HELP_LINKS.support)}">${t("supportSite")} ↗</button><span class="version-note">${t("version")} ${APP_VERSION}</span></div>
+ ${sheet("characters", t("characterSet"), characterForm)}</section>`;
 }
 // Settings only offer to leave: sign out, or delete the account for good.
 function accountCard() {
   if (!cloud) return "";
-  if (!signedIn()) return accountView(true);
-  return `<section class="card account-card"><h2>${t("account")}</h2><p class="help">${t("accountHint")}</p><p>${esc(cloud.email() || cloud.displayName?.() || state.profile?.nickname || "Yumetan")}</p><div class="row account-actions">${button("signOut", "signout", "ghost")}${button("deleteAccount", "delete-account", "danger ghost")}</div>${pendingGuestKey ? `<button type="button" class="btn ghost" data-action="import-guest">${at("importLater")}</button>` : ""}</section>`;
+  if (!signedIn())
+    return `<button type="button" class="tile wide" data-sheet-open="account" aria-haspopup="dialog"><span class="tile-icon" aria-hidden="true">${ICONS.user}</span><span class="tile-title">${t("signIn")}</span></button>${sheet("account", t("account"), accountView(true), { cls: "tall" })}`;
+  return `<section class="account-card"><span class="tile-icon" aria-hidden="true">${ICONS.user}</span><div class="account-text"><h2>${t("account")}</h2><p>${esc(cloud.email() || cloud.displayName?.() || state.profile?.nickname || "Yumetan")}</p></div><div class="account-actions">${button("signOut", "signout", "ghost small")}${button("deleteAccount", "delete-account", "danger ghost small")}${pendingGuestKey ? `<button type="button" class="btn ghost small" data-action="import-guest">${at("importLater")}</button>` : ""}</div></section>`;
 }
 function accountView(onboard = false) {
   const enabled = cloud?.state.enabled,
     signed = enabled && !cloud.isAnonymous();
   const providers = cloud?.providers?.() || [];
-  return `<section class="card account-card"><h2>${t("account")}</h2><p class="help">${at(signed ? "loginHint" : onboard ? "loginRequired" : "guestHint")}</p><div class="status" id="account-sync-status">${enabled ? syncMarkup(syncStatus) : offlineStatus()}</div>
-  ${signed ? `<p>${esc(cloud.email() || cloud.displayName?.() || state.profile?.nickname || "Yumetan")}</p><div class="row">${button("signOut", "signout", "ghost")}${button("sync", "sync", "ghost")}</div><h3>${at("link")}</h3><p class="help">${at("linkHint")}</p>` : `<p class="help">${at("loginHint")}</p>`}
+  return `<section class="account-panel"><div class="status" id="account-sync-status">${enabled ? syncMarkup(syncStatus) : offlineStatus()}</div>
+  ${signed ? `<p>${esc(cloud.email() || cloud.displayName?.() || state.profile?.nickname || "Yumetan")}</p><div class="row">${button("signOut", "signout", "ghost")}${button("sync", "sync", "ghost")}</div>` : ""}
   <div class="auth-buttons">${["google", "apple", "line"]
     .map((provider) => {
       const linked = providers.includes(
@@ -1338,7 +1573,7 @@ function accountView(onboard = false) {
           provider
         ],
       );
-      return `<button type="button" class="btn auth-${provider}" data-auth-provider="${provider}" ${!enabled || linked ? "disabled" : ""}>${at(provider)}${linked ? ` · ${at("linked")}` : ""}</button>`;
+      return `<button type="button" class="btn auth-${provider}" data-auth-provider="${provider}" ${!enabled || linked ? "disabled" : ""}><span class="auth-mark" aria-hidden="true">${AUTH_MARKS[provider]}</span><span>${at(provider)}${linked ? ` · ${at("linked")}` : ""}</span></button>`;
     })
     .join("")}</div>
   ${signed && pendingGuestKey ? `<button type="button" class="btn ghost" data-action="import-guest">${at("importLater")}</button>` : ""}
@@ -1346,6 +1581,11 @@ function accountView(onboard = false) {
   ${!signed && enabled ? emailAuthView() : ""}
 </section>`;
 }
+const AUTH_MARKS = {
+  apple: '<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9s-1.9-.9-3.2-.8c-1.6 0-3.1 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8s1.9.8 3.2.8 2.1-1.2 2.9-2.4c.9-1.4 1.3-2.7 1.3-2.8-.1 0-2.4-.9-2.4-3.9zM14 5.5c.7-.8 1.1-1.9 1-3-1 0-2.1.7-2.8 1.5-.6.7-1.2 1.8-1 2.9 1.1.1 2.1-.6 2.8-1.4z"/></svg>',
+  google: '<svg viewBox="0 0 24 24" width="20" height="20"><path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z"/><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z"/><path fill="#FBBC05" d="M6.4 14c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2V7.4H3.1A10 10 0 0 0 2 12c0 1.6.4 3.1 1.1 4.6z"/><path fill="#EA4335" d="M12 5.9c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.4L6.4 10c.8-2.4 3-4.1 5.6-4.1z"/></svg>',
+  line: '<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 3C6.5 3 2 6.6 2 11c0 4 3.5 7.3 8.3 7.9.3.1.8.2.9.5.1.3.1.7 0 1l-.1.9c0 .3-.2 1 .9.5 1.1-.4 5.9-3.5 8-6C21.4 14.3 22 12.7 22 11c0-4.4-4.5-8-10-8z"/></svg>',
+};
 // Distinguish "still connecting" from a real failure (with Firebase's error code).
 let cloudPending = false;
 function offlineStatus() {
@@ -1363,12 +1603,12 @@ function syncMarkup(value) {
 function emailAuthView() {
   let body;
   if (emailMode === "registered")
-    body = `<p class="help">${t("signUpDone")}</p>${button("backToSignIn", "email-signin", "primary")}`;
+    body = `<p class="status">${t("signUpDone")}</p>${button("backToSignIn", "email-signin", "primary")}`;
   else if (emailMode === "signin" || emailMode === "signup") {
     const signup = emailMode === "signup";
     body = `<form id="account-form">${input("email", "email", emailDraft.email, "email", 'required autocomplete="email"')}${input("password", "password", emailDraft.password, "password", `required minlength="6" autocomplete="${signup ? "new" : "current"}-password"`)}<div class="row"><button type="submit" class="btn primary">${t(signup ? "signUp" : "signIn")}</button>${signup ? button("backToSignIn", "email-signin", "ghost") : button("back", "email-choose", "ghost")}</div></form>`;
   } else
-    body = `<p class="help">${t("emailChoice")}</p><div class="row">${button("signUp", "email-signup", "primary")}${button("signIn", "email-signin", "ghost")}</div>`;
+    body = `<div class="row">${button("signUp", "email-signup", "primary")}${button("signIn", "email-signin", "ghost")}</div>`;
   return `<details id="email-auth" ${emailMode ? "open" : ""}><summary>${at("email")}</summary>${body}</details>`;
 }
 function setEmailMode(mode) {
@@ -1613,6 +1853,10 @@ function bindForms() {
     $("#include-sleep").onchange = () => {
       capture();
       toggle();
+      $("[data-sheet-open=sleep]")?.classList.toggle(
+        "on",
+        $("#include-sleep").checked,
+      );
     };
   }
   document.querySelectorAll("[data-date-field]").forEach((el) => {
@@ -1729,6 +1973,10 @@ function bindForms() {
           });
         await syncCloud();
         settingsFormSaved("#character-form");
+        setSheet(null);
+        document.body.classList.remove("sheet-open");
+        // The tile and the profile picture follow the new collection.
+        if (!dirty) render();
         toast(t("saved"));
         track("character_set_change", { character_set: next.characterSet });
         trackUser();
@@ -2054,7 +2302,9 @@ async function removeRecord(record) {
 async function saveQuizDraft() {
   await write(`${storageKey}.quiz`, { answers: quizAnswers, index: quizIndex });
 }
+let quizAdvance = null;
 async function moveQuiz(index) {
+  clearTimeout(quizAdvance);
   await write(`${storageKey}.quiz`, { answers: quizAnswers, index });
   quizIndex = index;
   haptics.transition("step");
@@ -2189,6 +2439,8 @@ async function recognize() {
   draft.text = [draft.text, data.text].filter(Boolean).join("\n");
   draft.analysis = null;
   dirty = true;
+  // Back to the writing card, where the recognised text is to be checked.
+  openSheetId = null;
   render();
   toast(t("ocrReview"));
   track("photo_ocr", { text_length: lengthBucket(data.text) });
@@ -2674,13 +2926,22 @@ async function startVoice() {
     };
     sr.onend = () => {
       voice = null;
-      const b = $("[data-action=voice]");
-      if (b) b.textContent = t("voice");
+      voiceButton(false);
     };
     voice = sr;
     sr.start();
   }
-  $("[data-action=voice]").textContent = t("stop");
+  voiceButton(true);
+}
+// The microphone tool glows and reads "stop" while it listens.
+function voiceButton(on) {
+  const b = $("[data-action=voice]");
+  if (!b) return;
+  b.classList.toggle("listening", on);
+  b.setAttribute("aria-pressed", String(on));
+  b.setAttribute("aria-label", t(on ? "stop" : "voice"));
+  const label = b.querySelector(".tool-label");
+  if (label) label.textContent = t(on ? "stop" : "toolVoice");
 }
 function stopVoice() {
   if (voice) {
@@ -2688,8 +2949,7 @@ function stopVoice() {
     ref.stop();
     voice = null;
   }
-  const b = $("[data-action=voice]");
-  if (b) b.textContent = t("voice");
+  voiceButton(false);
 }
 const actions = {
   "intro-next": () => moveIntroduction(1),
@@ -2780,7 +3040,49 @@ const actions = {
   },
 };
 document.addEventListener("click", (event) => {
+  // A tap anywhere outside a tip puts it away.
+  if (!event.target.closest("#tip, [data-tip], [data-page-tip]")) hideTip();
+  const closer = event.target.closest(
+    "[data-sheet-close], [data-tip-close], [data-toast-close]",
+  );
+  if (closer) {
+    if (closer.matches("[data-sheet-close]")) {
+      setSheet(null);
+      document.body.classList.remove("sheet-open");
+    } else if (closer.matches("[data-tip-close]")) hideTip();
+    else {
+      clearTimeout(toast.timer);
+      $("#toast").classList.remove("visible");
+    }
+    return;
+  }
   const el = event.target.closest("button");
+  if (el?.dataset.sheetOpen && !el.disabled) {
+    setSheet(el.dataset.sheetOpen);
+    document.body.classList.add("sheet-open");
+    return;
+  }
+  if (el?.matches("[data-page-tip]")) {
+    if ($("#tip").classList.contains("visible")) hideTip();
+    else openPageTip(true);
+    return;
+  }
+  if (el?.dataset.tip) {
+    showTip(el.dataset.tip, { anchor: el });
+    return;
+  }
+  if (el?.dataset.tab) {
+    const box = el.closest("[data-tabs]");
+    box.querySelectorAll("[data-tab]").forEach((tab) => {
+      const on = tab === el;
+      tab.setAttribute("aria-selected", String(on));
+      tab.tabIndex = on ? 0 : -1;
+    });
+    box.querySelectorAll("[data-panel]").forEach((panel) => {
+      panel.hidden = panel.dataset.panel !== el.dataset.tab;
+    });
+    return;
+  }
   if (el?.dataset.authProvider) {
     run(() => account("provider", el.dataset.authProvider));
     return;
@@ -2808,6 +3110,7 @@ document.addEventListener("click", (event) => {
     draft.analysis = null;
     dirty = true;
     el.setAttribute("aria-pressed", String(draft.typeTags.includes(value)));
+    $("[data-sheet-open=tags]")?.classList.toggle("on", draft.typeTags.length > 0);
     return;
   }
   if (el.dataset.answer != null) {
@@ -2820,6 +3123,13 @@ document.addEventListener("click", (event) => {
         choice.setAttribute("aria-pressed", String(choice === el));
       });
       $("[data-action=quiz-next]").disabled = false;
+      // The chosen answer lights up for a moment, then the next question opens.
+      const at = quizIndex;
+      clearTimeout(quizAdvance);
+      quizAdvance = setTimeout(() => {
+        if (page !== "quiz" || quizIndex !== at || processing) return;
+        run(actions["quiz-next"]);
+      }, 280);
     });
     return;
   }
@@ -2843,6 +3153,13 @@ document.addEventListener("click", (event) => {
       else run(action);
     }
   }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || document.querySelector("dialog[open]")) return;
+  if (openSheetId) {
+    setSheet(null);
+    document.body.classList.remove("sheet-open");
+  } else hideTip();
 });
 window.addEventListener("beforeunload", (event) => {
   if (dirty) {
@@ -2998,7 +3315,9 @@ async function boot() {
       setTimeout(resolve, Math.max(0, WELCOME_MS - performance.now())),
     );
     setRoute();
+    booted = true;
     render();
+    setTimeout(() => openPageTip(), 900);
     // Analytics starts once the first screen is on; events queue until then.
     analytics.init();
     analytics.page(page);
@@ -3048,6 +3367,12 @@ if (native) {
   });
   plugins.App?.addListener("backButton", () => {
     if (processing) return;
+    // An open sheet closes first, like a dialog.
+    if (openSheetId) {
+      setSheet(null);
+      document.body.classList.remove("sheet-open");
+      return;
+    }
     if (page === "quiz") run(actions["quiz-back"]);
     else if (hasBack()) goBack();
     else if (page !== "home") navigate("home");

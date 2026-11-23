@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { QUESTIONS } from "../../public/core/diagnosis.js";
-import { passTour, registerAndQuiz } from "./helpers/introduction.js";
+import { passTour, registerAndQuiz, answerQuestion } from "./helpers/introduction.js";
 async function begin(page, lang = "ja", configured = false) {
   await page.route("**/firebase-config.js*", (r) =>
     r.fulfill({
@@ -87,19 +87,22 @@ test("skip leads to registration and the quiz; the result asks for an account, t
   await page.locator("#nickname").fill("ゆめ");
   await page.locator("#profile-form button[type=submit]").click();
   for (let i = 0; i < QUESTIONS.length; i++) {
-    await expect(page.locator("main")).not.toContainText("タイプについて");
-    await page.locator('[data-answer="0"]').click();
-    await page.locator("[data-action=quiz-next]").click();
+    await answerQuestion(page, 0);
   }
   // The result: the type note appears only here, and the button leads to the
   // account step (no tab bar or settings yet).
   await expect(page.locator("[data-action=begin]")).toHaveText(
     "登録・ログインしてはじめる",
   );
-  await expect(page.locator("summary").filter({ hasText: "タイプについて" })).toBeVisible();
+  // The type note opens as a tip on the result; the evidence in a sheet.
+  await expect(page.locator("#tip")).toHaveClass(/visible/);
+  await page.locator("#tip [data-tip-close]").click();
+  await expect(page.locator("#tip")).not.toHaveClass(/visible/);
   await expect(page.locator(".rationale")).toBeHidden();
-  await page.locator("summary").filter({ hasText: "診断の根拠" }).click();
+  await page.locator("[data-sheet-open=why]").click();
   await expect(page.locator(".rationale")).toBeVisible();
+  await page.locator('[data-sheet="why"] .popup-close').click();
+  await expect(page.locator(".rationale")).toBeHidden();
   await expect(page.locator("#nav")).toBeHidden();
   await expect(page.locator("#header [data-go=settings]")).toHaveCount(0);
   await page.locator("[data-action=begin]").click();

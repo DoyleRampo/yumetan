@@ -1,4 +1,8 @@
-import { finishIntroduction, startFree } from "./helpers/introduction.js";
+import {
+  finishIntroduction,
+  startFree,
+  answerQuestion,
+} from "./helpers/introduction.js";
 import {
   chooseDate,
   savedDreamDetails,
@@ -26,10 +30,7 @@ async function boot(page) {
   await page.locator("#ageGroup").selectOption("20代");
   await page.locator("#profile-form button[type=submit]").click();
   // Every question accepts 0 (never / first scene / neutral); the type is not under test here.
-  for (let i = 0; i < QUESTIONS.length; i++) {
-    await page.locator('[data-answer="0"]').click();
-    await page.locator("[data-action=quiz-next]").click();
-  }
+  for (let i = 0; i < QUESTIONS.length; i++) await answerQuestion(page, 0);
   await page.locator("[data-action=begin]").click();
   // A signed-in free member is offered the plans once after the first quiz.
   await startFree(page);
@@ -334,12 +335,14 @@ test("a paid member can switch to another paid plan; Free only offers details", 
   await expect(page.locator(".plan-cta-row td").first()).toBeEmpty();
   await expect(page.locator(".plan-links [data-plan=free]")).toBeVisible();
   await page.locator(".plan-links [data-plan=standard]").click();
-  await expect(page.locator(".plan-card .plan-cta")).toHaveText(
+  await expect(page.locator(".purchase-bar .plan-cta")).toHaveText(
     "Switch to Standard",
   );
   // In the browser the store is not available, so the button explains that.
-  await expect(page.locator(".plan-card .plan-cta")).toBeDisabled();
-  await expect(page.locator(".plan-card .cta-note")).toContainText("iOS app");
+  await expect(page.locator(".purchase-bar .plan-cta")).toBeDisabled();
+  await expect(page.locator(".purchase-bar .cta-note")).toContainText(
+    "iOS app",
+  );
 });
 test("sharing needs explicit consent; only the public copy is sent and an expired member still withdraws it", async ({
   page,
@@ -504,10 +507,9 @@ test("free limits lead to the plans page: the day's dream allowance, a fourth di
   await expect(page.locator("[data-action=new-dream]")).toHaveCount(0);
   await page.locator(".tag-cta").click();
   await expect(page.locator(".plan-comparison thead th")).toHaveCount(3);
-  await expect(page.locator(".plan-recommend .plan-cta")).toBeVisible();
   await expect(page.locator(".plan-cta-row .plan-cta")).toHaveCount(2);
   await page.locator(".plan-links [data-plan=starter]").click();
-  await expect(page.locator(".plan-detail-bottom .plan-cta")).toBeVisible();
+  await expect(page.locator(".purchase-bar .plan-cta")).toBeVisible();
   // Diary: the third save is fine, the fourth opens the plans and keeps the text.
   await page.locator("nav [data-go=diary]").click();
   for (let i = 1; i <= 3; i++) {
@@ -731,7 +733,8 @@ test("the feed lists only dreams shared today and says so", async ({
   await expect(page.locator(".feed-card")).toHaveCount(1);
   await expect(page.locator("main")).toContainText("A dream shared today.");
   await expect(page.locator("main")).not.toContainText("shared yesterday");
-  await expect(page.locator("main")).toContainText(
+  // The screen says so in its tip.
+  await expect(page.locator("#tip")).toContainText(
     "Showing the dreams shared today",
   );
   const expected = await page.evaluate(() => {

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { finishIntroduction } from "./helpers/introduction.js";
+import { finishIntroduction, answerQuestion } from "./helpers/introduction.js";
 import { submitDream } from "./helpers/journal.js";
 import { QUESTIONS } from "../../public/core/diagnosis.js";
 // GA4 in the app: with a measurement ID the screens and actions land on the
@@ -57,8 +57,7 @@ async function register(page) {
   await page.locator("#profile-form button[type=submit]").click();
   await expect(page.locator('[data-answer="2"]')).toBeVisible();
   for (const value of SHEET) {
-    await page.locator(`[data-answer="${value}"]`).click();
-    await page.locator('[data-action="quiz-next"]').click();
+    await answerQuestion(page, value);
   }
   await expect(page.locator("[data-action=begin]")).toBeVisible();
   await page.locator("[data-action=begin]").click();

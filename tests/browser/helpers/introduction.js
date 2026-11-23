@@ -11,6 +11,13 @@ export async function passTour(page) {
     await page.locator("[data-action=intro-next]").click();
   }
 }
+// Tapping an answer moves to the next question by itself (the result after
+// the last one): wait until the question has changed.
+export async function answerQuestion(page, value) {
+  const before = await page.locator("progress").getAttribute("value");
+  await page.locator(`[data-answer="${value}"]`).click();
+  await expect(page.locator(`progress[value="${before}"]`)).toHaveCount(0);
+}
 // Reach the registration form: the tour, then the form.
 export async function finishIntroduction(page) {
   await passTour(page);
@@ -27,10 +34,7 @@ export async function registerAndQuiz(
   if (ageGroup) await page.locator("#ageGroup").selectOption(ageGroup);
   await page.locator("#nickname").fill(nickname);
   await page.locator("#profile-form button[type=submit]").click();
-  for (let i = 0; i < QUESTIONS.length; i++) {
-    await page.locator('[data-answer="0"]').click();
-    await page.locator("[data-action=quiz-next]").click();
-  }
+  for (let i = 0; i < QUESTIONS.length; i++) await answerQuestion(page, 0);
   await expect(page.locator("[data-action=begin]")).toBeVisible();
 }
 // A guest who has registered and answered the quiz: tour, form, quiz, then
