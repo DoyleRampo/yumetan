@@ -917,14 +917,38 @@ body[data-screen="quiz"] #toast {
     calc(16px + var(--safe-bottom)) max(18px, env(safe-area-inset-left));
   animation: sheet-up 0.34s cubic-bezier(0.2, 0.9, 0.25, 1);
 }
-.sheet-panel::before {
+/* The grip: pull it (or the title) down to put the sheet away. */
+.sheet-grip {
+  flex: none;
+  position: relative;
+  height: 22px;
+  margin: 0 -18px;
+  cursor: grab;
+  touch-action: none;
+}
+.sheet-grip::before {
   content: "";
-  display: block;
-  width: 40px;
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 44px;
   height: 5px;
-  margin: 8px auto 2px;
   border-radius: 9px;
   background: var(--line-strong);
+  transform: translateX(-50%);
+}
+.sheet-head {
+  touch-action: none;
+  cursor: grab;
+}
+.sheet-panel {
+  text-align: left;
+}
+/* One long page that scrolls, for reading. */
+.sheet.scroll .sheet-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 12px;
 }
 .sheet.tall .sheet-panel {
   height: min(86%, 720px);

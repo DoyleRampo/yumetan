@@ -305,3 +305,47 @@ test("the quiz sits mid-screen with short answers, and a character cheers once a
   }
   await expect(page.locator("[data-action=begin]")).toBeVisible();
 });
+test("the result's evidence is one page that scrolls, and pulling its bar down closes it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await begin(page);
+  await passTour(page);
+  await registerAndQuiz(page);
+  await page.locator("[data-sheet-open=why]").click();
+  const why = page.locator('[data-sheet="why"]'),
+    body = why.locator(".sheet-body");
+  await expect(why).toBeVisible();
+  // No panels to page through: everything is in one scrolling column.
+  await expect(why.locator(".panel-controls")).toHaveCount(0);
+  await expect(body).not.toHaveClass(/paginated/);
+  expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(
+    true,
+  );
+  await page.screenshot({ path: "test-results/result-why-top.png" });
+  await body.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await expect(why.locator(".lore")).toBeInViewport();
+  await page.screenshot({ path: "test-results/result-why-bottom.png" });
+  // A short pull springs back; a long one puts the sheet away.
+  const grip = await why.locator(".sheet-grip").boundingBox();
+  const pull = async (distance) => {
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    for (let i = 1; i <= 5; i++)
+      await page.mouse.move(
+        grip.x + grip.width / 2,
+        grip.y + grip.height / 2 + (distance * i) / 5,
+      );
+    await page.mouse.up();
+  };
+  await pull(30);
+  await page.waitForTimeout(400);
+  await expect(why).toBeVisible();
+  await pull(260);
+  await expect(why).toBeHidden();
+  await expect(page.locator("[data-action=begin]")).toBeVisible();
+  // It opens again whole.
+  await page.locator("[data-sheet-open=why]").click();
+  await expect(why).toBeVisible();
+  await expect(why.locator(".rationale")).toBeInViewport();
+});

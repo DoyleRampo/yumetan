@@ -370,7 +370,7 @@ function openPageTip(force = false) {
 let openSheetId = null;
 function sheet(id, title, content, { cls = "" } = {}) {
   const open = openSheetId === id;
-  return `<div class="sheet ${cls}" data-sheet="${id}" ${open ? "" : "hidden"}><div class="sheet-backdrop" data-sheet-close></div><section class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-${id}-title"><header class="sheet-head"><h2 id="sheet-${id}-title">${title}</h2><button type="button" class="popup-close" data-sheet-close aria-label="${esc(t("close"))}">${CLOSE_ICON}</button></header><div class="sheet-body">${content}</div></section></div>`;
+  return `<div class="sheet ${cls}" data-sheet="${id}" ${open ? "" : "hidden"}><div class="sheet-backdrop" data-sheet-close></div><section class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-${id}-title"><div class="sheet-grip" aria-hidden="true"></div><header class="sheet-head"><h2 id="sheet-${id}-title">${title}</h2><button type="button" class="popup-close" data-sheet-close aria-label="${esc(t("close"))}">${CLOSE_ICON}</button></header><div class="sheet-body">${content}</div></section></div>`;
 }
 let inertBackground = [];
 function restoreSheetBackground() {
@@ -395,6 +395,10 @@ function setSheet(id) {
   const previous = openSheetId;
   restoreSheetBackground();
   openSheetId = id;
+  // A sheet pulled part-way earlier opens fresh next time.
+  document
+    .querySelectorAll(".sheet-panel[style]")
+    .forEach((panel) => (panel.style.cssText = ""));
   document.querySelectorAll("[data-sheet]").forEach((el) => {
     el.hidden = el.dataset.sheet !== id;
   });
@@ -411,6 +415,92 @@ function setSheet(id) {
       ?.focus({ preventScroll: true });
   }
 }
+// Pulling a sheet down by its grip (the bar at the top) or its title puts it
+// away, as on iOS. On a sheet that scrolls, pulling down from the top of its
+// content does the same. A short pull springs back.
+function bindSheetDrag() {
+  let drag = null;
+  const panelOf = (el) => el.closest(".sheet")?.querySelector(".sheet-panel");
+  const start = (panel, y, pointerId = null) => {
+    drag = { panel, y0: y, dy: 0, t0: performance.now(), pointerId };
+    panel.style.transition = "none";
+    panel.style.animation = "none";
+  };
+  const move = (y) => {
+    if (!drag) return;
+    drag.dy = Math.max(0, y - drag.y0);
+    drag.panel.style.transform = `translateY(${drag.dy}px)`;
+  };
+  const end = () => {
+    if (!drag) return;
+    const { panel, dy, t0 } = drag;
+    drag = null;
+    const fast = dy > 30 && dy / (performance.now() - t0) > 0.6;
+    panel.style.transition = "transform 0.22s ease";
+    if (dy > Math.min(120, panel.offsetHeight * 0.25) || fast) {
+      panel.style.transform = "translateY(100%)";
+      setTimeout(() => {
+        panel.style.cssText = "";
+        if (panel.closest(".sheet")?.dataset.sheet === openSheetId)
+          setSheet(null);
+      }, 220);
+    } else {
+      // Spring back; the opening animation must not play again.
+      panel.style.transform = "";
+      setTimeout(() => panel.style.removeProperty("transition"), 220);
+    }
+  };
+  document.addEventListener("pointerdown", (e) => {
+    const handle = e.target.closest?.(".sheet-grip, .sheet-head");
+    if (!handle || e.target.closest("button") || e.button > 0) return;
+    start(panelOf(handle), e.clientY, e.pointerId);
+    handle.setPointerCapture?.(e.pointerId);
+  });
+  document.addEventListener("pointermove", (e) => {
+    if (drag?.pointerId === e.pointerId) move(e.clientY);
+  });
+  document.addEventListener("pointerup", (e) => {
+    if (drag?.pointerId === e.pointerId) end();
+  });
+  document.addEventListener("pointercancel", (e) => {
+    if (drag?.pointerId === e.pointerId) end();
+  });
+  // Scrolling sheets: a downward pull while the content is at its top.
+  let touch = null;
+  document.addEventListener(
+    "touchstart",
+    (e) => {
+      const body = e.target.closest?.(".sheet.scroll .sheet-body");
+      touch =
+        body && body.scrollTop <= 0
+          ? { body, y: e.touches[0].clientY }
+          : null;
+    },
+    { passive: true },
+  );
+  document.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!touch) return;
+      const y = e.touches[0].clientY;
+      if (!drag) {
+        if (y - touch.y < 8 || touch.body.scrollTop > 0) {
+          if (y < touch.y) touch = null;
+          return;
+        }
+        start(panelOf(touch.body), touch.y);
+      }
+      e.preventDefault();
+      move(y);
+    },
+    { passive: false },
+  );
+  document.addEventListener("touchend", () => {
+    touch = null;
+    if (drag && drag.pointerId === null) end();
+  });
+}
+bindSheetDrag();
 // The small ⓘ beside a control explains it in a tip.
 const infoButton = (text, label = "") =>
   `<button type="button" class="info-btn" data-tip="${esc(text)}" aria-label="${esc(label || t("help"))}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7.8" r="1.2" fill="currentColor"/></svg></button>`;
@@ -1247,7 +1337,7 @@ function resultView() {
   const result = pendingResult || currentType(),
     type = typeById(result.id),
     character = characterById(type.id);
-  return `<section class="result-page" style="--accent:${group(type).color}"><p class="eyebrow">${t("yourType")}</p><div class="result-stage"><span class="result-rays" aria-hidden="true"></span>${avatar(type)}</div><div class="result-copy"><span class="tag-label">${name(group(type))}</span><h1 class="character-name">${name(character)}</h1><p class="type-name">${name(type)}</p><p class="type-signature">${typeSignature(type)}</p><blockquote class="character-quote">${esc(localized(character.quotes, language()))}</blockquote></div><div class="page-actions stacked"><button type="button" class="btn ghost" data-sheet-open="why" aria-haspopup="dialog">${ICONS.star}<span>${t("whyTitle")}</span></button>${button(firstRunPage() === "welcome-login" ? "beginLogin" : "begin", "begin", "primary full")}</div>${sheet("why", t("whyTitle"), rationaleCard(result, type) + loreCard(type), { cls: "tall" })}</section>`;
+  return `<section class="result-page" style="--accent:${group(type).color}"><p class="eyebrow">${t("yourType")}</p><div class="result-stage"><span class="result-rays" aria-hidden="true"></span>${avatar(type)}</div><div class="result-copy"><span class="tag-label">${name(group(type))}</span><h1 class="character-name">${name(character)}</h1><p class="type-name">${name(type)}</p><p class="type-signature">${typeSignature(type)}</p><blockquote class="character-quote">${esc(localized(character.quotes, language()))}</blockquote></div><div class="page-actions stacked"><button type="button" class="btn ghost" data-sheet-open="why" aria-haspopup="dialog">${ICONS.star}<span>${t("whyTitle")}</span></button>${button(firstRunPage() === "welcome-login" ? "beginLogin" : "begin", "begin", "primary full")}</div>${sheet("why", t("whyTitle"), rationaleCard(result, type) + loreCard(type), { cls: "tall scroll" })}</section>`;
 }
 function homeView() {
   const result = currentType(),
