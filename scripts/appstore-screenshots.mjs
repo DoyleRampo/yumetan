@@ -277,12 +277,18 @@ async function onboard(page) {
       .then(() => true, () => false);
     if (quiz) break;
   }
-  for (const v of CHALLENGE_SHEET) {
+  // A tapped answer moves on by itself: wait for the next question each time.
+  for (const [i, v] of CHALLENGE_SHEET.entries()) {
+    await page.locator(`progress[value="${i + 1}"]`).waitFor();
     await page.locator(`[data-answer="${v}"]`).click();
-    await page.locator("[data-action=quiz-next]").click();
   }
   await page.locator("[data-action=begin]").click();
-  await page.locator("[data-action=record]").waitFor();
+  // A free member is offered the paid plans once after the first quiz.
+  const free = page.locator("[data-social=offer-free]"),
+    home = page.locator("[data-action=record]");
+  await free.or(home).first().waitFor();
+  if (await free.count()) await free.click();
+  await home.waitFor();
 }
 
 async function dumpFailure(page, label) {
@@ -304,6 +310,11 @@ async function clearToast(page) {
     }))
     .catch(() => {});
   await toast.evaluate((el) => (el.style.visibility = "hidden")).catch(() => {});
+  // A screen's first-visit tip is not part of the screenshot.
+  await page
+    .locator("#tip")
+    .evaluate((el) => (el.style.visibility = "hidden"))
+    .catch(() => {});
 }
 
 async function shoot(page, file) {
@@ -387,7 +398,7 @@ async function subscriptionSet(browser, device) {
       if (await picker.count()) await picker.first().click();
       await settle(page, 400);
       // 下部のまとめカード（価格・購読ボタン・注記）を画面に入れる。
-      const bottom = page.locator(".plan-detail-bottom");
+      const bottom = page.locator(".purchase-bar");
       if (await bottom.count()) {
         await bottom.scrollIntoViewIfNeeded();
         await page.evaluate(() => window.scrollBy(0, 32));

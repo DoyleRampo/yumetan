@@ -2839,8 +2839,15 @@ body.keyboard .profile-page {
   align-items: center;
   gap: 14px;
 }
-.mood-line span:last-child {
+/* The label takes the rest of the line. Direct children only: the word
+   spans Japanese labels are wrapped in must stay inline. */
+.mood-line > span:last-child {
   display: grid;
+  flex: 1 1 auto;
+  min-width: 8em;
+}
+.mood-icon {
+  flex: none;
 }
 .mood-line strong {
   font-size: 20px;
