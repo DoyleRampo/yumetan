@@ -7,6 +7,9 @@ export const languageNames = {
 };
 // Every UI message has an explicit translation. User-authored journal text is preserved.
 export const messages = {
+  panels: ["画面の切り替え", "화면 전환", "切换面板", "Panels"],
+  previousPanel: ["前のパネル", "이전 패널", "上一面板", "Previous panel"],
+  nextPanel: ["次のパネル", "다음 패널", "下一面板", "Next panel"],
   introStart: [
     "登録してはじめる",
     "등록하고 시작",

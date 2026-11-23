@@ -41,6 +41,11 @@ async function noOverflow(page) {
         .filter((el) => el.getClientRects().length)
         .filter((el) => {
           const r = el.getBoundingClientRect();
+          const panel = el
+            .closest(".panel-viewport, .carousel")
+            ?.getBoundingClientRect();
+          if (panel && (r.right <= panel.left || r.left >= panel.right))
+            return false;
           return r.x < -1 || r.right > innerWidth + 1;
         })
         .map((el) => el.outerHTML),
