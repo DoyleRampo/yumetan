@@ -4082,3 +4082,9 @@ body.fit-dense .companion-prompt {
 .feed-pager {
   margin-block: -4px 0;
 }
+
+/* Plan terms and purchase actions share the stage pager on short screens. */
+.plan-detail > .plan-card {
+  flex: none;
+  overflow: visible;
+}

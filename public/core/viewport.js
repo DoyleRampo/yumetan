@@ -145,7 +145,7 @@ export function mountContentPagers(root, labels, previous = new Map()) {
   const pagers = new Map();
   for (const [index, area] of [
     ...root.querySelectorAll(
-      ".tab-panel, .detail-text, .day-records, .sheet-body, .post-text:not(p), .plan-detail > .plan-card",
+      ".tab-panel, .detail-text, .day-records, .sheet-body, .post-text:not(p)",
     ),
   ].entries()) {
     const key =
