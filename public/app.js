@@ -1,3 +1,4 @@
+import { createHaptics } from "./core/haptics.js";
 import { loadingMarkup, beginLoading } from "./core/loading.js";
 import {
   confirmDiscard,
@@ -11,7 +12,6 @@ import { TYPE_LORE } from "./core/type-lore.js";
 import {
   QUESTIONS,
   AXES,
-  PARTS,
   GROUP_AXES,
   TYPE_POLES,
   FREQUENCY_OPTIONS,
@@ -20,7 +20,6 @@ import {
   answerValues,
   validAnswer,
   axisById,
-  partOf,
   classify,
 } from "./core/diagnosis.js";
 import { authText, authError, emailAuthError } from "./core/auth-i18n.js";
@@ -86,6 +85,9 @@ const WELCOME_MS = 1000;
 const cap = window.Capacitor,
   native = cap?.isNativePlatform?.(),
   plugins = cap?.Plugins || {};
+const haptics = createHaptics(cap);
+const navigationSession = id();
+let routeIndex = 0;
 let state = { version: 4, profile: null, records: [], deleted: [] },
   options = {
     language: "ja",
@@ -306,15 +308,21 @@ const currentType = () =>
   state.profile?.typeAnswers
     ? classify(state.profile.typeAnswers, state.records)
     : null;
-function avatar(type, level = null, mini = false, setId = effectiveSet()) {
+function avatar(
+  type,
+  level = null,
+  { inline = false, mini = false, setId = effectiveSet() } = {},
+) {
   const item = typeById(type?.id) || TYPES[0],
     character = getCharacter(item.id, setId);
   const measured = Number.isInteger(level) && level >= 1 && level <= 5;
-  return `<figure class="avatar level-${measured ? level : 0} ${mini ? "mini-avatar" : ""}" style="--accent:${group(item).color}" data-character="${item.id}" data-character-set="${normalizeCharacterSet(setId)}">
+  const wrapper = inline ? "span" : "figure";
+  const caption = inline ? "span" : "figcaption";
+  return `<${wrapper} class="avatar level-${measured ? level : 0} ${mini ? "mini-avatar" : ""}" style="--accent:${group(item).color}" data-character="${item.id}" data-character-set="${normalizeCharacterSet(setId)}">
     <img class="character-art" src="${character.image}" width="768" height="768" alt="${esc(name(character))} · ${esc(name(item))}" decoding="async">
     <span class="character-fallback" hidden role="img" aria-label="${esc(name(character))}">${item.symbol}</span>
-    ${measured ? `<figcaption class="character-stars" aria-label="${esc(t("level"))} ★${level} / 5">${Array.from({ length: 5 }, (_, i) => `<span aria-hidden="true" class="${i < level ? "lit" : ""}">✦</span>`).join("")}</figcaption>` : ""}
-  </figure>`;
+    ${measured ? `<${caption} class="character-stars" aria-label="${esc(t("level"))} ★${level} / 5">${Array.from({ length: 5 }, (_, i) => `<span aria-hidden="true" class="${i < level ? "lit" : ""}">✦</span>`).join("")}</${caption}>` : ""}
+  </${wrapper}>`;
 }
 function characterStory(type) {
   const character = characterById(type.id);
@@ -505,7 +513,7 @@ function updateHomeFit() {
     const fits = () =>
       [
         ...document.querySelectorAll(
-          ".home-dashboard > *, .home-dashboard .btn, .home-dashboard .score, .home-dashboard .character-art, .home-dashboard .character-link, .home-dashboard .character-stars",
+          ".home-dashboard > *, .home-dashboard .btn, .home-dashboard .score, .home-dashboard .character-art, .home-dashboard .character-link, .home-dashboard .companion-action, .home-dashboard .character-stars",
         ),
       ].every((el) => {
         const r = el.getBoundingClientRect(),
@@ -665,6 +673,10 @@ async function goBack() {
   processing = false;
   if (!(await navigate(target, false, true))) return;
   navStack.pop();
+  setRoute();
+  restoreJournal(record, target);
+}
+function restoreJournal(record, target) {
   // Returning to a journal from an entry reopens that entry's date.
   if (record && page === target && ["record", "diary"].includes(target)) {
     draft =
@@ -713,10 +725,11 @@ async function navigate(next, force = false, back = false) {
     navStack.push(page);
   if (navStack.length > 20) navStack = navStack.slice(-20);
   const from = page;
+  if (next !== from) haptics.transition(next === "result" ? "result" : "step");
+  const push = next !== from && !back && !force;
+  if (push) routeIndex++;
   page = next;
-  // Forward moves add a history entry so the browser back button works.
-  if (back || ROOTS.includes(page)) history.replaceState(null, "", `#${page}`);
-  else history.pushState(null, "", `#${page}`);
+  setRoute(push);
   render();
   animatePage(from);
   analytics.page(page);
@@ -878,9 +891,20 @@ async function completeIntroductionLogin(sourceKey, guest) {
   });
 }
 
+function setRoute(push = false) {
+  const route = {
+    session: navigationSession,
+    index: routeIndex,
+    page,
+    recordId: selectedId,
+    typeId: selectedType,
+    stack: navStack,
+  };
+  history[push ? "pushState" : "replaceState"](route, "", `#${page}`);
+}
 function profileView() {
   const p = draft || state.profile || {};
-  return `<div class="narrow"><p class="eyebrow">WELCOME TO YOUR DREAM WORLD</p><h1>${t("welcome")}</h1><p class="muted">${t("profileHint")}</p><form id="profile-form" class="card">
+  return `<div class="narrow"><h1>${t("welcome")}</h1><form id="profile-form" class="card">
  ${input("nickname", "nickname", p.nickname, "text", 'required maxlength="20" autocomplete="nickname"')}
  <label class="field"><span>${t("age")}</span><select id="ageGroup" class="input">${["10", "20", "30", "40", "50", "60"].map((a) => `<option value="${a === "60" ? "60代以上" : a + "代"}" ${p.ageGroup === (a === "60" ? "60代以上" : a + "代") ? "selected" : ""}>${t("age" + a)}</option>`).join("")}</select></label>
  ${languageField()}<button class="btn primary full" type="submit">${t(state.profile?.typeAnswers ? "save" : "startQuiz")}</button></form></div>`;
@@ -889,36 +913,38 @@ function quizView() {
   const q = QUESTIONS[quizIndex],
     lang = language(),
     total = QUESTIONS.length,
-    part = partOf(q),
     answer = quizAnswers[quizIndex],
     values = answerValues(q);
-  const option = (v, label, extra = "") =>
-    `<button class="btn ${answer === v ? "selected" : ""}" data-answer="${v}" aria-pressed="${answer === v}"${extra}>${label}</button>`;
-  let body = `<h2>${esc(localized(q.text, lang))}</h2>`;
-  if (q.kind === "frequency")
-    body += `<div class="quiz-answers">${values.map((v) => option(v, esc(localized(FREQUENCY_OPTIONS[v], lang)))).join("")}</div>`;
-  else if (q.kind === "scene")
-    body += `<div class="quiz-answers">${q.options.map((o, i) => option(i, esc(localized(o.text, lang)))).join("")}</div>`;
-  else {
-    const axis = axisById(q.axis);
-    body += `<div class="quiz-poles"><p class="quiz-pole">${esc(localized(q.left, lang))}</p><p class="quiz-pole right">${esc(localized(q.right, lang))}</p></div><div class="quiz-scale" role="group" aria-label="${esc(localized(axis.names, lang))}">${values
-      .map((v, i) => {
-        const strength = localized(SCALE_STRENGTH[i], lang),
-          label =
-            v === 0
-              ? strength
-              : `${localized(v < 0 ? q.left : q.right, lang)} (${strength})`;
-        return option(
-          v,
-          `<span class="quiz-dot" aria-hidden="true"></span><small>${esc(strength)}</small>`,
-          ` aria-label="${esc(label)}" title="${esc(label)}"`,
-        );
-      })
-      .join("")}</div>`;
+  const option = (v, label, symbol = "", extra = "") =>
+    `<button type="button" class="quiz-answer" data-answer="${v}" aria-pressed="${answer === v}"${extra}>${symbol ? `<span aria-hidden="true">${symbol}</span>` : ""}${label}</button>`;
+  const illustration = q.group && TYPES.find((type) => type.group === q.group);
+  let answers;
+  if (q.kind === "frequency") {
+    const symbols = ["○", "✦", "✦✦", "✦✦✦", "✦✦✦✦"];
+    answers = values.map((v) =>
+      option(v, esc(localized(FREQUENCY_OPTIONS[v], lang)), symbols[v]),
+    ).join("");
+  } else if (q.kind === "scene") {
+    answers = q.options.map((o, i) =>
+      option(i, esc(localized(o.text, lang)), typeById(o.type).symbol),
+    ).join("");
+  } else {
+    const left = esc(localized(q.left, lang)), right = esc(localized(q.right, lang));
+    answers = `<div class="quiz-poles"><span>${left}</span><span>${right}</span></div>${values.map((v, i) => {
+      const strength = esc(localized(SCALE_STRENGTH[i], lang));
+      const label = v === 0 ? strength : `${v < 0 ? left : right} · ${strength}`;
+      return option(v, strength, ["«", "‹", "·", "›", "»"][i], ` aria-label="${label}"`);
+    }).join("")}`;
   }
-  return `<div class="narrow"><p class="eyebrow">FIND YOUR DREAM TYPE · ${PARTS.indexOf(part) + 1}/${PARTS.length} ${esc(localized(part.names, lang))}</p><h1>${t("quiz")}</h1><p class="muted">${esc(localized(part.hint, lang))}</p><div class="row between"><span>${quizIndex + 1} / ${total}</span><span>${Math.round(((quizIndex + 1) / total) * 100)}%</span></div><progress class="progress" max="${total}" value="${quizIndex + 1}" aria-label="${t("quiz")}"></progress>
- <div class="card quiz-card quiz-${q.kind}">${body}</div>
- <div class="row between">${button("back", "quiz-back", "ghost")}<button class="btn primary" data-action="quiz-next" ${answer === null ? "disabled" : ""}>${t(quizIndex === total - 1 ? "result" : "next")}</button></div></div>`;
+  return `<div class="narrow quiz-flow"><div class="row between quiz-header"><button type="button" class="icon-action" data-action="quiz-back" aria-label="${t("back")}">‹</button><h1>${t("quiz")}</h1><span>${quizIndex + 1} / ${total}</span></div>
+  <progress class="progress" max="${total}" value="${quizIndex + 1}" aria-label="${t("quiz")}"></progress>
+  <div class="quiz-card"${illustration ? ` style="--accent:${group(illustration).color}"` : ""}>
+    ${illustration ? `<div class="quiz-art" aria-hidden="true">${avatar(illustration)}</div>` : ""}
+    <h2 id="quiz-scene" tabindex="-1">${esc(localized(q.text, lang))}</h2>
+  </div>
+  ${q.kind === "frequency" ? `<p class="quiz-prompt" id="quiz-prompt">${t("quizHint")}</p>` : ""}
+  <div class="quiz-answers quiz-${q.kind}" role="group" aria-labelledby="quiz-scene${q.kind === "frequency" ? " quiz-prompt" : ""}">${answers}</div>
+  <button type="button" class="btn primary quiz-next" data-action="quiz-next" ${answer === null ? "disabled" : ""}>${t(quizIndex === total - 1 ? "result" : "next")} <span aria-hidden="true">→</span></button></div>`;
 }
 // A saved questionnaire draft is only restored when every answer fits the current questions.
 function quizDraft(progress) {
@@ -1000,14 +1026,20 @@ function rationaleCard(result, type) {
 function resultView() {
   const result = pendingResult || currentType(),
     type = typeById(result.id);
-  return `<div class="narrow center"><p class="eyebrow">YOUR DREAM, YOUR CHARACTER</p><h1>${t("yourType")}</h1><div class="card accent" style="--accent:${group(type).color}">${avatar(type)}<span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)} · ${typeSignature(type)}</p>${characterStory(type)}${result.tied ? `<p class="help">${t("tie")}</p>` : ""}${result.provisional ? `<p class="help">${t("provisional")}</p>` : ""}</div>${rationaleCard(result, type)}${loreCard(type)}<p>${t("characterHint")}</p>${button(firstRunPage() === "welcome-login" ? "beginLogin" : "begin", "begin", "primary full")}<details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
+  return `<div class="narrow center"><h1>${t("yourType")}</h1><div class="card accent" style="--accent:${group(type).color}">${avatar(type)}<span class="tag-label">${name(group(type))}</span><h2 class="character-name">${name(characterById(type.id))}</h2><p class="help">${name(type)} · ${typeSignature(type)}</p><blockquote class="character-quote">${esc(localized(characterById(type.id).quotes, language()))}</blockquote>${result.tied ? `<p class="help">${t("tie")}</p>` : ""}${result.provisional ? `<p class="help">${t("provisional")}</p>` : ""}</div><details class="type-note"><summary>${t("whyTitle")}</summary>${rationaleCard(result, type)}${loreCard(type)}</details>${button(firstRunPage() === "welcome-login" ? "beginLogin" : "begin", "begin", "primary full")}<details class="type-note"><summary>${t("typeAbout")}</summary><p class="help">${t("typeNote")}</p></details></div>`;
 }
 function homeView() {
   const result = currentType(),
     type = typeById(result?.id) || TYPES[0],
     value = dreamLevel(state.records);
-  return `<section class="home-dashboard"><section class="hero"><div><p class="eyebrow">${esc(dateText(localDate()))} · ${esc(state.profile?.nickname)}</p><h1>${t("hero").replace(/\n/g, ["ja", "zh"].includes(language()) ? "" : " ")}</h1><div class="row">${button("record", "record", "primary")}${button("diary", "diary", "ghost")}</div></div></section>
- <div class="card accent character-row" style="--accent:${group(type).color}"><button type="button" class="character-link" data-type-detail="${type.id}" aria-label="${esc(name(characterById(type.id)))} · ${esc(t("more"))}">${avatar(type, value.stars, true)}</button><div><span class="tag-label">${name(group(type))}</span><button type="button" class="character-link" data-type-detail="${type.id}"><h2 class="character-name">${name(characterById(type.id))}</h2></button><p class="help">${name(type)} · ${localized(TYPE_FEATURES[type.id], language())}</p>${button("catalog", "catalog", "small ghost")}</div></div>
+  return `<section class="home-dashboard">
+ <div class="card accent character-row home-companion" style="--accent:${group(type).color}">
+   <button type="button" class="companion-action" data-action="record" aria-label="${t("dreamPrompt")} ${t("record")}">
+     ${avatar(type, value.stars, { inline: true })}
+     <span class="companion-prompt" aria-hidden="true">${t("dreamPrompt")} <span>✎</span></span>
+   </button>
+   <div class="companion-details"><button type="button" class="character-link" data-type-detail="${type.id}"><strong class="character-name">${name(characterById(type.id))}</strong></button><p class="help">${name(type)}</p>${button("catalog", "catalog", "small ghost")}</div>
+ </div>
  <div class="home-insights"><div class="card level-card"><div class="row between"><h2>${t("level")}</h2><div class="score">Lv.<b>${value.level}</b></div></div><div class="level-gauge" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value.progress}" aria-label="${esc(t("level"))}"><i style="width:${value.progress}%"></i></div><p class="help level-next">${esc(
    t("nextLevel")
      .replace("{n}", value.remaining)
@@ -1029,7 +1061,7 @@ function catalogView() {
         )
           .map(
             (type) =>
-              `<tr class="${type.id === active ? "active" : ""}" style="--accent:${g.color}"><th scope="row"><button type="button" class="catalog-character" data-type-detail="${type.id}">${avatar(type)}<span><strong class="character-name">${name(characterById(type.id))}</strong><small>${name(type)}</small></span></button></th><td>${localized(TYPE_FEATURES[type.id], language())}</td></tr>`,
+              `<tr class="${type.id === active ? "active" : ""}" style="--accent:${g.color}"><th scope="row"><button type="button" class="catalog-character" data-type-detail="${type.id}">${avatar(type, null, { inline: true })}<span><strong class="character-name">${name(characterById(type.id))}</strong><small>${name(type)}</small></span></button></th><td>${localized(TYPE_FEATURES[type.id], language())}</td></tr>`,
           )
           .join("")}</tbody></table></section>`,
     )
@@ -1142,9 +1174,9 @@ function recordView() {
           "",
         )}${canAdd ? `<button type="button" class="tag" data-action="new-dream" aria-pressed="${!isSaved}">＋ ${t("newDream")}</button>` : `<button type="button" class="tag tag-cta" data-go="plans">＋ ${ct("moreDreamsCta")}</button>`}</div>`
     : "";
-  return `<div class="narrow"><p class="eyebrow">DREAM JOURNAL</p><h1>${t("recordTitle")}</h1><p class="help record-meta">${t("dreamJournalHint")} ${ct("dreamLimit")}: ${saved.length} / ${PLANS[plan].dreams}</p><form id="dream-form">
- <div class="card">${dateRow("date", "dream-date", d.date)}${chips}${isSaved ? `<p class="help saved-note">${t("savedEntry")} · ${esc(dateText(d.date))}</p>` : ""}${area("dreamText", "dream-text", d.text, t("dreamPlaceholder"))}<div class="record-tools">${button("voice", "voice", "small ghost")}<details ${d.photo ? "open" : ""}><summary>${t("photo")}</summary><p class="help">${t("photoHint")}</p><label class="field"><span>${t("photo")}</span><input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp"></label>${d.photo ? `<img class="photo" src="${esc(d.photo)}" alt="${t("photoAlt")}"><div class="row">${button("recognize", "recognize", "small")}${button("removePhoto", "remove-photo", "small ghost")}</div>` : ""}</details></div></div>
- <details class="card theme-picker" ${d.typeTags.length ? "open" : ""}><summary>${t("tags")}</summary><p class="help">${t("tagHint")}</p>${themes(d.typeTags)}</details>
+  return `<div class="narrow"><h1>${t("recordTitle")}</h1><p class="help record-meta">${t("dreamJournalHint")} ${ct("dreamLimit")}: ${saved.length} / ${PLANS[plan].dreams}</p><form id="dream-form">
+ <div class="card">${dateRow("date", "dream-date", d.date)}${chips}${isSaved ? `<p class="help saved-note">${t("savedEntry")} · ${esc(dateText(d.date))}</p>` : ""}${area("dreamText", "dream-text", d.text, t("dreamPlaceholder"))}<div class="record-tools">${button("voice", "voice", "small ghost")}<details ${d.photo ? "open" : ""}><summary>${t("photo")}</summary><label class="field"><span class="sr-only">${t("photo")}</span><input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp"></label>${d.photo ? `<img class="photo" src="${esc(d.photo)}" alt="${t("photoAlt")}"><div class="row">${button("recognize", "recognize", "small")}${button("removePhoto", "remove-photo", "small ghost")}</div>` : ""}</details></div></div>
+ <details class="card theme-picker" ${d.typeTags.length ? "open" : ""}><summary>${t("tags")}</summary>${themes(d.typeTags)}</details>
  <div class="card"><h2>${t("sleep")}</h2><label class="check"><input type="checkbox" id="include-sleep" ${d.sleep ? "checked" : ""}><span>${t("sleepOptional")}</span></label><div id="sleep-fields" ${d.sleep ? "" : "hidden"}><div class="grid">${input("hours", "hours", d.sleep?.hours ?? "", "number", 'min="0" max="24" step="0.25"')}${input("awakenings", "awakenings", d.sleep?.awakenings ?? "", "number", 'min="0" max="30" step="1"')}</div><label class="field"><span>${t("rested")}</span><select class="input" id="rested"><option value="">—</option>${[1, 2, 3, 4, 5].map((v) => `<option value="${v}" ${d.sleep?.rested === v ? "selected" : ""}>${v}</option>`).join("")}</select></label><label class="check"><input type="checkbox" id="nightmare" ${d.sleep?.nightmare ? "checked" : ""}><span>${t("nightmare")}</span></label></div><p class="help">${t("sleepNote")}</p></div>
  <div class="row">${button("diagnose", "diagnose", "primary full")}${isSaved ? button("delete", "delete-entry", "danger ghost small") : ""}</div>
  <details class="previous-diary"><summary>${t("previousDiary")}</summary><p class="help">${previous ? esc(previous.text.slice(0, 500)) : t("noDiary")}</p></details>
@@ -1211,7 +1243,7 @@ function analysisCard(d) {
 function diaryView() {
   draft ||= diaryDraft(localDate());
   const isSaved = Boolean(draft.id);
-  return `<div class="narrow"><p class="eyebrow">A PAGE OF THE DAY</p><h1>${t("diaryTitle")}</h1><p class="muted">${t("diaryHint")}</p><form id="diary-form" class="card">${dateRow("diaryDate", "diary-date", draft.date)}${isSaved ? `<p class="help saved-note">${t("savedEntry")} · ${esc(dateText(draft.date))}</p>` : ""}${area("diaryText", "diary-text", draft.text)}<div class="row"><button type="submit" class="btn primary">${t("save")}</button>${isSaved ? button("delete", "delete-entry", "danger ghost small") : ""}</div></form>${recentLink("diary")}</div>`;
+  return `<div class="narrow"><h1>${t("diaryTitle")}</h1><form id="diary-form" class="card">${dateRow("diaryDate", "diary-date", draft.date)}${isSaved ? `<p class="help saved-note">${t("savedEntry")} · ${esc(dateText(draft.date))}</p>` : ""}${area("diaryText", "diary-text", draft.text)}<div class="row"><button type="submit" class="btn primary">${t("save")}</button>${isSaved ? button("delete", "delete-entry", "danger ghost small") : ""}</div></form>${recentLink("diary")}</div>`;
 }
 function detailView() {
   const r = state.records.find((r) => r.id === selectedId);
@@ -1272,13 +1304,13 @@ function settingsView() {
     plan = displayPlan(),
     planName = localized(PLANS[plan].names, language());
   return `<div class="narrow settings-page"><h1>${t("settings")}</h1>
- <section class="card profile-card">${avatar(type, null, true)}<div><h2 class="character-name">${esc(state.profile?.nickname)}</h2><p class="help">${esc(state.profile?.ageGroup || "")} · ${esc(name(characterById(type.id)))} · ${esc(name(type))}</p><span class="tag-label">${esc(planName)}</span><div class="row">${button("edit", "profile", "small ghost")}${button("retake", "retake", "small ghost")}</div></div></section>
+ <section class="card profile-card">${avatar(type, null, { mini: true })}<div><h2 class="character-name">${esc(state.profile?.nickname)}</h2><p class="help">${esc(state.profile?.ageGroup || "")} · ${esc(name(characterById(type.id)))} · ${esc(name(type))}</p><span class="tag-label">${esc(planName)}</span><div class="row">${button("edit", "profile", "small ghost")}${button("retake", "retake", "small ghost")}</div></div></section>
  <section class="card"><h2>${ct("plans")}</h2><p>${t("currentPlanLabel")}: <strong>${esc(planName)}</strong> · <span class="help">${ct(plan + "Summary")}</span></p><button class="btn primary" data-go="plans">${t("viewPlans")}</button></section>
  <section class="card"><h2>${t("appearance")}</h2>${languageField()}<p class="help">${t("privacy")}</p></section>
  <form id="character-form" class="card"><fieldset class="character-set-field"><legend>${t("characterSet")}</legend><p class="help">${t("characterSetHint")}</p><div class="character-set-options">${CHARACTER_SETS.map(
    (set) => {
      const locked = set.paid && plan === "free";
-     return `<label class="character-set-option ${locked ? "locked" : ""}"><input type="radio" name="character-set" value="${set.id}" ${effectiveSet() === set.id ? "checked" : ""} ${locked ? "disabled" : ""}><span class="character-set-label">${localized(set.label, language())}</span>${avatar(type, null, false, set.id)}<span>${localized(set.names, language())}</span>${locked ? `<span class="lock-note">🔒 ${t("paidOnly")}</span>` : ""}</label>`;
+     return `<label class="character-set-option ${locked ? "locked" : ""}"><input type="radio" name="character-set" value="${set.id}" ${effectiveSet() === set.id ? "checked" : ""} ${locked ? "disabled" : ""}><span class="character-set-label">${localized(set.label, language())}</span>${avatar(type, null, { setId: set.id })}<span>${localized(set.names, language())}</span>${locked ? `<span class="lock-note">🔒 ${t("paidOnly")}</span>` : ""}</label>`;
    },
  ).join(
    "",
@@ -2022,6 +2054,13 @@ async function removeRecord(record) {
 async function saveQuizDraft() {
   await write(`${storageKey}.quiz`, { answers: quizAnswers, index: quizIndex });
 }
+async function moveQuiz(index) {
+  await write(`${storageKey}.quiz`, { answers: quizAnswers, index });
+  quizIndex = index;
+  haptics.transition("step");
+  render();
+  $("#quiz-scene")?.focus({ preventScroll: true });
+}
 async function finishQuiz() {
   if (quizAnswers.some((v) => v === null)) return;
   const firstQuiz = !state.profile?.typeAnswers;
@@ -2677,20 +2716,17 @@ const actions = {
     await saveQuizDraft();
     navigate("quiz", true);
   },
-  "quiz-back": () => {
-    if (quizIndex > 0) {
-      quizIndex--;
-      render();
-    } else navigate(state.profile?.typeAnswers ? "catalog" : "onboard", true);
+  "quiz-back": async () => {
+    if (quizIndex === 0) {
+      await navigate(state.profile?.typeAnswers ? "catalog" : "onboard", true);
+      return;
+    }
+    await moveQuiz(quizIndex - 1);
   },
   "quiz-next": async () => {
     if (quizAnswers[quizIndex] === null) return;
     if (quizIndex === QUESTIONS.length - 1) await finishQuiz();
-    else {
-      quizIndex++;
-      await saveQuizDraft();
-      render();
-    }
+    else await moveQuiz(quizIndex + 1);
   },
   diagnose,
   "retry-reading": async () => {
@@ -2775,10 +2811,15 @@ document.addEventListener("click", (event) => {
     return;
   }
   if (el.dataset.answer != null) {
-    quizAnswers[quizIndex] = Number(el.dataset.answer);
     run(async () => {
-      await saveQuizDraft();
-      render();
+      const answers = [...quizAnswers];
+      answers[quizIndex] = Number(el.dataset.answer);
+      await write(`${storageKey}.quiz`, { answers, index: quizIndex });
+      quizAnswers = answers;
+      document.querySelectorAll("[data-answer]").forEach((choice) => {
+        choice.setAttribute("aria-pressed", String(choice === el));
+      });
+      $("[data-action=quiz-next]").disabled = false;
     });
     return;
   }
@@ -2795,7 +2836,6 @@ document.addEventListener("click", (event) => {
           "begin",
           "back",
           "edit",
-          "quiz-back",
           "new-dream",
         ].includes(el.dataset.action)
       )
@@ -2810,9 +2850,24 @@ window.addEventListener("beforeunload", (event) => {
     event.returnValue = "";
   }
 });
-window.addEventListener("popstate", () => {
-  if (hasBack()) goBack();
-  else if (page !== "home") navigate("home");
+window.addEventListener("popstate", async ({ state: route }) => {
+  if (route?.session !== navigationSession) {
+    if (hasBack()) await goBack();
+    else if (page !== "home") await navigate("home", false, true);
+    return;
+  }
+  if (route.index === routeIndex) return;
+  if (processing || (dirty && !(await confirmDiscard(t)))) {
+    history.go(routeIndex - route.index);
+    return;
+  }
+  const record = page === "detail" ? state.records.find((r) => r.id === selectedId) : null;
+  routeIndex = route.index;
+  selectedId = route.recordId;
+  selectedType = route.typeId;
+  navStack = route.stack;
+  await navigate(route.page, true, true);
+  restoreJournal(record, route.page);
 });
 // Move the local scope to the signed-in account's scope (first time only) or
 // switch to the account's saved state.
@@ -2937,6 +2992,7 @@ async function boot() {
     await new Promise((resolve) =>
       setTimeout(resolve, Math.max(0, WELCOME_MS - performance.now())),
     );
+    setRoute();
     render();
     // Analytics starts once the first screen is on; events queue until then.
     analytics.init();
@@ -2986,7 +3042,9 @@ if (native) {
     refreshPlanOnReturn();
   });
   plugins.App?.addListener("backButton", () => {
-    if (hasBack()) goBack();
+    if (processing) return;
+    if (page === "quiz") run(actions["quiz-back"]);
+    else if (hasBack()) goBack();
     else if (page !== "home") navigate("home");
     else plugins.App.exitApp?.();
   });

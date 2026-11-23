@@ -85,7 +85,7 @@ export function createCommunity({
   const canBuy = () =>
     Boolean(isNative() && purchases?.available() && account.billingConfigured);
   const paywall = () =>
-    `<div class="card paywall"><span class="eyebrow">MEMBERS' DREAMS</span><h2>${t("communityIntro")}</h2><p>${t("paidRequired")}</p>${b("plans", "plans")}${!signedIn() ? `<p>${t("loginRequired")}</p>${b("accountSettings", "settings")}` : ""}</div>`;
+    `<div class="card paywall"><p>${t("paidRequired")}</p>${b("plans", "plans")}${!signedIn() ? `<p>${t("loginRequired")}</p>${b("accountSettings", "settings")}` : ""}</div>`;
   const status = () =>
     error
       ? `<p role="alert" class="status">${esc(error)}</p>`
@@ -129,7 +129,7 @@ export function createCommunity({
       ? postCard(p, true, true)
       : `<article class="card feed-card teaser-card" data-post-id="${esc(p.id)}">${author(p)}<div class="post-body"><strong class="post-name">${postName(p)}</strong><p class="post-title">${esc(p.title)}</p><p class="prose post-text teaser-text">${esc(p.excerpt)}<button type="button" class="link-button" data-social="plans">${t("readMore")}</button></p>${stampBar(p)}</div></article>`;
   const teaserView = () =>
-    `<div class="teaser"><span class="eyebrow">MEMBERS' DREAMS</span><h2>${t("communityIntro")}</h2><p class="help">${t("teaserHint")}</p><div class="feed-list">${(teaser?.posts || []).map(teaserCard).join("") || (!busy ? `<p class="empty">${t("emptyTeaser")}</p>` : "")}</div><button type="button" class="btn primary full" data-social="plans">${t("seeMore")}</button><p class="help">${t("paidRequired")}</p></div>`;
+    `<div class="teaser"><p class="help">${t("teaserHint")}</p><div class="feed-list">${(teaser?.posts || []).map(teaserCard).join("") || (!busy ? `<p class="empty">${t("emptyTeaser")}</p>` : "")}</div><button type="button" class="btn primary full" data-social="plans">${t("seeMore")}</button><p class="help">${t("paidRequired")}</p></div>`;
   const postText = (p, excerpt) => {
     const chars = Array.from(p.text || "");
     const short = excerpt && !expanded.has(p.id) && chars.length > FEED_CHARS;
@@ -265,7 +265,7 @@ export function createCommunity({
   }
   function planDetailsView() {
     const p = PLANS[selectedPlan] || PLANS.starter;
-    return `<div class="narrow plan-detail"><div class="row between page-heading"><h1>${localized(p.names, language())}</h1>${cyclePicker()}</div>${status()}${testStoreNote()}${planState()}<section class="card plan-card"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${p.id === planShown() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${planFields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl><p class="help">${t("freeFeatures")}</p><p class="help">${t("renewalNote")}</p>${cta(p) ? `${purchaseSummary(p)}${cta(p)}${ctaNote()}` : ""}</section><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.day?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}<p>${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : t("billingReturn")}</p></div><div class="row">${b("cancelPlan", "help-cancel")}</div>${legal()}<p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p><p class="help">${t("renewalNote")}</p>${cta(p) ? `<section class="card plan-detail-bottom"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${purchaseSummary(p)}${cta(p)}${ctaNote()}</section>` : ""}</div>`;
+    return `<div class="narrow plan-detail"><div class="row between page-heading"><h1>${localized(p.names, language())}</h1>${cyclePicker()}</div>${status()}${testStoreNote()}${planState()}<section class="card plan-card"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${p.id === planShown() ? `<span class="tag-label">${t("currentPlan")}</span>` : ""}<dl>${planFields.map(([label, key]) => `<div><dt>${t(label)}</dt><dd>${p[key]}</dd></div>`).join("")}</dl><p class="help">${t("freeFeatures")}</p><p class="help">${t("renewalNote")}</p>${cta(p) ? `${purchaseSummary(p)}${cta(p)}${ctaNote()}` : ""}</section><div class="card"><h2>${t("remaining")}</h2><p>${t("reflectionLimit")}: ${account.usage?.day?.reflections || 0} / ${PLANS[plan()].reflections} · ${t("ocrLimit")}: ${account.usage?.month?.handwriting || 0} / ${PLANS[plan()].handwriting}</p><p>${t("readLimit")}: ${account.usage?.day?.reads || 0} / ${PLANS[plan()].reads}</p>${account.paidUntil ? `<p>${t("paidUntil")}: ${esc(new Date(account.paidUntil).toLocaleString(language()))}</p>` : ""}${b("refresh", "refresh")}${signedIn() && canBuy() ? b("restorePurchases", "restore") : ""}${signedIn() && account.managementUrl ? b("managePlan", "manage") : ""}<p>${!signedIn() ? t("loginRequired") : !isNative() ? t("webBilling") : !canBuy() ? t("nativeBilling") : t("billingReturn")}</p></div><div class="row">${b("cancelPlan", "help-cancel")}</div>${legal()}<p class="help">${t("planRules")}</p><p class="help">${t("costNote")}</p><p class="help">${t("readNote")}</p>${cta(p) ? `<section class="card plan-detail-bottom"><p class="plan-price">${planPrice(p)}<small> / ${t(cycle)}</small></p><p>${t(p.id + "Summary")}</p>${purchaseSummary(p)}${cta(p)}${ctaNote()}</section>` : ""}</div>`;
   }
   function shareView() {
     const d = shareDraft;
@@ -356,7 +356,7 @@ export function createCommunity({
     if (page === "share") return shareView();
     if (page === "community-post") return detailView();
     // The timeline: no toolbar, just the dreams. A failed load offers a retry.
-    return `<h1>${t("community")}</h1><p class="help">${t("communityIntro")}</p>${status()}${error ? `<div class="row">${b("refresh", "refresh")}</div>` : ""}${plan() === "free" ? (signedIn() ? teaserView() : paywall()) : `<p class="help">${t("todayOnly")}</p><div class="feed-list timeline">${posts.map((p) => postCard(p, true, false, true)).join("") || (!busy ? `<p class="empty">${t("emptyFeed")}</p>` : "")}</div>${next ? b("nextPage", "next") : ""}`}${pickerView()}`;
+    return `<h1>${t("community")}</h1>${status()}${error ? `<div class="row">${b("refresh", "refresh")}</div>` : ""}${plan() === "free" ? (signedIn() ? teaserView() : paywall()) : `<p class="help">${t("todayOnly")}</p><div class="feed-list timeline">${posts.map((p) => postCard(p, true, false, true)).join("") || (!busy ? `<p class="empty">${t("emptyFeed")}</p>` : "")}</div>${next ? b("nextPage", "next") : ""}`}${pickerView()}`;
   }
   async function refreshAccount() {
     return setAccount(
