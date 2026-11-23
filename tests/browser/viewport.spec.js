@@ -132,3 +132,73 @@ test("save notices can be dismissed and expire on their own", async ({
   await expect(notice).toBeVisible();
   await expect(notice).toBeHidden({ timeout: 8000 });
 });
+// iOS: opening the keyboard shrinks the visible area and scrolls the page up
+// to the field. The page then shrinks to the visible area, so that scroll left
+// only empty space on screen. The page returns to the top instead, with the
+// nickname field and the button in view.
+test("typing the nickname at registration keeps the form on screen above the keyboard", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/firebase-config.js*", (route) =>
+    route.fulfill({
+      contentType: "text/javascript",
+      body: "window.FIREBASE_CONFIG = {};",
+    }),
+  );
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "yumetan.v4.options",
+      JSON.stringify({
+        language: "ja",
+        introduction: { phase: "login", step: 3 },
+      }),
+    );
+    // A stand-in for iOS's visual viewport, which a desktop browser cannot
+    // shrink with a keyboard.
+    const visual = new EventTarget();
+    Object.assign(visual, {
+      scale: 1,
+      height: innerHeight,
+      offsetTop: 0,
+      pageTop: 0,
+    });
+    Object.defineProperty(window, "visualViewport", { value: visual });
+    window.__scrolls = [];
+    window.scrollTo = (x, y) => {
+      window.__scrolls.push([x, y]);
+      visual.offsetTop = visual.pageTop = 0;
+    };
+    window.__keyboard = (open) => {
+      visual.height = open ? 460 : innerHeight;
+      // iOS's own scroll toward the field, measured on the full-height page.
+      visual.offsetTop = visual.pageTop = open ? 220 : 0;
+      visual.dispatchEvent(new Event("resize"));
+    };
+  });
+  await page.goto("/");
+  await expect(page.locator("#nickname")).toBeVisible();
+  await page.locator("#nickname").focus();
+  await page.evaluate(() => window.__keyboard(true));
+  await page.locator("#nickname").fill("ゆめ");
+  // Back at the top, the page as tall as the area above the keyboard.
+  expect(await page.evaluate(() => window.__scrolls.at(-1))).toEqual([0, 0]);
+  expect(await page.evaluate(() => visualViewport.offsetTop)).toBe(0);
+  await expect(page.locator("body")).toHaveClass(/keyboard/);
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.body.getBoundingClientRect().height),
+    )
+    .toBe(460);
+  for (const selector of ["#nickname", "#profile-form button[type=submit]"]) {
+    const box = await page.locator(selector).boundingBox();
+    expect(box.y, selector).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height, selector).toBeLessThanOrEqual(460);
+  }
+  await expect(page.locator("#header")).toBeInViewport();
+  // Closing the keyboard restores the full screen and the picture.
+  await page.evaluate(() => window.__keyboard(false));
+  await expect(page.locator("body")).not.toHaveClass(/keyboard/);
+  await expect(page.locator(".profile-hero")).toBeVisible();
+  await expect(page.locator("#nickname")).toHaveValue("ゆめ");
+});

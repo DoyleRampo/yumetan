@@ -253,16 +253,47 @@ export function createStagePager(stage, labels) {
   return createOverflowPager(stage, labels);
 }
 
-export function fitVisualViewport() {
+// While the on-screen keyboard is open the page shrinks to the part of the
+// screen above it (--visible-height), so the field being typed in and the
+// button under it stay in view.
+//
+// iOS first scrolls the whole page up to bring the focused field above the
+// keyboard, measured against the full-height layout. Once the page has shrunk
+// that scroll is no longer needed, but iOS keeps it: the visible area then
+// starts part-way down the shortened page and shows the empty space below it
+// (typing a nickname at registration sent the screen "down" to nothing).
+// Everything fits in the visible area by now, so the page is put back at the
+// top whenever the visible area is moved or resized while the keyboard is up,
+// and once more when it closes.
+export function fitVisualViewport(onChange = () => {}) {
   const visual = window.visualViewport;
   if (!visual) return;
+  let open = false;
+  function pinTop() {
+    if (window.scrollY || visual.offsetTop || visual.pageTop)
+      window.scrollTo(0, 0);
+  }
   function sync() {
-    const height =
-      visual.scale === 1 && visual.height < innerHeight
-        ? `${visual.height}px`
-        : "";
-    document.documentElement.style.setProperty("--visible-height", height);
+    const keyboard = visual.scale === 1 && visual.height < innerHeight - 1;
+    document.documentElement.style.setProperty(
+      "--visible-height",
+      keyboard ? `${visual.height}px` : "",
+    );
+    document.body.classList.toggle("keyboard", keyboard);
+    if (keyboard || open) {
+      pinTop();
+      // iOS can apply its own scroll after the resize event: check again
+      // once the frame has been laid out.
+      requestAnimationFrame(pinTop);
+    }
+    if (keyboard !== open) {
+      open = keyboard;
+      onChange(keyboard);
+    } else if (keyboard) onChange(keyboard);
   }
   visual.addEventListener("resize", sync);
+  visual.addEventListener("scroll", () => {
+    if (open && visual.scale === 1) pinTop();
+  });
   sync();
 }

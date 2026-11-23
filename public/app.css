@@ -1503,6 +1503,15 @@ body[data-screen="quiz"] #toast {
 .profile-page {
   justify-content: center;
 }
+/* While typing: the form takes the space above the keyboard, the picture
+   and the tab bar step aside. */
+body.keyboard .profile-hero,
+body.keyboard #nav {
+  display: none;
+}
+body.keyboard .profile-page {
+  justify-content: flex-start;
+}
 .profile-hero {
   flex: 1 1 auto;
   min-height: 0;

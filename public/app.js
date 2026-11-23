@@ -667,11 +667,13 @@ const panelLabels = {
   get back() { return t("previousPanel"); },
   get next() { return t("nextPanel"); },
 };
-fitVisualViewport();
 const stagePager = createStagePager($("#app"), panelLabels);
 let contentPagers;
 let fitFrame;
 let stageChanged = false;
+// The keyboard changes the visible height without a window resize on iOS:
+// lay the screen out again for the space that is left.
+fitVisualViewport(() => updateFit());
 function updateFit() {
   cancelAnimationFrame(fitFrame);
   fitFrame = requestAnimationFrame(() => {
