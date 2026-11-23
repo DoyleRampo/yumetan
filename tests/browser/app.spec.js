@@ -252,6 +252,53 @@ test("partial questionnaire survives refresh and back navigation", async ({
     "true",
   );
 });
+test("quiz and record navigation send haptic feedback", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.hapticPulses = [];
+    navigator.vibrate = (pattern) => window.hapticPulses.push(pattern);
+  });
+  await localOnly(page);
+  await page.goto("/");
+  await finishIntroduction(page);
+  await page.locator("#nickname").fill("Dreamer");
+  await page.locator("#profile-form button[type=submit]").click();
+
+  const pulses = () => page.evaluate(() => window.hapticPulses);
+  await page.locator(`[data-answer="${CHALLENGE_SHEET[0]}"]`).click();
+  expect((await pulses()).at(-1)).toBe(12);
+  await page.locator("[data-action=quiz-next]").click();
+  await expect(page.locator("progress")).toHaveAttribute("value", "2");
+  expect((await pulses()).at(-1)).toBe(18);
+  await page.locator("[data-action=quiz-back]").click();
+  await expect(page.locator(`[data-answer="${CHALLENGE_SHEET[0]}"]`)).toHaveAttribute("aria-pressed", "true");
+  expect((await pulses()).at(-1)).toBe(18);
+
+  await page.locator("[data-action=quiz-next]").click();
+  for (const value of CHALLENGE_SHEET.slice(1)) {
+    await page.locator(`[data-answer="${value}"]`).click();
+    await page.locator("[data-action=quiz-next]").click();
+  }
+  await expect(page.locator("[data-action=begin]")).toBeVisible();
+  expect((await pulses()).at(-1)).toEqual([25, 45, 35]);
+  await page.locator("[data-action=begin]").click();
+  await startFree(page);
+
+  await page.evaluate(() => { window.hapticPulses.length = 0; });
+  await page.locator(".companion-action .character-art").click();
+  await expect(page.locator("#dream-form")).toBeVisible();
+  expect(await pulses()).toEqual([18]);
+
+  await page.locator("#dream-text").fill("A dream I want to keep.");
+  await page.goBack();
+  await page.locator("[data-dialog-cancel]").click();
+  await expect(page.locator("#dream-text")).toHaveValue("A dream I want to keep.");
+  await expect(page).toHaveURL(/#record$/);
+
+  await page.goBack();
+  await page.locator("[data-dialog-discard]").click();
+  await expect(page.locator(".companion-action")).toBeVisible();
+  expect((await pulses()).filter((pulse) => pulse === 18)).toEqual([18, 18]);
+});
 test("AI failures retain the unsaved dream; free members get a local reflection and an upgrade hint", async ({
   page,
 }) => {

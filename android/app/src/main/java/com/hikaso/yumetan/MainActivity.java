@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(SystemAlarmPlugin.class);
         registerPlugin(AuthBrowserPlugin.class);
         registerPlugin(YumetanAlarmPlugin.class);
+        registerPlugin(YumetanHapticsPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

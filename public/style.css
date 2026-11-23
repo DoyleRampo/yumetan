@@ -284,26 +284,112 @@ input[type="checkbox"] {
 .center {
   text-align: center;
 }
+.quiz-flow {
+  max-width: 510px;
+}
+.quiz-header {
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.quiz-header h1 {
+  margin: 0;
+  font-family: inherit;
+  font-size: clamp(16px, 4vw, 20px);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.quiz-header > span {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.icon-action {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 30px;
+  line-height: 1;
+}
+.icon-action:hover {
+  background: var(--card);
+}
 .quiz-card {
-  padding: 36px;
-  margin-top: 25px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 12px 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: radial-gradient(
+    ellipse at 50% 30%,
+    color-mix(in srgb, var(--accent) 20%, var(--card)),
+    var(--card) 72%
+  );
+  text-align: center;
+}
+.quiz-art .avatar {
+  width: clamp(110px, 32vw, 158px);
+  margin: 0;
 }
 .quiz-card h2 {
-  min-height: 80px;
-  margin-bottom: 24px;
+  margin: 0;
+  font-size: clamp(17px, 4.5vw, 23px);
+  line-height: 1.5;
+  text-wrap: balance;
+}
+.quiz-prompt {
+  margin: 14px 0 8px;
+  color: var(--muted);
+  text-align: center;
 }
 .quiz-answers {
   display: grid;
-  gap: 13px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
 }
-.quiz-answers .btn {
-  justify-content: flex-start;
-  padding: 20px 24px;
-  font-weight: 400;
+.quiz-answers.quiz-scene {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.quiz-answers .selected {
-  background: var(--accent);
-  color: #211a32;
+.quiz-poles {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.quiz-poles span:last-child {
+  text-align: right;
+}
+.quiz-answer {
+  display: grid;
+  place-content: center;
+  min-height: 68px;
+  padding: 8px 4px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: transparent;
+  font-size: clamp(12px, 3.2vw, 15px);
+}
+.quiz-answer span {
+  color: var(--gold);
+}
+.quiz-answer:hover {
+  background: var(--card);
+}
+.quiz-answer[aria-pressed="true"] {
+  border-color: var(--gold);
+  box-shadow: inset 0 0 0 1px var(--gold);
+  background: color-mix(in srgb, var(--gold) 20%, var(--card));
+  font-weight: 700;
+}
+.quiz-next {
+  display: flex;
+  width: 100%;
+  margin-top: 12px;
 }
 .quiz-poles {
   display: grid;
@@ -722,13 +808,6 @@ summary {
   .catalog {
     grid-template-columns: repeat(2, 1fr);
   }
-  .quiz-card {
-    padding: 24px;
-  }
-  .quiz-card h2 {
-    font-size: 20px;
-    min-height: 100px;
-  }
   .row .btn {
     flex-grow: 1;
   }
@@ -1059,18 +1138,8 @@ summary {
 /* Primary home actions and character fit together without duplicate artwork. */
 .home-dashboard {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
-}
-.home-dashboard .hero {
-  display: block;
-  padding: 8px 0;
-}
-.home-dashboard .hero h1 {
-  font-size: clamp(19px, 2.4vw, 24px);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .home-dashboard .character-row {
   margin: 0;
@@ -1078,12 +1147,48 @@ summary {
   text-align: left;
   gap: 16px;
 }
-.home-dashboard .character-row .mini-avatar {
-  width: 112px;
-  flex: 0 0 112px;
-}
 .home-dashboard .character-row h2 {
   font-size: 25px;
+}
+.home-companion {
+  justify-content: center;
+  min-height: 200px;
+}
+.companion-action {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+}
+.companion-action .avatar {
+  width: clamp(84px, 28vw, 180px);
+}
+.companion-prompt {
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px 16px 16px 4px;
+  background: var(--bg);
+  font-size: clamp(12px, 3.2vw, 15px);
+  text-align: center;
+}
+.companion-prompt span {
+  color: var(--gold);
+}
+.companion-action:hover .companion-prompt {
+  border-color: var(--gold);
+}
+.companion-action:active .avatar {
+  transform: scale(0.97);
+}
+.companion-details .character-name {
+  margin: 0;
+  font-size: clamp(20px, 6vw, 34px);
+}
+.companion-details .btn {
+  min-height: 44px;
 }
 .home-dashboard .character-row p {
   margin-block: 8px;
@@ -1474,13 +1579,6 @@ summary {
 .onboard-account .account-card {
   margin-top: 8px;
 }
-[data-page="quiz"] .quiz-card {
-  margin: 14px 0;
-}
-[data-page="quiz"] .quiz-card h2 {
-  min-height: 0;
-  margin-bottom: 20px;
-}
 [data-page="quiz"] .progress {
   margin-block: 10px;
 }
@@ -1539,27 +1637,9 @@ summary {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
-  .home-dashboard .hero {
-    padding: 0;
-  }
-  .home-dashboard .hero h1 {
-    font-size: 19px;
-    line-height: 1.5;
-    margin-bottom: 8px;
-  }
-  .home-dashboard .hero p {
-    margin-bottom: 10px;
-  }
-  .home-dashboard .hero .eyebrow {
-    font-size: 10px;
-  }
   .home-dashboard .character-row {
     padding: 12px;
     gap: 12px;
-  }
-  .home-dashboard .character-row .mini-avatar {
-    width: 88px;
-    flex-basis: 88px;
   }
   .home-dashboard .character-row h2 {
     font-size: 22px;
@@ -1658,10 +1738,6 @@ summary {
   }
   .plan-cycle .btn {
     padding-inline: 10px;
-  }
-  .home-dashboard .character-row .mini-avatar {
-    width: 68px;
-    flex-basis: 68px;
   }
 }
 .record-tools {
@@ -2124,7 +2200,7 @@ nav button:focus-visible {
   background: #ffffff0a;
 }
 
-/* Home: the character portrait and name open the character page. */
+/* The character name opens its profile. */
 .character-link {
   display: block;
   padding: 0;
@@ -2134,11 +2210,8 @@ nav button:focus-visible {
   border-radius: 24px;
   color: inherit;
 }
-.character-link h2 {
-  margin: 6px 0;
-}
-.character-link:hover .character-art {
-  filter: brightness(1.08);
+.character-link:hover .character-name {
+  color: var(--gold);
 }
 
 /* Dream level: a game-style gauge fed by how many dreams are logged. */

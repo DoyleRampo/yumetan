@@ -1,14 +1,15 @@
-const CACHE = "yumetan-4.8.10";
+const CACHE = "yumetan-4.8.11";
 const SHELL = [
   "./",
   "index.html",
-  "style.css?v=4.8.2",
-  "app.js?v=4.8.7",
+  "style.css?v=4.8.3",
+  "app.js?v=4.8.8",
   "config.js?v=4.8.1",
   "core/analytics.js",
   "firebase-config.js?v=4.8.0",
   "cloud.js?v=4.8.3",
   "core/types.js",
+  "core/haptics.js",
   "core/type-features.js",
   "core/ui-text.js",
   "core/interface.js",

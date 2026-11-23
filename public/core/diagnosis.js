@@ -110,10 +110,10 @@ export const TYPE_POLES = {
 
 export const FREQUENCY_OPTIONS = [
   ["まったくない", "전혀 없어요", "从来没有", "Never"],
-  ["年に数回", "1년에 몇 번", "一年几次", "A few times a year"],
-  ["月に1〜2回", "한 달에 1~2번", "每月一两次", "Once or twice a month"],
-  ["週に1回くらい", "일주일에 1번 정도", "每周一次左右", "About once a week"],
-  ["週に何度も", "일주일에 여러 번", "每周好几次", "Several times a week"],
+  ["年に数回", "1년에 몇 번", "一年几次", "A few per year"],
+  ["月に1〜2回", "한 달에 1~2번", "每月一两次", "1–2×/month"],
+  ["週に1回", "주 1번", "每周一次", "Weekly"],
+  ["週に数回", "주 몇 번", "每周几次", "Several per week"],
 ];
 // Bipolar answers run -2 … 2; the label describes how strongly the pole applies.
 export const SCALE_STRENGTH = [
@@ -184,86 +184,86 @@ const style = (id, axis, text, left, right) => ({
 export const QUESTIONS = [
   // ---- Part 1: group scales (0–4 each) ----
   frequency("n1", "nightmare", [
-    "誰かや何かに追われたり、襲われたりして逃げる夢",
-    "누군가 혹은 무언가에게 쫓기거나 습격당해 도망치는 꿈",
-    "被人或某种东西追赶、袭击而逃跑的梦",
-    "Dreams of being chased or attacked and running away",
+    "追いかけられて逃げる",
+    "쫓겨서 달아나요",
+    "被追赶，一直逃跑",
+    "Running from someone",
   ]),
   frequency("n2", "nightmare", [
-    "動けない・逃げられない・大切なものを失うなど、どうにもできない夢",
-    "움직일 수 없거나 도망칠 수 없거나, 소중한 것을 잃는 등 어찌할 수 없는 꿈",
-    "动不了、逃不掉、失去重要的东西等无能为力的梦",
-    "Dreams where you cannot move, escape, or hold on to what matters",
+    "動けない、逃げられない、大切なものを失う",
+    "움직이거나 달아날 수 없거나 소중한 걸 잃어요",
+    "动不了、逃不掉，或失去重要的东西",
+    "Unable to move or escape, or losing something dear",
   ]),
   frequency("n3", "nightmare", [
-    "目が覚めたあとも、怖さや不安がしばらく残る夢",
-    "깨어난 뒤에도 무서움이나 불안이 한동안 남는 꿈",
-    "醒来之后恐惧或不安仍会持续一阵的梦",
-    "Dreams that leave fear or unease after you wake up",
+    "起きても怖さが残る",
+    "깨고 나서도 무서워요",
+    "醒来以后还觉得害怕",
+    "Still scared after waking",
   ]),
   frequency("p1", "premonition", [
-    "夢で見た場面や出来事が、あとで現実と重なったと感じること",
-    "꿈에서 본 장면이나 사건이 나중에 현실과 겹쳤다고 느끼는 일",
-    "觉得梦里的场景或事情后来与现实重合",
-    "Feeling that a scene or event from a dream later overlapped with real life",
+    "あとで夢と同じことが起きた気がする",
+    "나중에 꿈과 같은 일이 일어난 것 같아요",
+    "后来好像遇到了梦里的事",
+    "Later, something seems to happen just as in the dream",
   ]),
   frequency("p2", "premonition", [
-    "夢のあとで「何かを知らせている気がする」と感じること",
-    "꿈을 꾼 뒤 '무언가를 알려주는 것 같다'고 느끼는 일",
-    "做梦之后觉得“它在告诉我什么”",
-    "Waking with the feeling that a dream was telling you something",
+    "起きて「何かの知らせかも」と思う",
+    "깨고 나서 무슨 신호 같다고 느껴요",
+    "醒来后觉得梦在给自己提示",
+    "Waking up feeling the dream was a sign",
   ]),
   frequency("p3", "premonition", [
-    "夢に出てきた動物・水・光・場所などが、意味を持っている気がすること",
-    "꿈에 나온 동물·물·빛·장소 등이 의미를 지닌 것처럼 느끼는 일",
-    "觉得梦里出现的动物、水、光、地点等有着某种含义",
-    "Sensing that animals, water, light, or places in a dream carry a meaning",
+    "夢に出た物が妙に気になる",
+    "꿈에 나온 물건이 유독 마음에 걸려요",
+    "梦里的一样东西总让你在意",
+    "An object from the dream sticks in your mind",
   ]),
   frequency("l1", "lucid", [
-    "夢の途中で「これは夢だ」と気づくこと",
-    "꿈을 꾸는 도중 '이건 꿈이다'라고 알아차리는 일",
-    "在梦中意识到“这是梦”",
-    "Realizing “this is a dream” while still dreaming",
+    "夢の途中で「夢だ」と気づく",
+    "꿈을 꾸다가 꿈인 걸 알아요",
+    "做梦时意识到自己在做梦",
+    "Realizing you're dreaming",
   ]),
   frequency("l2", "lucid", [
-    "夢だと気づいてから、飛ぶ・場面を変えるなど夢に働きかけること",
-    "꿈인 걸 알아차린 뒤 날거나 장면을 바꾸는 등 꿈에 개입하는 일",
-    "意识到在做梦后，飞行、切换场景等去影响梦境",
-    "Acting on a dream once you know it is one, such as flying or changing the scene",
+    "夢だと気づいて、飛んだり場面を変えたりする",
+    "꿈인 걸 알고 날거나 장면을 바꿔요",
+    "发现自己在做梦后飞起来或改变场景",
+    "Knowing it's a dream and flying or changing the scene",
   ]),
   frequency("l3", "lucid", [
-    "映画を観るように、少し離れたところから夢を眺めていること",
-    "영화를 보듯 조금 떨어진 곳에서 꿈을 바라보는 일",
-    "像看电影一样，从稍远的地方观看自己的梦",
-    "Watching a dream from a little distance, like a film",
+    "映画みたいに、離れて見る",
+    "영화처럼 멀리서 봐요",
+    "像看电影一样，从旁边看",
+    "Watching from a distance, like a movie",
   ]),
   frequency("r1", "recurring", [
-    "同じ場所や同じ人が、何度も夢に出てくること",
-    "같은 장소나 같은 사람이 꿈에 몇 번이고 나오는 일",
-    "同一个地方或同一个人反复出现在梦里",
-    "The same place or the same person returning in your dreams",
+    "同じ場所や人がまた出てくる",
+    "같은 장소나 사람이 또 나와요",
+    "又梦到了同一个地方或同一个人",
+    "The same place or person returns",
   ]),
   frequency("r2", "recurring", [
-    "内容は違っても、同じ展開や同じ結末になる夢",
-    "내용은 달라도 같은 전개나 같은 결말로 이어지는 꿈",
-    "内容不同，却总是同样的发展或结局的梦",
-    "Dreams that follow the same course or ending even when the details differ",
+    "別の夜にも同じ話が進む",
+    "다른 날에도 같은 이야기가 이어져요",
+    "不同的夜晚，梦里却是同样的故事",
+    "The same story plays out on different nights",
   ]),
   frequency("r3", "recurring", [
-    "目覚めたときの気持ちが、いつも似ていること",
-    "깨어났을 때의 기분이 늘 비슷한 일",
-    "醒来时的心情总是很相似",
-    "Waking up with much the same feeling, dream after dream",
+    "起きるといつも似た気持ち",
+    "깨면 늘 비슷한 기분이에요",
+    "醒来时总是有相似的感受",
+    "Waking up with a familiar feeling",
   ]),
   // ---- Part 2: scene picks (index of the chosen option) ----
   scene(
     "sn",
     "nightmare",
     [
-      "怖い夢の中で、いちばんよく起きるのは？",
-      "무서운 꿈에서 가장 자주 일어나는 일은?",
-      "在可怕的梦里，最常发生的是？",
-      "In a frightening dream, what happens most often?",
+      "怖い夢で、どれが近い？",
+      "무서운 꿈에서 뭐가 가장 가까워요?",
+      "可怕的梦里，哪一幕最接近？",
+      "In a scary dream, what feels closest?",
     ],
     [
       {
@@ -308,10 +308,10 @@ export const QUESTIONS = [
     "sp",
     "premonition",
     [
-      "夢が「何かを知らせている」と感じるとき、それはどんなかたち？",
-      "꿈이 '무언가를 알려준다'고 느낄 때, 어떤 모습인가요?",
-      "当你觉得梦“在告诉你什么”时，它是怎样的？",
-      "When a dream seems to be telling you something, what form does it take?",
+      "夢が何かを知らせるとしたら？",
+      "꿈이 무언가를 알려준다면?",
+      "如果梦像是在提醒你什么？",
+      "If a dream feels like a sign, what is it like?",
     ],
     [
       {
@@ -356,10 +356,10 @@ export const QUESTIONS = [
     "sl",
     "lucid",
     [
-      "夢の中で「これは夢かも」と感じたとき、あなたは？",
-      "꿈속에서 '이건 꿈일지도'라고 느꼈을 때, 당신은?",
-      "在梦里觉得“这可能是梦”时，你会？",
-      "When you sense “this might be a dream,” what do you do?",
+      "「夢だ」と気づいたら？",
+      "꿈인 걸 알아차리면?",
+      "发现自己在做梦时？",
+      "When you realize it's a dream?",
     ],
     [
       {
@@ -404,10 +404,10 @@ export const QUESTIONS = [
     "sr",
     "recurring",
     [
-      "あなたの夢で、いちばん「繰り返す」ものは？",
-      "당신의 꿈에서 가장 '반복되는' 것은?",
-      "你的梦里，最常“重复”的是什么？",
-      "What repeats most in your dreams?",
+      "夢で何が繰り返される？",
+      "꿈에서 뭐가 반복돼요?",
+      "梦里什么会反复出现？",
+      "What repeats in your dreams?",
     ],
     [
       {
@@ -453,10 +453,10 @@ export const QUESTIONS = [
     "m1",
     "motion",
     [
-      "夢の中で怖いことや困ったことが起きたとき",
-      "꿈에서 무섭거나 곤란한 일이 생겼을 때",
-      "梦里发生可怕或棘手的事时",
-      "When something frightening or difficult happens in a dream",
+      "夢でピンチになったら？",
+      "꿈에서 곤란한 일이 생기면?",
+      "梦里遇到麻烦时？",
+      "When things go wrong in a dream?",
     ],
     [
       "走る・戦う・探すなど、とにかく動く",
@@ -474,7 +474,12 @@ export const QUESTIONS = [
   style(
     "m2",
     "motion",
-    ["夢の中の自分は", "꿈속의 나는", "梦里的自己是", "In the dream, I am"],
+    [
+      "夢の中の自分は？",
+      "꿈속의 나는?",
+      "梦里的自己是？",
+      "What are you like in dreams?",
+    ],
     [
       "自分から働きかける主人公",
       "스스로 움직이는 주인공",
@@ -492,10 +497,10 @@ export const QUESTIONS = [
     "f1",
     "focus",
     [
-      "夢で印象に残るのは",
-      "꿈에서 인상에 남는 것은",
-      "梦里印象最深的是",
-      "What stays with me from a dream is",
+      "夢で強く印象に残るのは？",
+      "꿈에서 가장 인상에 남는 건?",
+      "梦里最难忘的是什么？",
+      "What stands out in a dream?",
     ],
     [
       "相手・場所・出来事など、まわりで起きること",
@@ -514,10 +519,10 @@ export const QUESTIONS = [
     "f2",
     "focus",
     [
-      "目覚めて最初に思い出すのは",
-      "깨어나서 가장 먼저 떠오르는 것은",
-      "醒来最先想起的是",
-      "The first thing I recall on waking is",
+      "起きて最初に思い出すのは？",
+      "깨고 나서 가장 먼저 떠오르는 건?",
+      "醒来后先想起什么？",
+      "What do you remember first on waking?",
     ],
     ["何が起きたか", "무슨 일이 있었는지", "发生了什么", "what happened"],
     [
@@ -531,10 +536,10 @@ export const QUESTIONS = [
     "k1",
     "texture",
     [
-      "夢の残り方は",
-      "꿈이 남는 방식은",
-      "梦留下的方式是",
-      "A dream stays with me as",
+      "夢を思い出すと？",
+      "꿈을 떠올리면?",
+      "回想起梦时？",
+      "When you remember a dream?",
     ],
     [
       "場面や出来事をはっきり覚えている",
@@ -553,10 +558,10 @@ export const QUESTIONS = [
     "k2",
     "texture",
     [
-      "夢の意味を考えるとき",
-      "꿈의 의미를 생각할 때",
-      "思考梦的含义时",
-      "When I think about what a dream means",
+      "夢の意味を考えるときは？",
+      "꿈의 의미를 생각할 때는?",
+      "想到梦的含义时？",
+      "When you think about what the dream meant?",
     ],
     [
       "具体的な出来事と結びつける",
@@ -575,10 +580,10 @@ export const QUESTIONS = [
     "t1",
     "direction",
     [
-      "夢が「知らせている」と感じるとき、それは",
-      "꿈이 '알려준다'고 느낄 때, 그것은",
-      "当觉得梦“在提示”时，它关于",
-      "When a dream seems to be telling me something, it is about",
+      "夢が知らせてくれるとしたら？",
+      "꿈이 무언가를 알려준다면?",
+      "如果梦在提醒你什么？",
+      "If a dream is telling you something?",
     ],
     [
       "これから起こること",
@@ -597,10 +602,10 @@ export const QUESTIONS = [
     "t2",
     "direction",
     [
-      "夢に出てくる場所や人は",
-      "꿈에 나오는 장소나 사람은",
-      "梦里出现的地点和人",
-      "The places and people in my dreams are",
+      "夢が気になるのはどんなとき？",
+      "어떤 꿈이 신경 쓰여요?",
+      "什么时候一个梦会让你在意？",
+      "What makes you wonder about a dream?",
     ],
     [
       "はじめて見るものが多い",

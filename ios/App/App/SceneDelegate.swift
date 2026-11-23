@@ -227,9 +227,34 @@ public class AppleLoginPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationContr
         return String(bytes.map { charset[Int($0) % charset.count] })
     }
 }
+@objc(YumetanHapticsPlugin)
+public class YumetanHapticsPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "YumetanHapticsPlugin"
+    public let jsName = "YumetanHaptics"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "pulse", returnType: CAPPluginReturnPromise)
+    ]
+
+    @objc func pulse(_ call: CAPPluginCall) {
+        let kind = call.getString("kind") ?? "tap"
+        DispatchQueue.main.async {
+            switch kind {
+            case "result":
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            case "step":
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            default:
+                UISelectionFeedbackGenerator().selectionChanged()
+            }
+            call.resolve()
+        }
+    }
+}
+
 class YumetanBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(AuthBrowserPlugin())
+        bridge?.registerPluginInstance(YumetanHapticsPlugin())
         bridge?.registerPluginInstance(LineLoginPlugin())
         bridge?.registerPluginInstance(AppleLoginPlugin())
         bridge?.registerPluginInstance(GoogleLoginPlugin())
