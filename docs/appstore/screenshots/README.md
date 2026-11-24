@@ -1,5 +1,34 @@
 # App Store 用スクリーンショット
 
+## 構成（v1.1〜）
+
+- `<機種>/01-home.png`〜`05-plans.png`: **App Store に載せる画像**。アプリ画面を端末の枠に入れ、見出し・説明・キャラクターを夜空の背景に配置したもの。`scripts/appstore-marketing.mjs` が `raw/` から作る。大きさは元の画面と同じ（下表）。
+- `raw/<機種>/`: 元のアプリ画面。`scripts/appstore-screenshots.mjs` が撮影。
+- `subscriptions/`: サブスクリプション審査用。購入画面そのものを見せるため、枠や文言は付けない。
+
+| フォルダ | App Store Connect の欄 | 大きさ |
+| --- | --- | --- |
+| `iphone-6.9` | Dynamic Island搭載iPhone（大型ディスプレイ） | 1320×2868 |
+| `iphone-6.7` | 同上の予備（1320×2868 が通らないとき） | 1290×2796 |
+| `iphone-6.3` | Dynamic Island搭載iPhone（中型ディスプレイ） | 1206×2622 |
+| `iphone-6.5` | Face ID搭載iPhone（大型ディスプレイ） | 1242×2688 |
+| `ipad-13` | iPad 13インチディスプレイ | 2064×2752 |
+
+作り直すとき（`PORT=3187 npm start` を起動した状態で）:
+
+```
+node scripts/appstore-screenshots.mjs docs/appstore/screenshots/raw
+node scripts/appstore-screenshots.mjs docs/appstore/screenshots/raw --only=iphone-6.3
+node scripts/appstore-screenshots.mjs docs/appstore/screenshots/raw --only=iphone-6.7
+node scripts/appstore-marketing.mjs
+```
+
+1 行目は `raw/subscriptions` も作るので、審査用を更新するときは `subscriptions/` に移す。見出しと説明文は `scripts/appstore-marketing.mjs` の `SLIDES` にある。
+
+---
+
+以下は v1.0 時点の記録。
+
 `scripts/appstore-screenshots.mjs` で、現行ビルドのアプリ本体を iPhone / iPad の実ピクセルで描画して撮影したもの。合成・枠付け・ステータスバーの描き込みは無し。ステータスバー領域（セーフエリア上部）はアプリ自身の背景のまま（実機では OS が時計を重ねる）。他プラットフォームへの言及（Google Play / Android）は含まれない。
 
 撮影日: 2026-10-03 / ビルド: develop（Google Play 言及削除後）
