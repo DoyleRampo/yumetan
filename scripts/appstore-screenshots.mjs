@@ -29,6 +29,8 @@ const DEVICES = {
   "iphone-6.9": { label: "iPhone 16 Pro Max", width: 440, height: 956, scale: 3, insets: { top: 62, bottom: 34 }, expect: "1320x2868" },
   // Also accepted in the large Dynamic Island slot (6.7"/6.9"); shot only on request (--only=iphone-6.7).
   "iphone-6.7": { label: "iPhone 16 Plus", width: 430, height: 932, scale: 3, insets: { top: 59, bottom: 34 }, expect: "1290x2796", optional: true },
+  // The medium Dynamic Island slot (6.3"), required when the large one is not used for it.
+  "iphone-6.3": { label: "iPhone 16 Pro", width: 402, height: 874, scale: 3, insets: { top: 62, bottom: 34 }, expect: "1206x2622", optional: true },
   "iphone-6.5": { label: "iPhone 11 Pro Max", width: 414, height: 896, scale: 3, insets: { top: 44, bottom: 34 }, expect: "1242x2688" },
   "ipad-13": { label: "iPad Pro 13-inch (M4)", width: 1032, height: 1376, scale: 2, insets: { top: 24, bottom: 20 }, expect: "2064x2752" },
 };
