@@ -13,6 +13,8 @@
 | `iphone-6.3` | Dynamic Island搭載iPhone（中型ディスプレイ） | 1206×2622 |
 | `iphone-6.5` | Face ID搭載iPhone（大型ディスプレイ） | 1242×2688 |
 | `ipad-13` | iPad 13インチディスプレイ | 2064×2752 |
+| `iphone-duo-outer` | iPhone Duo（外側ディスプレイ）※任意 | 1398×2034 |
+| `iphone-duo-inner` | iPhone Duo（内側ディスプレイ）※任意 | 2007×2853 |
 
 作り直すとき（`PORT=3187 npm start` を起動した状態で）:
 
@@ -20,6 +22,8 @@
 node scripts/appstore-screenshots.mjs docs/appstore/screenshots/raw
 node scripts/appstore-screenshots.mjs docs/appstore/screenshots/raw --only=iphone-6.3
 node scripts/appstore-screenshots.mjs docs/appstore/screenshots/raw --only=iphone-6.7
+node scripts/appstore-screenshots.mjs docs/appstore/screenshots/raw --only=iphone-duo-outer
+node scripts/appstore-screenshots.mjs docs/appstore/screenshots/raw --only=iphone-duo-inner
 node scripts/appstore-marketing.mjs
 ```
 

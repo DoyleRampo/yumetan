@@ -85,10 +85,15 @@ function pngSize(p) {
   return { width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
 }
 
+// The device scale that divides the image evenly (2x, else 3x), so the shot
+// comes out at exactly the image's pixel size (iPhone Duo's 2007 is odd).
+const scaleFor = ({ width, height }) =>
+  [2, 3, 1].find((s) => width % s === 0 && height % s === 0);
 function page(slide, shot, { width, height, tablet }) {
-  // Laid out in CSS pixels at half size and shot at 2x: exact output pixels.
-  const W = width / 2,
-    H = height / 2,
+  // Laid out in CSS pixels at 1/scale and shot at that scale: exact output pixels.
+  const scale = scaleFor({ width, height });
+  const W = width / scale,
+    H = height / scale,
     u = W / 100; // one percent of the width
   const deviceW = tablet ? W * 0.74 : W * 0.78;
   const deviceH = deviceW * (height / width);
@@ -190,8 +195,11 @@ async function main() {
         const size = pngSize(shot);
         const tablet = size.width / size.height > 0.6;
         const context = await browser.newContext({
-          viewport: { width: size.width / 2, height: size.height / 2 },
-          deviceScaleFactor: 2,
+          viewport: {
+            width: size.width / scaleFor(size),
+            height: size.height / scaleFor(size),
+          },
+          deviceScaleFactor: scaleFor(size),
         });
         const tab = await context.newPage();
         const html = path.join(work, `${device}-${name}.html`);

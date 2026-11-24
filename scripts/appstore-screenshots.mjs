@@ -31,6 +31,9 @@ const DEVICES = {
   "iphone-6.7": { label: "iPhone 16 Plus", width: 430, height: 932, scale: 3, insets: { top: 59, bottom: 34 }, expect: "1290x2796", optional: true },
   // The medium Dynamic Island slot (6.3"), required when the large one is not used for it.
   "iphone-6.3": { label: "iPhone 16 Pro", width: 402, height: 874, scale: 3, insets: { top: 62, bottom: 34 }, expect: "1206x2622", optional: true },
+  // iPhone Duo (optional slots): the outer display and the unfolded inner one.
+  "iphone-duo-outer": { label: "iPhone Duo (outer)", width: 466, height: 678, scale: 3, insets: { top: 50, bottom: 24 }, expect: "1398x2034", optional: true },
+  "iphone-duo-inner": { label: "iPhone Duo (inner)", width: 669, height: 951, scale: 3, insets: { top: 40, bottom: 20 }, expect: "2007x2853", optional: true },
   "iphone-6.5": { label: "iPhone 11 Pro Max", width: 414, height: 896, scale: 3, insets: { top: 44, bottom: 34 }, expect: "1242x2688" },
   "ipad-13": { label: "iPad Pro 13-inch (M4)", width: 1032, height: 1376, scale: 2, insets: { top: 24, bottom: 20 }, expect: "2064x2752" },
 };
